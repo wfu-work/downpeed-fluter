@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Downpeed mark for dark surfaces</title>
+  <desc id="desc">A warm-white D-shaped transfer portal surrounding a downward arrow.</desc>
+  <g fill="none" stroke="#EDEDE8" stroke-width="68" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M304 266H458C650 266 756 356 756 512S650 758 458 758H304V266Z"/>
+    <path d="M530 370V630M430 548L530 648L630 548"/>
+  </g>
+</svg>

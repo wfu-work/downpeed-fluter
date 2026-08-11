@@ -67,6 +67,11 @@ class CreateDownloadController extends GetxController {
   StreamSubscription<DownloadTaskEvent>? _eventSubscription;
 
   bool get isResolving => phase.value == CreateDownloadPhase.resolving;
+  bool get isBusy =>
+      phase.value == CreateDownloadPhase.resolving ||
+      phase.value == CreateDownloadPhase.creating ||
+      isPickingDirectory.value ||
+      isCanceling.value;
   bool get isBatchMode =>
       sourceUrls.length > 1 ||
       resolveFailures.isNotEmpty ||

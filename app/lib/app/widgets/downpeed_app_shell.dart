@@ -44,8 +44,7 @@ class _DownpeedAppShellState extends State<DownpeedAppShell> {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final showSidebar = constraints.maxWidth >= 640;
-        final canExpand = constraints.maxWidth >= 760;
+        final showSidebar = constraints.maxWidth >= 720;
         final maxSidebarWidth = (constraints.maxWidth - 480)
             .clamp(
               DownpeedThemeTokens.sidebarMinWidth,
@@ -53,7 +52,7 @@ class _DownpeedAppShellState extends State<DownpeedAppShell> {
             )
             .toDouble();
         return Obx(() {
-          final expanded = canExpand && _preferences.sidebarExpanded.value;
+          final expanded = _preferences.sidebarExpanded.value;
           final expandedWidth = _preferences.sidebarWidth.value
               .clamp(DownpeedThemeTokens.sidebarMinWidth, maxSidebarWidth)
               .toDouble();
@@ -443,7 +442,7 @@ class _NavigationTile extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                      fontWeight: selected ? FontWeight.w500 : FontWeight.w400,
                     ),
                   ),
                 ),

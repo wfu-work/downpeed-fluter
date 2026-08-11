@@ -11,7 +11,14 @@ class L10nKeys {
   static const sidebarExpand = 'sidebar.expand';
   static const settingsTitle = 'settings.title';
   static const settingsSubtitle = 'settings.subtitle';
+  static const settingsBackToTasks = 'settings.backToTasks';
+  static const settingsBackToMenu = 'settings.backToMenu';
+  static const settingsNavigationPreferences =
+      'settings.navigation.preferences';
+  static const settingsNavigationSystem = 'settings.navigation.system';
   static const settingsAppearance = 'settings.appearance';
+  static const settingsAppearanceDescription =
+      'settings.appearance.description';
   static const settingsTheme = 'settings.theme';
   static const settingsThemeDescription = 'settings.theme.description';
   static const settingsThemeSystem = 'settings.theme.system';
@@ -22,6 +29,7 @@ class L10nKeys {
   static const settingsLanguageChinese = 'settings.language.chinese';
   static const settingsLanguageEnglish = 'settings.language.english';
   static const settingsWorkspace = 'settings.workspace';
+  static const settingsWorkspaceDescription = 'settings.workspace.description';
   static const settingsSidebarExpanded = 'settings.sidebar.expanded';
   static const settingsSidebarExpandedDescription =
       'settings.sidebar.expanded.description';
@@ -31,6 +39,8 @@ class L10nKeys {
   static const settingsReset = 'settings.reset';
   static const settingsEngine = 'settings.engine';
   static const settingsEngineDescription = 'settings.engine.description';
+  static const settingsEngineSectionDescription =
+      'settings.engine.sectionDescription';
   static const tasksTitle = 'tasks.title';
   static const tasksSubtitle = 'tasks.subtitle';
   static const tasksAdd = 'tasks.add';

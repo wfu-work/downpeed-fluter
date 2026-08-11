@@ -60,7 +60,6 @@ class EngineStatusBadge extends StatelessWidget {
                     label,
                     style: Theme.of(context).textTheme.labelMedium?.copyWith(
                       color: colors.textSecondary,
-                      fontWeight: FontWeight.w500,
                     ),
                   ),
                 ],

@@ -20,7 +20,12 @@ class LocalizationService extends Translations {
       L10nKeys.sidebarExpand: '展开侧栏',
       L10nKeys.settingsTitle: '设置',
       L10nKeys.settingsSubtitle: '调整外观、语言和本机工作区布局。',
+      L10nKeys.settingsBackToTasks: '返回下载任务',
+      L10nKeys.settingsBackToMenu: '返回设置菜单',
+      L10nKeys.settingsNavigationPreferences: '偏好设置',
+      L10nKeys.settingsNavigationSystem: '系统',
       L10nKeys.settingsAppearance: '外观',
+      L10nKeys.settingsAppearanceDescription: '调整界面主题与显示语言。',
       L10nKeys.settingsTheme: '主题',
       L10nKeys.settingsThemeDescription: '选择界面的明暗模式。',
       L10nKeys.settingsThemeSystem: '跟随系统',
@@ -31,6 +36,7 @@ class LocalizationService extends Translations {
       L10nKeys.settingsLanguageChinese: '简体中文',
       L10nKeys.settingsLanguageEnglish: 'English',
       L10nKeys.settingsWorkspace: '工作区',
+      L10nKeys.settingsWorkspaceDescription: '设置侧栏的默认状态和显示宽度。',
       L10nKeys.settingsSidebarExpanded: '默认展开侧栏',
       L10nKeys.settingsSidebarExpandedDescription: '空间足够时显示完整菜单和任务数量。',
       L10nKeys.settingsSidebarWidth: '侧栏宽度',
@@ -38,6 +44,7 @@ class LocalizationService extends Translations {
       L10nKeys.settingsReset: '恢复默认',
       L10nKeys.settingsEngine: '本机引擎',
       L10nKeys.settingsEngineDescription: '查看本地下载服务的连接状态。',
+      L10nKeys.settingsEngineSectionDescription: '检查本机下载服务版本和连接状态。',
       L10nKeys.tasksTitle: '下载任务',
       L10nKeys.tasksSubtitle: '查看进度、速度和需要处理的任务。',
       L10nKeys.tasksAdd: '新建下载',
@@ -184,7 +191,13 @@ class LocalizationService extends Translations {
       L10nKeys.settingsTitle: 'Settings',
       L10nKeys.settingsSubtitle:
           'Adjust appearance, language, and the local workspace layout.',
+      L10nKeys.settingsBackToTasks: 'Back to transfers',
+      L10nKeys.settingsBackToMenu: 'Back to settings',
+      L10nKeys.settingsNavigationPreferences: 'Preferences',
+      L10nKeys.settingsNavigationSystem: 'System',
       L10nKeys.settingsAppearance: 'Appearance',
+      L10nKeys.settingsAppearanceDescription:
+          'Adjust the interface theme and display language.',
       L10nKeys.settingsTheme: 'Theme',
       L10nKeys.settingsThemeDescription:
           'Choose how light and dark surfaces are displayed.',
@@ -196,6 +209,8 @@ class LocalizationService extends Translations {
       L10nKeys.settingsLanguageChinese: '简体中文',
       L10nKeys.settingsLanguageEnglish: 'English',
       L10nKeys.settingsWorkspace: 'Workspace',
+      L10nKeys.settingsWorkspaceDescription:
+          'Configure the sidebar default state and display width.',
       L10nKeys.settingsSidebarExpanded: 'Expand sidebar by default',
       L10nKeys.settingsSidebarExpandedDescription:
           'Show the full menu and task counts when space allows.',
@@ -206,6 +221,8 @@ class LocalizationService extends Translations {
       L10nKeys.settingsEngine: 'Local engine',
       L10nKeys.settingsEngineDescription:
           'Review the local download service connection.',
+      L10nKeys.settingsEngineSectionDescription:
+          'Review the local download service version and connection.',
       L10nKeys.tasksTitle: 'Transfers',
       L10nKeys.tasksSubtitle:
           'Review progress, speed, and tasks that need attention.',

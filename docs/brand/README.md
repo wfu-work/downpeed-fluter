@@ -1,6 +1,6 @@
 # Downpeed 品牌标记
 
-Downpeed 的品牌标记由三条传输轨道汇聚为一个向下落点组成，表达“多任务进入统一、可控的本地下载流程”。几何造型保持紧凑，在菜单栏、任务栏和 16px 小图标中仍能辨认。
+Downpeed 的品牌标记是一座 D 形下载通道：外轮廓对应产品首字母，内部向下箭头表达文件进入本地设备。完整、闭合的轮廓强调稳定与可控，并在菜单栏、任务栏和 16px 小图标中保持清晰识别。
 
 ## 视觉规范
 
@@ -9,8 +9,10 @@ Downpeed 的品牌标记由三条传输轨道汇聚为一个向下落点组成�
 - 风格：中性、克制、可靠；不使用渐变、文字和装饰性品牌色
 - 安全区：图标内容位于 1024px 画布的 64px 内边距之内
 - 母版：[downpeed-logo.svg](downpeed-logo.svg)
+- 浅色界面标记：[downpeed-mark-light.svg](downpeed-mark-light.svg)，前景 `#242421`
+- 深色界面标记：[downpeed-mark-dark.svg](downpeed-mark-dark.svg)，前景 `#EDEDE8`
 
-该标记为 Downpeed 原创资产，不复用 Gopeed、Flutter 或 Codex 的品牌图形。应用内品牌标记使用相同的“轨道汇聚”几何，但会自动适应界面的深浅主题。
+该标记为 Downpeed 原创资产，不复用 Gopeed、Flutter 或 Codex 的品牌图形。Flutter 内的 `DownpeedBrandMark` 使用相同几何，并从当前主题读取前景色，在浅色和深色主题间实时切换；平台启动图标保持中性 Graphite 底板，保证 Dock、任务栏和启动器中的稳定识别。
 
 ## 平台资源
 

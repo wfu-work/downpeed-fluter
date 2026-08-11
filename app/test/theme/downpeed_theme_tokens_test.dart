@@ -6,9 +6,11 @@ void main() {
   test('light theme keeps a quiet neutral hierarchy and ink accent', () {
     final colors = DownpeedThemeTokens.colorsFor(Brightness.light);
 
-    expect(colors.workspace, const Color(0xFFFCFCFA));
-    expect(colors.sidebar, const Color(0xFFF2F2EF));
-    expect(colors.accent, const Color(0xFF20201E));
+    expect(colors.workspace, const Color(0xFFF9F9F7));
+    expect(colors.sidebar, const Color(0xFFEFEFEB));
+    expect(colors.accent, const Color(0xFF242421));
+    expect(DownpeedThemeTokens.controlHeight, 32);
+    expect(DownpeedThemeTokens.iconSize, 15);
     expect(
       colors.workspace.computeLuminance(),
       greaterThan(colors.sidebar.computeLuminance()),
@@ -18,8 +20,8 @@ void main() {
   test('dark theme preserves contrast without a pure black surface', () {
     final colors = DownpeedThemeTokens.colorsFor(Brightness.dark);
 
-    expect(colors.workspace, const Color(0xFF1E1E1C));
+    expect(colors.workspace, const Color(0xFF1D1D1B));
     expect(colors.surfaceRaised, const Color(0xFF252523));
-    expect(colors.text, const Color(0xFFF1F1ED));
+    expect(colors.text, const Color(0xFFEDEDE8));
   });
 }

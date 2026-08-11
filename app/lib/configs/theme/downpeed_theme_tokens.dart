@@ -22,50 +22,59 @@ class DownpeedThemeTokens {
   static const sidebarWidth = 236.0;
   static const sidebarMaxWidth = 360.0;
   static const sidebarCollapsedWidth = 52.0;
-  static const toolbarHeight = 46.0;
-  static const controlHeight = 34.0;
-  static const iconSize = 16.0;
+  static const toolbarHeight = 44.0;
+  static const controlHeight = 32.0;
+  static const touchTarget = 32.0;
+  static const iconSize = 15.0;
+
+  static const textHeading = 19.0;
+  static const textTitle = 16.0;
+  static const textBodyLarge = 14.0;
+  static const textBody = 13.0;
+  static const textLabel = 12.5;
+  static const textCaption = 11.5;
+  static const textMicro = 10.5;
 
   static DownpeedResolvedColors colorsFor(Brightness brightness) {
     if (brightness == Brightness.dark) {
       return const DownpeedResolvedColors(
-        workspace: Color(0xFF1E1E1C),
-        sidebar: Color(0xFF171715),
-        sidebarSelection: Color(0xFF2A2A27),
-        surface: Color(0xFF242422),
-        surfaceSubtle: Color(0xFF2B2B28),
+        workspace: Color(0xFF1D1D1B),
+        sidebar: Color(0xFF171716),
+        sidebarSelection: Color(0xFF2A2A28),
+        surface: Color(0xFF232321),
+        surfaceSubtle: Color(0xFF292927),
         surfaceRaised: Color(0xFF252523),
-        border: Color(0xFF343431),
-        borderStrong: Color(0xFF4A4A45),
-        text: Color(0xFFF1F1ED),
-        textSecondary: Color(0xFFB6B6B0),
-        textMuted: Color(0xFF85857F),
-        accent: Color(0xFFF1F1ED),
+        border: Color(0xFF353532),
+        borderStrong: Color(0xFF494945),
+        text: Color(0xFFEDEDE8),
+        textSecondary: Color(0xFFB1B1AA),
+        textMuted: Color(0xFF81817A),
+        accent: Color(0xFFEDEDE8),
         onAccent: Color(0xFF1B1B19),
         success: Color(0xFF56A66F),
         warning: Color(0xFFD09A52),
         danger: Color(0xFFD8716B),
-        track: Color(0xFF444440),
+        track: Color(0xFF41413D),
       );
     }
     return const DownpeedResolvedColors(
-      workspace: Color(0xFFFCFCFA),
-      sidebar: Color(0xFFF2F2EF),
-      sidebarSelection: Color(0xFFE4E4E0),
-      surface: Color(0xFFF7F7F4),
-      surfaceSubtle: Color(0xFFEDEDEA),
-      surfaceRaised: Color(0xFFFFFFFF),
-      border: Color(0xFFE2E2DE),
-      borderStrong: Color(0xFFCBCBC5),
-      text: Color(0xFF20201E),
-      textSecondary: Color(0xFF666661),
-      textMuted: Color(0xFF92928B),
-      accent: Color(0xFF20201E),
-      onAccent: Color(0xFFFAFAF8),
+      workspace: Color(0xFFF9F9F7),
+      sidebar: Color(0xFFEFEFEB),
+      sidebarSelection: Color(0xFFE1E1DC),
+      surface: Color(0xFFF4F4F1),
+      surfaceSubtle: Color(0xFFECECE8),
+      surfaceRaised: Color(0xFFFCFCFA),
+      border: Color(0xFFDEDED9),
+      borderStrong: Color(0xFFC8C8C1),
+      text: Color(0xFF242421),
+      textSecondary: Color(0xFF62625D),
+      textMuted: Color(0xFF898983),
+      accent: Color(0xFF242421),
+      onAccent: Color(0xFFF9F9F7),
       success: Color(0xFF2F8653),
       warning: Color(0xFFA66B21),
       danger: Color(0xFFB94A43),
-      track: Color(0xFFD6D6D1),
+      track: Color(0xFFD4D4CE),
     );
   }
 }

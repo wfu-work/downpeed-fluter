@@ -80,11 +80,69 @@ void main() {
       find.byKey(const ValueKey('settings-language-control')),
       findsOneWidget,
     );
+    expect(find.byKey(const ValueKey('settings-navigation')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('settings-nav-appearance')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('settings-nav-workspace')));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('settings-sidebar-expanded')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('settings-theme-control')), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('settings-nav-engine')));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('settings-engine-refresh')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('settings-back-to-tasks')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('settings-page')), findsNothing);
 
     await tester.tap(find.byKey(const ValueKey('sidebar-filter-1')));
     await tester.pumpAndSettle();
-    expect(find.byKey(const ValueKey('settings-page')), findsNothing);
     expect(find.text('下载任务'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('compact settings uses menu and detail navigation', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(640, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await _registerOnlineEngine();
+
+    await tester.pumpWidget(const DownpeedApp());
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('设置'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('settings-page')), findsOneWidget);
+    expect(find.byKey(const ValueKey('settings-navigation')), findsOneWidget);
+    expect(find.byKey(const ValueKey('settings-theme-control')), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('settings-nav-appearance')));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('settings-theme-control')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('settings-navigation')), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('settings-compact-back')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('settings-navigation')), findsOneWidget);
+    expect(find.byKey(const ValueKey('settings-theme-control')), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('settings-compact-back')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('settings-page')), findsNothing);
     expect(tester.takeException(), isNull);
   });
 }

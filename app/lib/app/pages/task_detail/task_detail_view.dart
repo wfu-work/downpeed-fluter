@@ -77,9 +77,7 @@ class _DetailToolbar extends StatelessWidget {
           Expanded(
             child: Text(
               L10nKeys.taskDetails.tr,
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+              style: Theme.of(context).textTheme.titleMedium,
             ),
           ),
         ],
@@ -128,8 +126,8 @@ class TaskDetailPanel extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                width: 38,
-                height: 38,
+                width: 34,
+                height: 34,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: statusColor.withValues(alpha: 0.1),
@@ -139,7 +137,7 @@ class TaskDetailPanel extends StatelessWidget {
                 ),
                 child: Icon(
                   taskStateIcon(task.state),
-                  size: 18,
+                  size: 16,
                   color: statusColor,
                 ),
               ),
@@ -159,10 +157,9 @@ class TaskDetailPanel extends StatelessWidget {
                     const SizedBox(height: 6),
                     Text(
                       taskStateLabel(task.state),
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                        color: statusColor,
-                        fontWeight: FontWeight.w600,
-                      ),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.labelMedium?.copyWith(color: statusColor),
                     ),
                   ],
                 ),
@@ -187,7 +184,7 @@ class TaskDetailPanel extends StatelessWidget {
                   '${formatBytes(task.speedBps)}/s',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: colors.accent,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w500,
                     fontFeatures: const [FontFeature.tabularFigures()],
                   ),
                 ),
@@ -293,13 +290,13 @@ class _TaskActions extends StatelessWidget {
           FilledButton.icon(
             key: ValueKey('detail-open-file-${task.id}'),
             onPressed: fileActionActing ? null : onOpenFile,
-            icon: const Icon(DownpeedIcons.openFile, size: 16),
+            icon: const Icon(DownpeedIcons.openFile),
             label: Text(L10nKeys.taskOpenFile.tr),
           ),
           OutlinedButton.icon(
             key: ValueKey('detail-reveal-file-${task.id}'),
             onPressed: fileActionActing ? null : onRevealFile,
-            icon: const Icon(DownpeedIcons.revealFile, size: 16),
+            icon: const Icon(DownpeedIcons.revealFile),
             label: Text(L10nKeys.taskRevealFile.tr),
           ),
         ],
@@ -307,21 +304,21 @@ class _TaskActions extends StatelessWidget {
           FilledButton.icon(
             key: ValueKey('detail-pause-${task.id}'),
             onPressed: acting ? null : onPause,
-            icon: const Icon(DownpeedIcons.pause, size: 16),
+            icon: const Icon(DownpeedIcons.pause),
             label: Text(L10nKeys.taskPause.tr),
           ),
         if (task.canResume)
           FilledButton.icon(
             key: ValueKey('detail-resume-${task.id}'),
             onPressed: acting ? null : onResume,
-            icon: const Icon(DownpeedIcons.resume, size: 16),
+            icon: const Icon(DownpeedIcons.resume),
             label: Text(L10nKeys.taskResume.tr),
           ),
         if (task.canCancel)
           OutlinedButton.icon(
             key: ValueKey('detail-cancel-${task.id}'),
             onPressed: acting ? null : onCancel,
-            icon: const Icon(DownpeedIcons.stop, size: 16),
+            icon: const Icon(DownpeedIcons.stop),
             label: Text(L10nKeys.taskCancel.tr),
           ),
       ],
@@ -353,7 +350,11 @@ class _DetailRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 16, color: colors.textMuted),
+          Icon(
+            icon,
+            size: DownpeedThemeTokens.iconSize,
+            color: colors.textMuted,
+          ),
           const SizedBox(width: 11),
           SizedBox(
             width: 88,

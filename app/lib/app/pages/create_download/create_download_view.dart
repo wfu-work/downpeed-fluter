@@ -1,13 +1,40 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 import '../../../configs/localization/l10n_keys.dart';
 import '../../../configs/theme/downpeed_icons.dart';
 import '../../../configs/theme/downpeed_theme_tokens.dart';
+import '../../../data/clients/engine_client.dart';
 import '../../../domains/download_resolution.dart';
 import '../../../domains/download_task.dart';
+import '../../../services/directory_picker.dart';
 import '../../widgets/transfer_track.dart';
 import 'create_download_controller.dart';
+
+Future<void> showCreateDownloadDialog({String initialUrl = ''}) async {
+  final context = Get.context;
+  if (context == null) return;
+
+  final controller = CreateDownloadController(
+    client: Get.find<EngineClient>(),
+    directoryPicker: Get.find<DirectoryPicker>(),
+    initialUrl: initialUrl,
+  )..onInit();
+  final dark = Theme.of(context).brightness == Brightness.dark;
+  try {
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: Colors.black.withValues(alpha: dark ? 0.38 : 0.16),
+      barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
+      builder: (context) => CreateDownloadDialog(controller: controller),
+    );
+  } finally {
+    controller.onClose();
+  }
+}
 
 class CreateDownloadView extends GetView<CreateDownloadController> {
   const CreateDownloadView({super.key});
@@ -23,107 +50,235 @@ class CreateDownloadView extends GetView<CreateDownloadController> {
           children: [
             const _CreateHeader(),
             Expanded(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final compact = constraints.maxWidth < 640;
-                  return SingleChildScrollView(
-                    padding: EdgeInsets.fromLTRB(
-                      compact
-                          ? DownpeedThemeTokens.compactPagePadding
-                          : DownpeedThemeTokens.pagePadding,
-                      compact ? 24 : 40,
-                      compact
-                          ? DownpeedThemeTokens.compactPagePadding
-                          : DownpeedThemeTokens.pagePadding,
-                      44,
-                    ),
-                    child: Align(
-                      alignment: Alignment.topCenter,
-                      child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 820),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Text(
-                              L10nKeys.createEyebrow.tr.toUpperCase(),
-                              style: Theme.of(context).textTheme.labelSmall
-                                  ?.copyWith(
-                                    color: colors.accent,
-                                    fontWeight: FontWeight.w600,
-                                    letterSpacing: 1.25,
-                                  ),
-                            ),
-                            const SizedBox(height: 10),
-                            Text(
-                              L10nKeys.createTitle.tr,
-                              style: Theme.of(context).textTheme.headlineMedium,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              L10nKeys.createSubtitle.tr,
-                              style: Theme.of(context).textTheme.bodyLarge
-                                  ?.copyWith(
-                                    color: colors.textSecondary,
-                                    height: 1.45,
-                                  ),
-                            ),
-                            const SizedBox(height: 30),
-                            _URLForm(controller: controller),
-                            const SizedBox(height: 12),
-                            const _AdvancedOptions(),
-                            const SizedBox(height: 24),
-                            Obx(
-                              () => switch (controller.phase.value) {
-                                CreateDownloadPhase.idle => const _IdleHint(),
-                                CreateDownloadPhase.resolving =>
-                                  const _ResolvingPanel(),
-                                CreateDownloadPhase.resolved =>
-                                  controller.isBatchMode
-                                      ? _BatchResolutionPanel(
-                                          controller: controller,
-                                        )
-                                      : _ResolutionPanel(
-                                          resolution:
-                                              controller.resolution.value!,
-                                          controller: controller,
-                                        ),
-                                CreateDownloadPhase.creating =>
-                                  const _CreatingTaskPanel(),
-                                CreateDownloadPhase.batchCreated =>
-                                  _BatchTaskResultPanel(controller: controller),
-                                CreateDownloadPhase.queued ||
-                                CreateDownloadPhase.downloading ||
-                                CreateDownloadPhase.retrying ||
-                                CreateDownloadPhase.paused ||
-                                CreateDownloadPhase.completed ||
-                                CreateDownloadPhase.canceled => _TaskPanel(
-                                  controller: controller,
-                                  task: controller.task.value!,
-                                ),
-                                CreateDownloadPhase.failed =>
-                                  controller.task.value == null
-                                      ? _FailurePanel(
-                                          message:
-                                              controller.errorMessage.value ??
-                                              L10nKeys.createResolveError.tr,
-                                        )
-                                      : _TaskPanel(
-                                          controller: controller,
-                                          task: controller.task.value!,
-                                        ),
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
-                },
+              child: _CreateDownloadContent(
+                controller: controller,
+                showEyebrow: true,
+                wideTopPadding: 40,
               ),
             ),
           ],
         ),
       ),
+    );
+  }
+}
+
+class CreateDownloadDialog extends StatelessWidget {
+  const CreateDownloadDialog({required this.controller, super.key});
+
+  final CreateDownloadController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final size = constraints.biggest;
+        final compact = size.width < 640;
+        final horizontalInset = compact ? 8.0 : 32.0;
+        final verticalInset = compact ? 8.0 : 32.0;
+        final width = math.min(820.0, size.width - horizontalInset * 2);
+        final height = compact
+            ? size.height - verticalInset * 2
+            : math.min(760.0, size.height * 0.88);
+        final colors = context.downpeedColors;
+
+        return Obx(
+          () => PopScope(
+            canPop: !controller.isBusy,
+            child: Dialog(
+              insetPadding: EdgeInsets.symmetric(
+                horizontal: horizontalInset,
+                vertical: verticalInset,
+              ),
+              clipBehavior: Clip.antiAlias,
+              elevation: 16,
+              shadowColor: Colors.black.withValues(
+                alpha: Theme.of(context).brightness == Brightness.dark
+                    ? 0.5
+                    : 0.14,
+              ),
+              child: SizedBox(
+                key: const ValueKey('create-download-dialog'),
+                width: width,
+                height: height,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Container(
+                      padding: EdgeInsets.fromLTRB(
+                        16,
+                        compact ? 8 : 7,
+                        8,
+                        compact ? 8 : 7,
+                      ),
+                      decoration: BoxDecoration(
+                        color: colors.surfaceRaised,
+                        border: Border(
+                          bottom: BorderSide(color: colors.border),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              L10nKeys.tasksAdd.tr,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                          ),
+                          SizedBox.square(
+                            key: const ValueKey('close-create-download-dialog'),
+                            dimension: compact
+                                ? 44
+                                : DownpeedThemeTokens.touchTarget,
+                            child: IconButton(
+                              tooltip: MaterialLocalizations.of(
+                                context,
+                              ).closeButtonTooltip,
+                              onPressed: controller.isBusy
+                                  ? null
+                                  : () => Navigator.of(context).pop(),
+                              icon: const Icon(DownpeedIcons.close),
+                              style: IconButton.styleFrom(
+                                fixedSize: Size.square(
+                                  compact
+                                      ? 44
+                                      : DownpeedThemeTokens.touchTarget,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: ColoredBox(
+                        color: colors.workspace,
+                        child: _CreateDownloadContent(
+                          controller: controller,
+                          showEyebrow: false,
+                          wideTopPadding: 24,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _CreateDownloadContent extends StatelessWidget {
+  const _CreateDownloadContent({
+    required this.controller,
+    required this.showEyebrow,
+    required this.wideTopPadding,
+  });
+
+  final CreateDownloadController controller;
+  final bool showEyebrow;
+  final double wideTopPadding;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.downpeedColors;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 640;
+        return SingleChildScrollView(
+          key: const ValueKey('create-download-scroll-view'),
+          padding: EdgeInsets.fromLTRB(
+            compact
+                ? DownpeedThemeTokens.compactPagePadding
+                : DownpeedThemeTokens.pagePadding,
+            compact ? 20 : wideTopPadding,
+            compact
+                ? DownpeedThemeTokens.compactPagePadding
+                : DownpeedThemeTokens.pagePadding,
+            compact ? 28 : 40,
+          ),
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 820),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (showEyebrow) ...[
+                    Text(
+                      L10nKeys.createEyebrow.tr.toUpperCase(),
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: colors.accent,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                  ],
+                  Text(
+                    L10nKeys.createTitle.tr,
+                    style: Theme.of(context).textTheme.headlineMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    L10nKeys.createSubtitle.tr,
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                      color: colors.textSecondary,
+                      height: 1.45,
+                    ),
+                  ),
+                  SizedBox(height: compact ? 22 : 26),
+                  _URLForm(controller: controller),
+                  const SizedBox(height: 12),
+                  const _AdvancedOptions(),
+                  const SizedBox(height: 24),
+                  Obx(
+                    () => switch (controller.phase.value) {
+                      CreateDownloadPhase.idle => const _IdleHint(),
+                      CreateDownloadPhase.resolving => const _ResolvingPanel(),
+                      CreateDownloadPhase.resolved =>
+                        controller.isBatchMode
+                            ? _BatchResolutionPanel(controller: controller)
+                            : _ResolutionPanel(
+                                resolution: controller.resolution.value!,
+                                controller: controller,
+                              ),
+                      CreateDownloadPhase.creating =>
+                        const _CreatingTaskPanel(),
+                      CreateDownloadPhase.batchCreated => _BatchTaskResultPanel(
+                        controller: controller,
+                      ),
+                      CreateDownloadPhase.queued ||
+                      CreateDownloadPhase.downloading ||
+                      CreateDownloadPhase.retrying ||
+                      CreateDownloadPhase.paused ||
+                      CreateDownloadPhase.completed ||
+                      CreateDownloadPhase.canceled => _TaskPanel(
+                        controller: controller,
+                        task: controller.task.value!,
+                      ),
+                      CreateDownloadPhase.failed =>
+                        controller.task.value == null
+                            ? _FailurePanel(
+                                message:
+                                    controller.errorMessage.value ??
+                                    L10nKeys.createResolveError.tr,
+                              )
+                            : _TaskPanel(
+                                controller: controller,
+                                task: controller.task.value!,
+                              ),
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -155,7 +310,7 @@ class _CreateHeader extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: Theme.of(
                 context,
-              ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+              ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
             ),
           ),
           Container(
@@ -194,9 +349,7 @@ class _URLForm extends StatelessWidget {
       children: [
         Text(
           L10nKeys.createUrlLabel.tr,
-          style: Theme.of(
-            context,
-          ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+          style: Theme.of(context).textTheme.labelLarge,
         ),
         const SizedBox(height: 8),
         LayoutBuilder(
@@ -215,7 +368,7 @@ class _URLForm extends StatelessWidget {
               minLines: 2,
               decoration: InputDecoration(
                 hintText: L10nKeys.createUrlHint.tr,
-                prefixIcon: const Icon(DownpeedIcons.link, size: 17),
+                prefixIcon: const Icon(DownpeedIcons.link),
               ),
             );
             final action = Obx(
@@ -233,7 +386,7 @@ class _URLForm extends StatelessWidget {
                           color: colors.onAccent,
                         ),
                       )
-                    : const Icon(DownpeedIcons.search, size: 16),
+                    : const Icon(DownpeedIcons.search),
                 label: Text(
                   controller.isResolving
                       ? L10nKeys.createResolving.tr
@@ -283,12 +436,12 @@ class _AdvancedOptions extends StatelessWidget {
           childrenPadding: const EdgeInsets.only(bottom: 14),
           iconColor: colors.textSecondary,
           collapsedIconColor: colors.textMuted,
-          leading: const Icon(DownpeedIcons.server, size: 16),
+          leading: const Icon(DownpeedIcons.server),
           title: Text(
             L10nKeys.createAdvanced.tr,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               color: colors.textSecondary,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w500,
             ),
           ),
           children: [
@@ -317,7 +470,7 @@ class _IdleHint extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(DownpeedIcons.info, size: 16, color: colors.textMuted),
+        Icon(DownpeedIcons.info, color: colors.textMuted),
         const SizedBox(width: 9),
         Expanded(
           child: Text(
@@ -435,7 +588,7 @@ class _FailurePanel extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(DownpeedIcons.issues, size: 19, color: colors.danger),
+            Icon(DownpeedIcons.issues, size: 16, color: colors.danger),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -443,10 +596,9 @@ class _FailurePanel extends StatelessWidget {
                 children: [
                   Text(
                     L10nKeys.createFailedTitle.tr,
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      color: colors.danger,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.titleSmall?.copyWith(color: colors.danger),
                   ),
                   const SizedBox(height: 5),
                   Text(message, style: Theme.of(context).textTheme.bodyMedium),
@@ -493,7 +645,7 @@ class _ResolutionPanel extends StatelessWidget {
                   ),
                   child: Icon(
                     DownpeedIcons.completed,
-                    size: 18,
+                    size: 16,
                     color: colors.success,
                   ),
                 ),
@@ -528,21 +680,17 @@ class _ResolutionPanel extends StatelessWidget {
               children: [
                 Text(
                   L10nKeys.createFileName.tr,
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: colors.textMuted,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.35,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.labelSmall?.copyWith(color: colors.textMuted),
                 ),
                 const SizedBox(height: 7),
                 SelectableText(
                   resolution.fileName,
                   key: const ValueKey('resolved-file-name'),
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: -0.35,
-                    height: 1.25,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(height: 1.25),
                 ),
                 const SizedBox(height: 22),
                 LayoutBuilder(
@@ -644,7 +792,7 @@ class _BatchResolutionPanel extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(DownpeedIcons.completed, size: 20, color: colors.success),
+                Icon(DownpeedIcons.completed, size: 16, color: colors.success),
                 const SizedBox(width: 13),
                 Expanded(
                   child: Column(
@@ -684,10 +832,9 @@ class _BatchResolutionPanel extends StatelessWidget {
                 L10nKeys.createBatchResolveFailed.trParams({
                   'count': '${failures.length}',
                 }),
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: colors.danger,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.labelLarge?.copyWith(color: colors.danger),
               ),
             ),
             for (final failure in failures)
@@ -727,7 +874,7 @@ class _BatchResolutionRow extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.only(top: 2),
-            child: Icon(DownpeedIcons.file, size: 17, color: colors.textMuted),
+            child: Icon(DownpeedIcons.file, color: colors.textMuted),
           ),
           const SizedBox(width: 13),
           Expanded(
@@ -740,7 +887,7 @@ class _BatchResolutionRow extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(
                     context,
-                  ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
+                  ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500),
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -796,7 +943,7 @@ class _BatchFailureRow extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(
                   context,
-                ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
+                ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w500),
               ),
               const SizedBox(height: 2),
               Text(
@@ -843,9 +990,7 @@ class _TaskCreationControls extends StatelessWidget {
           children: [
             Text(
               L10nKeys.createSaveDirectory.tr,
-              style: Theme.of(
-                context,
-              ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+              style: Theme.of(context).textTheme.labelLarge,
             ),
             const SizedBox(height: 9),
             LayoutBuilder(
@@ -858,7 +1003,6 @@ class _TaskCreationControls extends StatelessWidget {
                       padding: const EdgeInsets.only(top: 2),
                       child: Icon(
                         DownpeedIcons.folder,
-                        size: 16,
                         color: colors.textMuted,
                       ),
                     ),
@@ -884,7 +1028,7 @@ class _TaskCreationControls extends StatelessWidget {
                   onPressed: controller.isPickingDirectory.value
                       ? null
                       : controller.chooseSaveDirectory,
-                  icon: const Icon(DownpeedIcons.folder, size: 16),
+                  icon: const Icon(DownpeedIcons.folder),
                   label: Text(
                     directory?.isNotEmpty == true
                         ? L10nKeys.createChangeDirectory.tr
@@ -936,7 +1080,7 @@ class _TaskCreationControls extends StatelessWidget {
                   onPressed: controller.canCreateTask
                       ? controller.createTask
                       : null,
-                  icon: const Icon(DownpeedIcons.download, size: 16),
+                  icon: const Icon(DownpeedIcons.download),
                   label: Text(
                     fileCount > 1
                         ? L10nKeys.createStartBatch.trParams({
@@ -999,9 +1143,7 @@ class _CreatingTaskPanel extends StatelessWidget {
               children: [
                 Text(
                   L10nKeys.createCreating.tr,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -1049,7 +1191,7 @@ class _BatchTaskResultPanel extends StatelessWidget {
                       ? DownpeedIcons.completed
                       : DownpeedIcons.issues,
                   color: result.succeeded > 0 ? colors.success : colors.danger,
-                  size: 21,
+                  size: 17,
                 ),
                 const SizedBox(width: 13),
                 Expanded(
@@ -1079,7 +1221,6 @@ class _BatchTaskResultPanel extends StatelessWidget {
                           color: result.failed == 0
                               ? colors.success
                               : colors.warning,
-                          fontWeight: FontWeight.w600,
                           fontFeatures: const [FontFeature.tabularFigures()],
                         ),
                       ),
@@ -1095,10 +1236,9 @@ class _BatchTaskResultPanel extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
               child: Text(
                 L10nKeys.createBatchFailuresTitle.tr,
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: colors.danger,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.labelLarge?.copyWith(color: colors.danger),
               ),
             ),
             for (final failure in failures)
@@ -1118,7 +1258,7 @@ class _BatchTaskResultPanel extends StatelessWidget {
               child: FilledButton.icon(
                 key: const ValueKey('batch-back-to-tasks-button'),
                 onPressed: Get.back,
-                icon: const Icon(DownpeedIcons.back, size: 16),
+                icon: const Icon(DownpeedIcons.back),
                 label: Text(L10nKeys.createBack.tr),
               ),
             ),
@@ -1208,7 +1348,7 @@ class _TaskPanel extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(statusIcon, color: statusColor, size: 21),
+                Icon(statusIcon, color: statusColor, size: 17),
                 const SizedBox(width: 13),
                 Expanded(
                   child: Column(
@@ -1242,10 +1382,9 @@ class _TaskPanel extends StatelessWidget {
                   task.fileName,
                   key: const ValueKey('active-download-file-name'),
                   softWrap: true,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: -0.35,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(height: 1.3),
                 ),
                 const SizedBox(height: 18),
                 TransferTrack(progress: progress),
@@ -1316,7 +1455,7 @@ class _TaskPanel extends StatelessWidget {
                         onPressed: controller.isCanceling.value
                             ? null
                             : controller.cancelTask,
-                        icon: const Icon(DownpeedIcons.stop, size: 16),
+                        icon: const Icon(DownpeedIcons.stop),
                         label: Text(
                           controller.isCanceling.value
                               ? L10nKeys.taskCanceling.tr
@@ -1426,7 +1565,7 @@ class _MetadataItem extends StatelessWidget {
                   softWrap: true,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: valueColor ?? colors.text,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ],

@@ -9,6 +9,7 @@ import '../../../services/desktop_actions_service.dart';
 import '../../../services/task_service.dart';
 import '../../../domains/download_task.dart';
 import '../../../domains/engine_info.dart';
+import '../create_download/create_download_view.dart';
 import '../../routes/app_pages.dart';
 
 enum TaskListFilter { all, active, completed, issues }
@@ -33,6 +34,7 @@ class TaskListController extends GetxController {
   final selectedTaskIds = <String>{}.obs;
   final batchMessage = RxnString();
   Worker? _engineWorker;
+  bool _createDownloadOpen = false;
 
   List<DownloadTask> get tasks => taskService.tasks;
   List<DownloadTask> get visibleTasks {
@@ -108,14 +110,21 @@ class TaskListController extends GetxController {
     sort.value = value;
   }
 
-  void openCreateDownload() => Get.toNamed<void>(Routes.createDownload);
+  Future<void> openCreateDownload() => _openCreateDownload();
 
   Future<void> pasteDownload() async {
     final clipboard = await Clipboard.getData(Clipboard.kTextPlain);
-    await Get.toNamed<void>(
-      Routes.createDownload,
-      arguments: clipboard?.text?.trim() ?? '',
-    );
+    await _openCreateDownload(initialUrl: clipboard?.text?.trim() ?? '');
+  }
+
+  Future<void> _openCreateDownload({String initialUrl = ''}) async {
+    if (_createDownloadOpen) return;
+    _createDownloadOpen = true;
+    try {
+      await showCreateDownloadDialog(initialUrl: initialUrl);
+    } finally {
+      _createDownloadOpen = false;
+    }
   }
 
   void openTask(DownloadTask task, {required bool compact}) {

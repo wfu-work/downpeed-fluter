@@ -7,7 +7,8 @@ import '../../../services/app_service.dart';
 import '../../../services/engine_service.dart';
 import '../../../services/preferences_service.dart';
 import '../../routes/app_pages.dart';
-import '../task_list/task_list_controller.dart';
+
+enum SettingsSection { appearance, workspace, engine }
 
 class SettingsController extends GetxController {
   SettingsController({
@@ -19,6 +20,26 @@ class SettingsController extends GetxController {
   final AppService appService;
   final PreferencesService preferences;
   final EngineService engineService;
+  final selectedSection = SettingsSection.appearance.obs;
+  final compactDetailVisible = false.obs;
+
+  void selectSection(SettingsSection section, {required bool compact}) {
+    selectedSection.value = section;
+    if (compact) compactDetailVisible.value = true;
+  }
+
+  void closeCompactDetail() {
+    compactDetailVisible.value = false;
+  }
+
+  void backToTasks() {
+    final navigator = Get.key.currentState;
+    if (navigator?.canPop() ?? false) {
+      Get.back<void>();
+      return;
+    }
+    Get.offAllNamed<void>(Routes.tasks);
+  }
 
   void selectTheme(Set<ThemeMode> selection) {
     if (selection.isEmpty) return;
@@ -42,16 +63,4 @@ class SettingsController extends GetxController {
   }
 
   Future<void> refreshEngine() => engineService.refresh();
-
-  void openTaskFilter(int index) {
-    if (index < 0 || index >= TaskListFilter.values.length) return;
-    if (Get.isRegistered<TaskListController>()) {
-      Get.find<TaskListController>().setFilter(TaskListFilter.values[index]);
-    }
-    if (Get.currentRoute.split('?').first == Routes.tasks) return;
-    Get.until((route) => route.settings.name == Routes.tasks || route.isFirst);
-    if (Get.currentRoute.split('?').first != Routes.tasks) {
-      Get.offAllNamed<void>(Routes.tasks, arguments: index);
-    }
-  }
 }

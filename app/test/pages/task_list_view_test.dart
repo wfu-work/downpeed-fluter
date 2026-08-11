@@ -2,9 +2,11 @@ import 'dart:async';
 
 import 'package:downpeed_flutter/data/clients/engine_client.dart';
 import 'package:downpeed_flutter/domains/batch_task_result.dart';
+import 'package:downpeed_flutter/domains/download_resolution.dart';
 import 'package:downpeed_flutter/domains/download_task.dart';
 import 'package:downpeed_flutter/domains/engine_info.dart';
 import 'package:downpeed_flutter/main.dart';
+import 'package:downpeed_flutter/services/directory_picker.dart';
 import 'package:downpeed_flutter/services/engine_service.dart';
 import 'package:downpeed_flutter/services/desktop_actions_service.dart';
 import 'package:flutter/material.dart';
@@ -12,6 +14,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 
 import '../support/stub_engine_client.dart';
+import '../support/stub_directory_picker.dart';
 
 void main() {
   setUp(() {
@@ -19,6 +22,149 @@ void main() {
   });
 
   tearDown(Get.reset);
+
+  testWidgets('opens a fresh new-download modal without leaving tasks', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1100, 760));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final client = _TaskListEngineClient(const <DownloadTask>[]);
+    addTearDown(client.close);
+    Get.put<DirectoryPicker>(
+      const StubDirectoryPicker(result: '/tmp/downpeed-downloads'),
+      permanent: true,
+    );
+    await _registerOnlineEngine(client);
+
+    await tester.pumpWidget(const DownpeedApp());
+    await tester.pumpAndSettle();
+    final tasksRoute = Get.currentRoute;
+
+    await tester.tap(find.byKey(const ValueKey('add-download-button')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('create-download-dialog')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('download-url-field')), findsOneWidget);
+    expect(find.byKey(const ValueKey('task-search-field')), findsOneWidget);
+    expect(Get.currentRoute, tasksRoute);
+
+    await tester.enterText(
+      find.byKey(const ValueKey('download-url-field')),
+      'https://example.com/old.zip',
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('close-create-download-dialog')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('create-download-dialog')), findsNothing);
+    expect(Get.currentRoute, tasksRoute);
+
+    await tester.tap(find.byKey(const ValueKey('add-download-button')));
+    await tester.pumpAndSettle();
+    final field = tester.widget<TextField>(
+      find.byKey(const ValueKey('download-url-field')),
+    );
+    expect(field.controller?.text, isEmpty);
+    await tester.tap(
+      find.byKey(const ValueKey('close-create-download-dialog')),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('new-download modal adapts to a narrow high-scale window', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 700));
+    tester.platformDispatcher.textScaleFactorTestValue = 2;
+    addTearDown(() {
+      tester.binding.setSurfaceSize(null);
+      tester.platformDispatcher.clearTextScaleFactorTestValue();
+    });
+    final client = _TaskListEngineClient(const <DownloadTask>[]);
+    addTearDown(client.close);
+    await _registerOnlineEngine(client);
+
+    await tester.pumpWidget(const DownpeedApp());
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('add-download-button')));
+    await tester.pumpAndSettle();
+
+    final dialogRect = tester.getRect(
+      find.byKey(const ValueKey('create-download-dialog')),
+    );
+    expect(dialogRect.left, greaterThanOrEqualTo(8));
+    expect(dialogRect.right, lessThanOrEqualTo(382));
+    expect(find.byKey(const ValueKey('download-url-field')), findsOneWidget);
+    expect(
+      tester
+          .getSize(find.byKey(const ValueKey('close-create-download-dialog')))
+          .height,
+      44,
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('close-create-download-dialog')),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('resolves and creates a download inside the modal', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1000, 760));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final client = _TaskListEngineClient(const <DownloadTask>[]);
+    addTearDown(client.close);
+    Get.put<DirectoryPicker>(
+      const StubDirectoryPicker(result: '/tmp/downpeed-downloads'),
+      permanent: true,
+    );
+    await _registerOnlineEngine(client);
+
+    await tester.pumpWidget(const DownpeedApp());
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('add-download-button')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('download-url-field')),
+      'https://example.com/modal.zip',
+    );
+    await tester.pump();
+    final resolveButton = find.byKey(const ValueKey('resolve-download-button'));
+    await tester.ensureVisible(resolveButton);
+    await tester.tap(resolveButton);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('resolve-success-panel')), findsOneWidget);
+    final chooseDirectory = find.byKey(
+      const ValueKey('choose-save-directory-button'),
+    );
+    await tester.ensureVisible(chooseDirectory);
+    await tester.tap(chooseDirectory);
+    await tester.pumpAndSettle();
+    final startDownload = find.byKey(const ValueKey('start-download-button'));
+    await tester.ensureVisible(startDownload);
+    await tester.tap(startDownload);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('active-download-panel')), findsOneWidget);
+    expect(client.resolveCalls, 1);
+    expect(client.createCalls, 1);
+    expect(
+      find.byKey(const ValueKey('create-download-dialog')),
+      findsOneWidget,
+    );
+    await tester.tap(
+      find.byKey(const ValueKey('close-create-download-dialog')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('task-search-field')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('wide task list opens the detail inspector and pauses', (
     tester,
@@ -325,6 +471,8 @@ class _TaskListEngineClient extends StubEngineClient {
   int pauseCalls = 0;
   int resumeCalls = 0;
   int batchCalls = 0;
+  int resolveCalls = 0;
+  int createCalls = 0;
   BatchTaskAction? lastBatchAction;
   List<String> lastBatchIds = const <String>[];
 
@@ -333,6 +481,33 @@ class _TaskListEngineClient extends StubEngineClient {
 
   @override
   Future<List<DownloadTask>> fetchTasks() async => initialTasks;
+
+  @override
+  Future<DownloadResolution> resolveDownload(String url) async {
+    resolveCalls++;
+    return DownloadResolution(
+      url: url,
+      finalUrl: url,
+      fileName: 'modal.zip',
+      size: 1024,
+      contentType: 'application/zip',
+      acceptRanges: true,
+    );
+  }
+
+  @override
+  Future<DownloadTask> createTask({
+    required String url,
+    required String fileName,
+    required String saveDirectory,
+    int expectedSize = -1,
+    bool acceptRanges = false,
+    String etag = '',
+    String lastModified = '',
+  }) async {
+    createCalls++;
+    return _task('modal-1', DownloadTaskState.downloading, fileName: fileName);
+  }
 
   @override
   Future<DownloadTask> fetchTask(String id) async =>

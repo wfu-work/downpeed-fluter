@@ -104,7 +104,7 @@ class _TaskToolbar extends StatelessWidget {
                     textInputAction: TextInputAction.search,
                     decoration: InputDecoration(
                       hintText: L10nKeys.tasksSearch.tr,
-                      prefixIcon: const Icon(DownpeedIcons.search, size: 16),
+                      prefixIcon: const Icon(DownpeedIcons.search),
                     ),
                   ),
                 ),
@@ -115,7 +115,7 @@ class _TaskToolbar extends StatelessWidget {
               FilledButton.icon(
                 key: const ValueKey('add-download-button'),
                 onPressed: controller.openCreateDownload,
-                icon: const Icon(DownpeedIcons.add, size: 16),
+                icon: const Icon(DownpeedIcons.add),
                 label: Text(L10nKeys.tasksAdd.tr),
               ),
             ],
@@ -138,10 +138,7 @@ class _TaskToolbar extends StatelessWidget {
                         textInputAction: TextInputAction.search,
                         decoration: InputDecoration(
                           hintText: L10nKeys.tasksSearch.tr,
-                          prefixIcon: const Icon(
-                            DownpeedIcons.search,
-                            size: 16,
-                          ),
+                          prefixIcon: const Icon(DownpeedIcons.search),
                         ),
                       ),
                     ),
@@ -176,11 +173,12 @@ class _TaskSortButton extends StatelessWidget {
       tooltip: L10nKeys.tasksSort.tr,
       initialValue: controller.sort.value,
       onSelected: controller.setSort,
-      icon: const Icon(DownpeedIcons.sort, size: 18),
+      icon: const Icon(DownpeedIcons.sort),
       itemBuilder: (context) => TaskListSort.values
           .map(
             (value) => PopupMenuItem<TaskListSort>(
               value: value,
+              height: DownpeedThemeTokens.controlHeight,
               child: Row(
                 children: [
                   SizedBox(
@@ -336,7 +334,6 @@ class _TaskListPane extends StatelessWidget {
                     L10nKeys.tasksCount.trParams({'count': '${tasks.length}'}),
                     style: Theme.of(context).textTheme.labelMedium?.copyWith(
                       color: context.downpeedColors.textSecondary,
-                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
@@ -344,7 +341,7 @@ class _TaskListPane extends StatelessWidget {
                   IconButton(
                     tooltip: eventError,
                     onPressed: controller.retryTasks,
-                    icon: const Icon(DownpeedIcons.retry, size: 16),
+                    icon: const Icon(DownpeedIcons.retry),
                   ),
               ],
             ),
@@ -455,9 +452,7 @@ class _BatchCommandStrip extends StatelessWidget {
           ),
           Text(
             L10nKeys.tasksSelected.trParams({'count': '$selectedCount'}),
-            style: Theme.of(
-              context,
-            ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+            style: Theme.of(context).textTheme.labelLarge,
           ),
           TextButton(
             onPressed: controller.clearSelection,
@@ -468,7 +463,7 @@ class _BatchCommandStrip extends StatelessWidget {
             onPressed: controller.canBatch(BatchTaskAction.pause)
                 ? () => controller.performBatch(BatchTaskAction.pause)
                 : null,
-            icon: const Icon(DownpeedIcons.pause, size: 16),
+            icon: const Icon(DownpeedIcons.pause),
             label: Text(L10nKeys.tasksBatchPause.tr),
           ),
           OutlinedButton.icon(
@@ -476,7 +471,7 @@ class _BatchCommandStrip extends StatelessWidget {
             onPressed: controller.canBatch(BatchTaskAction.resume)
                 ? () => controller.performBatch(BatchTaskAction.resume)
                 : null,
-            icon: const Icon(DownpeedIcons.resume, size: 16),
+            icon: const Icon(DownpeedIcons.resume),
             label: Text(L10nKeys.tasksBatchResume.tr),
           ),
           TextButton.icon(
@@ -484,7 +479,7 @@ class _BatchCommandStrip extends StatelessWidget {
             onPressed: controller.canBatch(BatchTaskAction.cancel)
                 ? () => controller.performBatch(BatchTaskAction.cancel)
                 : null,
-            icon: Icon(DownpeedIcons.stop, size: 16, color: colors.danger),
+            icon: Icon(DownpeedIcons.stop, color: colors.danger),
             label: Text(
               L10nKeys.tasksBatchCancel.tr,
               style: TextStyle(color: colors.danger),
@@ -509,16 +504,14 @@ class _NoMatchingTasks extends StatelessWidget {
           children: [
             Icon(
               DownpeedIcons.search,
-              size: 24,
+              size: 20,
               color: context.downpeedColors.textMuted,
             ),
             const SizedBox(height: 12),
             Text(
               L10nKeys.tasksNoMatchesTitle.tr,
               textAlign: TextAlign.center,
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+              style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 5),
             Text(
@@ -570,7 +563,7 @@ class _TaskRow extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           decoration: BoxDecoration(
             border: Border(bottom: BorderSide(color: colors.border)),
           ),
@@ -606,7 +599,7 @@ class _TaskRow extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Expanded(child: details),
-                  const SizedBox(width: 18),
+                  const SizedBox(width: 16),
                   SizedBox(
                     width: 118,
                     child: Column(
@@ -619,7 +612,6 @@ class _TaskRow extends StatelessWidget {
                           style: Theme.of(context).textTheme.labelMedium
                               ?.copyWith(
                                 color: statusColor,
-                                fontWeight: FontWeight.w600,
                                 fontFeatures: const [
                                   FontFeature.tabularFigures(),
                                 ],
@@ -670,7 +662,7 @@ class _TaskRowDetails extends StatelessWidget {
         const SizedBox(width: 4),
         Padding(
           padding: const EdgeInsets.only(top: 2),
-          child: Icon(taskStateIcon(task.state), size: 18, color: statusColor),
+          child: Icon(taskStateIcon(task.state), size: 16, color: statusColor),
         ),
         const SizedBox(width: 13),
         Expanded(
@@ -682,17 +674,16 @@ class _TaskRowDetails extends StatelessWidget {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  height: 1.25,
+                  fontWeight: FontWeight.w500,
+                  height: 1.3,
                 ),
               ),
               const SizedBox(height: 5),
               Text(
                 taskStateLabel(task.state),
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: statusColor,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.labelSmall?.copyWith(color: statusColor),
               ),
               const SizedBox(height: 9),
               TransferTrack(progress: task.progress, color: statusColor),
@@ -736,7 +727,7 @@ class _TaskRowAction extends StatelessWidget {
         key: ValueKey('pause-task-${task.id}'),
         tooltip: L10nKeys.taskPause.tr,
         onPressed: acting ? null : onPause,
-        icon: const Icon(DownpeedIcons.pause, size: 18),
+        icon: const Icon(DownpeedIcons.pause),
       );
     }
     if (task.canResume) {
@@ -744,7 +735,7 @@ class _TaskRowAction extends StatelessWidget {
         key: ValueKey('resume-task-${task.id}'),
         tooltip: L10nKeys.taskResume.tr,
         onPressed: acting ? null : onResume,
-        icon: const Icon(DownpeedIcons.resume, size: 18),
+        icon: const Icon(DownpeedIcons.resume),
       );
     }
     if (task.state == DownloadTaskState.completed && desktopActionsSupported) {
@@ -752,12 +743,12 @@ class _TaskRowAction extends StatelessWidget {
         key: ValueKey('open-task-${task.id}'),
         tooltip: L10nKeys.taskOpenFile.tr,
         onPressed: acting ? null : onOpenFile,
-        icon: const Icon(DownpeedIcons.openFile, size: 18),
+        icon: const Icon(DownpeedIcons.openFile),
       );
     }
     return Icon(
       DownpeedIcons.more,
-      size: 17,
+      size: DownpeedThemeTokens.iconSize,
       color: context.downpeedColors.textMuted,
     );
   }
@@ -778,9 +769,7 @@ class _NoTaskSelection extends StatelessWidget {
             const SizedBox(height: 12),
             Text(
               L10nKeys.taskNoSelection.tr,
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+              style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 6),
             Text(
@@ -828,13 +817,13 @@ class _TaskLoadError extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(DownpeedIcons.issues, size: 30),
+            const Icon(DownpeedIcons.issues, size: 22),
             const SizedBox(height: 12),
             Text(L10nKeys.tasksLoadError.tr),
             const SizedBox(height: 16),
             OutlinedButton.icon(
               onPressed: controller.retryTasks,
-              icon: const Icon(DownpeedIcons.retry, size: 16),
+              icon: const Icon(DownpeedIcons.retry),
               label: Text(L10nKeys.engineRetry.tr),
             ),
           ],
@@ -883,12 +872,12 @@ class _EmptyTasks extends StatelessWidget {
                 children: [
                   FilledButton.icon(
                     onPressed: controller.openCreateDownload,
-                    icon: const Icon(DownpeedIcons.add, size: 16),
+                    icon: const Icon(DownpeedIcons.add),
                     label: Text(L10nKeys.tasksAdd.tr),
                   ),
                   OutlinedButton.icon(
                     onPressed: controller.pasteDownload,
-                    icon: const Icon(DownpeedIcons.paste, size: 16),
+                    icon: const Icon(DownpeedIcons.paste),
                     label: Text(L10nKeys.tasksPaste.tr),
                   ),
                 ],
@@ -927,13 +916,11 @@ class _OfflineState extends StatelessWidget {
           constraints: const BoxConstraints(maxWidth: 520),
           child: Column(
             children: [
-              const Icon(DownpeedIcons.engine, size: 34),
+              const Icon(DownpeedIcons.engine, size: 24),
               const SizedBox(height: 18),
               Text(
                 L10nKeys.engineOfflineTitle.tr,
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
+                style: Theme.of(context).textTheme.headlineSmall,
               ),
               const SizedBox(height: 8),
               Text(
@@ -968,7 +955,7 @@ class _OfflineState extends StatelessWidget {
               FilledButton.icon(
                 key: const ValueKey('retry-engine-button'),
                 onPressed: controller.retryEngine,
-                icon: const Icon(DownpeedIcons.retry, size: 16),
+                icon: const Icon(DownpeedIcons.retry),
                 label: Text(L10nKeys.engineRetry.tr),
               ),
             ],
