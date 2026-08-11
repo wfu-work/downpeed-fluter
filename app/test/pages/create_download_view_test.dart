@@ -1,0 +1,307 @@
+import 'dart:async';
+
+import 'package:downpeed_flutter/app/routes/app_pages.dart';
+import 'package:downpeed_flutter/data/clients/engine_client.dart';
+import 'package:downpeed_flutter/domains/batch_task_result.dart';
+import 'package:downpeed_flutter/domains/download_resolution.dart';
+import 'package:downpeed_flutter/domains/download_task.dart';
+import 'package:downpeed_flutter/domains/engine_info.dart';
+import 'package:downpeed_flutter/main.dart';
+import 'package:downpeed_flutter/services/directory_picker.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:get/get.dart';
+
+import '../support/stub_engine_client.dart';
+import '../support/stub_directory_picker.dart';
+
+void main() {
+  setUp(() {
+    Get.testMode = true;
+  });
+
+  tearDown(Get.reset);
+
+  testWidgets('shows resolved metadata in the focused wide layout', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1280, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    Get.put<EngineClient>(
+      const _FakeEngineClient(result: _standardResolution),
+      permanent: true,
+    );
+
+    await tester.pumpWidget(
+      const DownpeedApp(initialRoute: Routes.createDownload),
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('download-url-field')),
+      'https://example.com/file.zip',
+    );
+    await tester.pump();
+    final resolveButton = find.byKey(const ValueKey('resolve-download-button'));
+    await tester.ensureVisible(resolveButton);
+    await tester.tap(resolveButton);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('resolve-success-panel')), findsOneWidget);
+    expect(find.byKey(const ValueKey('resolved-file-name')), findsOneWidget);
+    expect(find.text('cdn.example.com'), findsOneWidget);
+    expect(find.text('1.5 MB'), findsOneWidget);
+    expect(find.text('支持 Range'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('handles a long filename at 200 percent text scale', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 820));
+    tester.platformDispatcher.textScaleFactorTestValue = 2;
+    addTearDown(() {
+      tester.binding.setSurfaceSize(null);
+      tester.platformDispatcher.clearTextScaleFactorTestValue();
+    });
+    Get.put<EngineClient>(
+      const _FakeEngineClient(result: _longResolution),
+      permanent: true,
+    );
+
+    await tester.pumpWidget(
+      const DownpeedApp(initialRoute: Routes.createDownload),
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('download-url-field')),
+      'https://downloads.example.com/long-file-name.zip',
+    );
+    await tester.pump();
+    final resolveButton = find.byKey(const ValueKey('resolve-download-button'));
+    await tester.ensureVisible(resolveButton);
+    await tester.tap(resolveButton);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('resolved-file-name')), findsOneWidget);
+    expect(find.text(_longFileName), findsWidgets);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('creates, updates, and cancels a download task', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(900, 820));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final client = _TransferEngineClient();
+    addTearDown(client.close);
+    Get.put<EngineClient>(client, permanent: true);
+    Get.put<DirectoryPicker>(
+      const StubDirectoryPicker(result: '/tmp/downpeed-downloads'),
+      permanent: true,
+    );
+
+    await tester.pumpWidget(
+      const DownpeedApp(initialRoute: Routes.createDownload),
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('download-url-field')),
+      _standardResolution.url,
+    );
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('resolve-download-button')));
+    await tester.pumpAndSettle();
+
+    final chooseDirectory = find.byKey(
+      const ValueKey('choose-save-directory-button'),
+    );
+    await tester.ensureVisible(chooseDirectory);
+    await tester.tap(chooseDirectory);
+    await tester.pumpAndSettle();
+    expect(find.text('/tmp/downpeed-downloads'), findsOneWidget);
+
+    final startDownload = find.byKey(const ValueKey('start-download-button'));
+    await tester.ensureVisible(startDownload);
+    await tester.tap(startDownload);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('active-download-panel')), findsOneWidget);
+
+    client.emit(_task(DownloadTaskState.downloading, downloaded: 524288));
+    await tester.pumpAndSettle();
+    expect(find.text('512 KB / 1 MB'), findsOneWidget);
+
+    final cancelDownload = find.byKey(const ValueKey('cancel-download-button'));
+    await tester.ensureVisible(cancelDownload);
+    await tester.tap(cancelDownload);
+    await tester.pumpAndSettle();
+    expect(find.text('下载已取消'), findsOneWidget);
+    expect(client.cancelCalls, 1);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('shows multiline resolutions and a batch creation summary', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(900, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final client = _BatchTransferEngineClient();
+    Get.put<EngineClient>(client, permanent: true);
+    Get.put<DirectoryPicker>(
+      const StubDirectoryPicker(result: '/tmp/downpeed-downloads'),
+      permanent: true,
+    );
+
+    await tester.pumpWidget(
+      const DownpeedApp(initialRoute: Routes.createDownload),
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('download-url-field')),
+      'https://example.com/one.zip\nhttps://example.com/two.zip',
+    );
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('resolve-download-button')));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('batch-resolve-success-panel')),
+      findsOneWidget,
+    );
+    expect(find.text('one.zip'), findsOneWidget);
+    expect(find.text('two.zip'), findsOneWidget);
+
+    final chooseDirectory = find.byKey(
+      const ValueKey('choose-save-directory-button'),
+    );
+    await tester.ensureVisible(chooseDirectory);
+    await tester.tap(chooseDirectory);
+    await tester.pumpAndSettle();
+    final startDownload = find.byKey(const ValueKey('start-download-button'));
+    await tester.ensureVisible(startDownload);
+    await tester.tap(startDownload);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('batch-created-panel')), findsOneWidget);
+    expect(find.text('成功 2 个 · 失败 0 个'), findsOneWidget);
+    expect(client.createdInputs, hasLength(2));
+    expect(tester.takeException(), isNull);
+  });
+}
+
+const _standardResolution = DownloadResolution(
+  url: 'https://example.com/file.zip',
+  finalUrl: 'https://cdn.example.com/file.zip',
+  fileName: 'file.zip',
+  size: 1572864,
+  contentType: 'application/zip',
+  acceptRanges: true,
+);
+
+const _longFileName = 'Downpeed-2026-完整离线资料包-包含设计资源与开发文档-最终发布版本-arm64.zip';
+
+const _longResolution = DownloadResolution(
+  url: 'https://downloads.example.com/long-file-name.zip',
+  finalUrl: 'https://cdn.downloads.example.com/long-file-name.zip',
+  fileName: _longFileName,
+  size: -1,
+  contentType: '',
+  acceptRanges: false,
+);
+
+class _FakeEngineClient extends StubEngineClient {
+  const _FakeEngineClient({required this.result});
+
+  final DownloadResolution result;
+
+  @override
+  Future<EngineInfo> fetchInfo() => throw UnimplementedError();
+
+  @override
+  Future<DownloadResolution> resolveDownload(String url) async => result;
+}
+
+class _TransferEngineClient extends StubEngineClient {
+  final _events = StreamController<DownloadTaskEvent>.broadcast();
+  int cancelCalls = 0;
+
+  @override
+  Future<DownloadResolution> resolveDownload(String url) async =>
+      _standardResolution;
+
+  @override
+  Future<DownloadTask> createTask({
+    required String url,
+    required String fileName,
+    required String saveDirectory,
+    int expectedSize = -1,
+    bool acceptRanges = false,
+    String etag = '',
+    String lastModified = '',
+  }) async => _task(DownloadTaskState.downloading);
+
+  @override
+  Stream<DownloadTaskEvent> watchTaskEvents() => _events.stream;
+
+  @override
+  Future<DownloadTask> cancelTask(String id) async {
+    cancelCalls++;
+    return _task(DownloadTaskState.canceled, downloaded: 524288);
+  }
+
+  void emit(DownloadTask task) {
+    _events.add(DownloadTaskEvent(type: 'task.updated', task: task));
+  }
+
+  Future<void> close() => _events.close();
+}
+
+class _BatchTransferEngineClient extends StubEngineClient {
+  List<CreateTaskInput> createdInputs = const <CreateTaskInput>[];
+
+  @override
+  Future<DownloadResolution> resolveDownload(String url) async {
+    final fileName = Uri.parse(url).pathSegments.last;
+    return DownloadResolution(
+      url: url,
+      finalUrl: url,
+      fileName: fileName,
+      size: 1048576,
+      contentType: 'application/zip',
+      acceptRanges: true,
+    );
+  }
+
+  @override
+  Future<BatchTaskResult> createTasks(List<CreateTaskInput> tasks) async {
+    createdInputs = tasks;
+    return BatchTaskResult(
+      items: <BatchTaskItemResult>[
+        for (var index = 0; index < tasks.length; index++)
+          BatchTaskItemResult(
+            index: index,
+            id: 'task-$index',
+            task: _task(DownloadTaskState.queued),
+          ),
+      ],
+      succeeded: tasks.length,
+      failed: 0,
+    );
+  }
+}
+
+DownloadTask _task(DownloadTaskState state, {int downloaded = 0}) {
+  final now = DateTime.utc(2026, 8, 11);
+  return DownloadTask(
+    id: 'task-1',
+    url: _standardResolution.url,
+    finalUrl: _standardResolution.finalUrl,
+    fileName: _standardResolution.fileName,
+    saveDirectory: '/tmp/downpeed-downloads',
+    filePath: '/tmp/downpeed-downloads/file.zip',
+    state: state,
+    downloaded: downloaded,
+    total: 1048576,
+    speedBps: state == DownloadTaskState.downloading ? 262144 : 0,
+    createdAt: now,
+    updatedAt: now,
+    completedAt: state == DownloadTaskState.downloading ? null : now,
+  );
+}

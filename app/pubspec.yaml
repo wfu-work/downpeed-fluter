@@ -1,0 +1,25 @@
+name: downpeed_flutter
+description: "A calm, local-first cross-platform download manager."
+publish_to: none
+version: 1.0.0
+
+environment:
+  sdk: ^3.12.0
+
+dependencies:
+  dio: ^5.9.1
+  file_selector: ^1.1.0
+  flutter:
+    sdk: flutter
+  get: ^4.7.3
+  get_storage: ^2.1.1
+  intl: ^0.20.2
+  lucide_icons_flutter: ^3.1.15
+
+dev_dependencies:
+  flutter_lints: ^6.0.0
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true

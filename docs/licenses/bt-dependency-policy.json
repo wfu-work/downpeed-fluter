@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "reviewedAt": "2026-08-11",
+  "status": "approved-with-conditions",
+  "component": {
+    "modulePath": "github.com/anacrolix/torrent",
+    "version": "v1.61.0",
+    "moduleSum": "h1:vxo+B4SwnoP5AQWbhvnTYIaTgPSX+llYUVuQVsN4Jg8=",
+    "goModSum": "h1:yKUKuZSSDdyOsCbuH+rDOpswl/g546gICapdrU7aUmQ=",
+    "goModSHA256": "32f1aa6556a9d11d0cd8bd50e97eab35c02585b3b8db49dbeb64d9445346ea97",
+    "license": "MPL-2.0",
+    "licenseFile": "LICENSE",
+    "licenseSHA256": "1f256ecad192880510e84ad60474eab7589218784b9a50bc7ceee34c2b91f1d5",
+    "securityFile": "SECURITY.md",
+    "securitySHA256": "3dc4fc5a4a80d6f6d467600a2b63d8bcf06b6d02d1b5cb0b7fc7d0d78f362bc8"
+  },
+  "allowedLicenses": [
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "CC0-1.0",
+    "ISC",
+    "MIT",
+    "MPL-2.0",
+    "Unlicense"
+  ],
+  "reviewRequiredLicensePrefixes": [
+    "LGPL-",
+    "EPL-",
+    "CDDL-"
+  ],
+  "deniedLicensePrefixes": [
+    "AGPL-",
+    "GPL-",
+    "SSPL-"
+  ],
+  "conditions": [
+    "Only use the public API through Downpeed's BT protocol adapter.",
+    "Do not copy Gopeed GPLv3 source or modify vendored anacrolix/torrent files.",
+    "Run release-mode compiled dependency license checks after the adapter imports the component.",
+    "Run govulncheck on the real backend build graph before merging and before each release.",
+    "Keep the component within the two most recent upstream minor releases.",
+    "Ship MPL-2.0 notices and a source offer for the covered component with binary distributions."
+  ]
+}

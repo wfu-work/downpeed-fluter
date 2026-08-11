@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">Downpeed application icon</title>
+  <desc id="desc">Three transfer lanes converge into a downward landing arrow.</desc>
+  <rect x="64" y="64" width="896" height="896" rx="216" fill="#20201E"/>
+  <g fill="none" stroke="#F7F7F3" stroke-width="64" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M250 304H448C520 304 558 330 610 382L650 422"/>
+    <path d="M250 464H650"/>
+    <path d="M250 624H448C520 624 558 598 610 546L650 506"/>
+    <path d="M650 408V700"/>
+    <path d="M538 608L650 720L762 608"/>
+  </g>
+</svg>
