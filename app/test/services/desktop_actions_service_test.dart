@@ -55,6 +55,18 @@ void main() {
     expect(platform.notificationTitle, '下载完成');
     expect(platform.notificationBody, 'archive.zip 已保存。');
   });
+
+  test('skips completion notifications when the preference is off', () async {
+    final platform = _FakeDesktopActions();
+    final service = DesktopActionsService(
+      platform: platform,
+      completionNotificationsEnabled: () => false,
+    );
+
+    await service.notifyCompleted(_task(DownloadTaskState.completed));
+
+    expect(platform.notificationId, isNull);
+  });
 }
 
 class _FakeDesktopActions implements DesktopActionsPlatform {

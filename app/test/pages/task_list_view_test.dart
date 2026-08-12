@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:downpeed_flutter/configs/theme/downpeed_theme_tokens.dart';
 import 'package:downpeed_flutter/data/clients/engine_client.dart';
 import 'package:downpeed_flutter/domains/batch_task_result.dart';
 import 'package:downpeed_flutter/domains/download_resolution.dart';
@@ -10,6 +11,7 @@ import 'package:downpeed_flutter/services/directory_picker.dart';
 import 'package:downpeed_flutter/services/engine_service.dart';
 import 'package:downpeed_flutter/services/desktop_actions_service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 
@@ -22,6 +24,33 @@ void main() {
   });
 
   tearDown(Get.reset);
+
+  testWidgets('task toolbar keeps its description visually subordinate', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1100, 760));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final client = _TaskListEngineClient(const <DownloadTask>[]);
+    addTearDown(client.close);
+    await _registerOnlineEngine(client);
+
+    await tester.pumpWidget(const DownpeedApp());
+    await tester.pumpAndSettle();
+
+    final title = tester.widget<Text>(
+      find.byKey(const ValueKey('task-toolbar-title')),
+    );
+    final subtitleFinder = find.byKey(const ValueKey('task-toolbar-subtitle'));
+    final subtitle = tester.widget<Text>(subtitleFinder);
+
+    expect(title.style?.fontSize, DownpeedThemeTokens.textTitle);
+    expect(title.style?.fontWeight, FontWeight.w600);
+    expect(subtitle.style?.fontSize, DownpeedThemeTokens.textCaption);
+    expect(
+      subtitle.style?.color,
+      tester.element(subtitleFinder).downpeedColors.textMuted,
+    );
+  });
 
   testWidgets('opens a fresh new-download modal without leaving tasks', (
     tester,
@@ -47,6 +76,17 @@ void main() {
       find.byKey(const ValueKey('create-download-dialog')),
       findsOneWidget,
     );
+    final dialogSize = tester.getSize(
+      find.byKey(const ValueKey('create-download-dialog')),
+    );
+    expect(dialogSize.width, 720);
+    expect(dialogSize.height, 450);
+    expect(find.byKey(const ValueKey('create-download-intro')), findsOneWidget);
+    expect(find.byKey(const ValueKey('download-url-card')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('create-download-idle-hint')),
+      findsOneWidget,
+    );
     expect(find.byKey(const ValueKey('download-url-field')), findsOneWidget);
     expect(find.byKey(const ValueKey('task-search-field')), findsOneWidget);
     expect(Get.currentRoute, tasksRoute);
@@ -68,6 +108,33 @@ void main() {
       find.byKey(const ValueKey('download-url-field')),
     );
     expect(field.controller?.text, isEmpty);
+    await tester.tap(
+      find.byKey(const ValueKey('close-create-download-dialog')),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('opens a new download with the keyboard shortcut', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1100, 760));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final client = _TaskListEngineClient(const <DownloadTask>[]);
+    addTearDown(client.close);
+    await _registerOnlineEngine(client);
+
+    await tester.pumpWidget(const DownpeedApp());
+    await tester.pumpAndSettle();
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyN);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('create-download-dialog')),
+      findsOneWidget,
+    );
     await tester.tap(
       find.byKey(const ValueKey('close-create-download-dialog')),
     );
@@ -181,6 +248,20 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const ValueKey('task-row-active-1')), findsOneWidget);
+    expect(find.byKey(const ValueKey('task-speed-active-1')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('task-progress-active-1')),
+      findsOneWidget,
+    );
+    expect(find.text('50%'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.byKey(const ValueKey('select-all-visible'))).dx,
+      tester.getTopLeft(find.byKey(const ValueKey('select-task-active-1'))).dx,
+    );
+    expect(
+      tester.getSize(find.byKey(const ValueKey('task-row-active-1'))).height,
+      lessThan(90),
+    );
     expect(find.text('选择一个任务'), findsOneWidget);
     await tester.tap(find.byKey(const ValueKey('task-row-active-1')));
     await tester.pumpAndSettle();

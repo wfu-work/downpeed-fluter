@@ -17,11 +17,20 @@ void main() {
     );
   });
 
-  test('dark theme preserves contrast without a pure black surface', () {
+  test('dark theme matches the Codex neutral surface hierarchy', () {
     final colors = DownpeedThemeTokens.colorsFor(Brightness.dark);
 
-    expect(colors.workspace, const Color(0xFF1D1D1B));
-    expect(colors.surfaceRaised, const Color(0xFF252523));
-    expect(colors.text, const Color(0xFFEDEDE8));
+    expect(colors.workspace, const Color(0xFF131313));
+    expect(colors.sidebar, const Color(0xFF1A1A1A));
+    expect(colors.sidebarSelection, const Color(0xFF2A2A2A));
+    expect(colors.surface, const Color(0xFF1F1F1F));
+    expect(colors.surfaceRaised, const Color(0xFF222222));
+    expect(colors.border, const Color(0xFF3A3A3A));
+    expect(colors.borderStrong, const Color(0xFF404040));
+    expect(colors.text, const Color(0xFFDBDBDB));
+    expect(colors.textSecondary, const Color(0xFFAFAFAF));
+    expect(colors.textMuted, const Color(0xFF767676));
+    expect(colors.accent, const Color(0xFFFFFFFF));
+    expect(colors.onAccent, const Color(0xFF131313));
   });
 }

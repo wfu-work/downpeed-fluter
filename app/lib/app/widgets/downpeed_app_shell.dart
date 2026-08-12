@@ -7,6 +7,7 @@ import 'package:get/get.dart';
 import '../../configs/localization/l10n_keys.dart';
 import '../../configs/theme/downpeed_icons.dart';
 import '../../configs/theme/downpeed_theme_tokens.dart';
+import '../../services/app_service.dart';
 import '../../services/preferences_service.dart';
 import '../routes/app_pages.dart';
 import 'brand_mark.dart';
@@ -266,12 +267,20 @@ class _ExpandedSidebar extends StatelessWidget {
             child: EngineStatusBadge(),
           ),
           const SizedBox(height: DownpeedThemeTokens.space),
-          _NavigationTile(
-            key: const ValueKey('sidebar-settings'),
-            icon: DownpeedIcons.settings,
-            label: L10nKeys.navSettings.tr,
-            selected: settingsSelected,
-            onTap: onSettingsSelected,
+          Row(
+            children: [
+              Expanded(
+                child: _NavigationTile(
+                  key: const ValueKey('sidebar-settings'),
+                  icon: DownpeedIcons.settings,
+                  label: L10nKeys.navSettings.tr,
+                  selected: settingsSelected,
+                  onTap: onSettingsSelected,
+                ),
+              ),
+              const SizedBox(width: DownpeedThemeTokens.spaceXs),
+              const _SidebarThemeToggle(),
+            ],
           ),
         ],
       ),
@@ -281,6 +290,28 @@ class _ExpandedSidebar extends StatelessWidget {
   int? _countAt(int index) {
     final values = counts;
     return values != null && index < values.length ? values[index] : null;
+  }
+}
+
+class _SidebarThemeToggle extends StatelessWidget {
+  const _SidebarThemeToggle();
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 3),
+      child: IconButton(
+        key: const ValueKey('sidebar-theme-toggle'),
+        tooltip: isDark
+            ? L10nKeys.sidebarThemeToLight.tr
+            : L10nKeys.sidebarThemeToDark.tr,
+        onPressed: () => unawaited(
+          AppService.to.setThemeMode(isDark ? ThemeMode.light : ThemeMode.dark),
+        ),
+        icon: Icon(isDark ? DownpeedIcons.lightTheme : DownpeedIcons.darkTheme),
+      ),
+    );
   }
 }
 
@@ -399,7 +430,7 @@ class _SidebarResizeHandleState extends State<_SidebarResizeHandle> {
   }
 }
 
-class _NavigationTile extends StatelessWidget {
+class _NavigationTile extends StatefulWidget {
   const _NavigationTile({
     super.key,
     required this.icon,
@@ -416,45 +447,147 @@ class _NavigationTile extends StatelessWidget {
   final VoidCallback? onTap;
 
   @override
+  State<_NavigationTile> createState() => _NavigationTileState();
+}
+
+class _NavigationTileState extends State<_NavigationTile> {
+  bool _hovered = false;
+
+  @override
   Widget build(BuildContext context) {
     final colors = context.downpeedColors;
+    final selected = widget.selected;
+    final count = widget.count;
+    final hasItems = count != null && count > 0;
+    final animationDuration = MediaQuery.disableAnimationsOf(context)
+        ? Duration.zero
+        : const Duration(milliseconds: 120);
+    final backgroundColor = selected
+        ? Color.alphaBlend(
+            colors.sidebarSelection.withValues(alpha: 0.7),
+            colors.sidebar,
+          )
+        : _hovered
+        ? Color.alphaBlend(
+            colors.sidebarSelection.withValues(alpha: 0.34),
+            colors.sidebar,
+          )
+        : Colors.transparent;
+    final countBackground = selected
+        ? colors.sidebar
+        : hasItems
+        ? colors.sidebarSelection.withValues(alpha: 0.48)
+        : Colors.transparent;
+
     return Padding(
-      padding: const EdgeInsets.only(bottom: 3),
-      child: Material(
-        color: selected ? colors.sidebarSelection : Colors.transparent,
-        borderRadius: BorderRadius.circular(DownpeedThemeTokens.radius),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(DownpeedThemeTokens.radius),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
-            child: Row(
-              children: [
-                Icon(
-                  icon,
-                  size: DownpeedThemeTokens.iconSize,
-                  color: selected ? colors.text : colors.textSecondary,
-                ),
-                const SizedBox(width: 9),
-                Expanded(
-                  child: Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontWeight: selected ? FontWeight.w500 : FontWeight.w400,
+      padding: const EdgeInsets.only(bottom: DownpeedThemeTokens.spaceXs),
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: AnimatedContainer(
+          duration: animationDuration,
+          curve: Curves.easeOutCubic,
+          height: DownpeedThemeTokens.controlHeight,
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            color: backgroundColor,
+            borderRadius: BorderRadius.circular(DownpeedThemeTokens.radius),
+            border: Border.all(
+              color: selected
+                  ? colors.border.withValues(alpha: 0.72)
+                  : Colors.transparent,
+            ),
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: widget.onTap,
+              hoverColor: Colors.transparent,
+              borderRadius: BorderRadius.circular(DownpeedThemeTokens.radius),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Positioned(
+                    left: 4,
+                    top: 8,
+                    bottom: 8,
+                    child: AnimatedContainer(
+                      key: selected
+                          ? const ValueKey('sidebar-selected-indicator')
+                          : null,
+                      duration: animationDuration,
+                      curve: Curves.easeOutCubic,
+                      width: 2,
+                      decoration: BoxDecoration(
+                        color: selected ? colors.accent : Colors.transparent,
+                        borderRadius: BorderRadius.circular(
+                          DownpeedThemeTokens.radiusPill,
+                        ),
+                      ),
                     ),
                   ),
-                ),
-                if (count != null)
-                  Text(
-                    '$count',
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: colors.textMuted,
-                      fontFeatures: const [FontFeature.tabularFigures()],
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: Row(
+                      children: [
+                        Icon(
+                          widget.icon,
+                          size: DownpeedThemeTokens.iconSize,
+                          color: selected ? colors.text : colors.textMuted,
+                        ),
+                        const SizedBox(width: 9),
+                        Expanded(
+                          child: Text(
+                            widget.label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodyMedium
+                                ?.copyWith(
+                                  color: selected
+                                      ? colors.text
+                                      : colors.textSecondary,
+                                  fontWeight: selected
+                                      ? FontWeight.w500
+                                      : FontWeight.w400,
+                                ),
+                          ),
+                        ),
+                        if (count != null)
+                          AnimatedContainer(
+                            key: const ValueKey('sidebar-count-badge'),
+                            duration: animationDuration,
+                            curve: Curves.easeOutCubic,
+                            height: 20,
+                            constraints: const BoxConstraints(minWidth: 22),
+                            padding: const EdgeInsets.symmetric(horizontal: 5),
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: countBackground,
+                              borderRadius: BorderRadius.circular(
+                                DownpeedThemeTokens.radiusPill,
+                              ),
+                            ),
+                            child: Text(
+                              '$count',
+                              style: Theme.of(context).textTheme.labelSmall
+                                  ?.copyWith(
+                                    color: selected || hasItems
+                                        ? colors.textSecondary
+                                        : colors.textMuted,
+                                    fontWeight: hasItems
+                                        ? FontWeight.w500
+                                        : FontWeight.w400,
+                                    fontFeatures: const [
+                                      FontFeature.tabularFigures(),
+                                    ],
+                                  ),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

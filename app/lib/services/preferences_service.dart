@@ -15,6 +15,7 @@ class PreferencesService extends GetxService {
 
   final sidebarExpanded = true.obs;
   final sidebarWidth = DownpeedThemeTokens.sidebarWidth.obs;
+  final completionNotificationsEnabled = true.obs;
 
   Future<void> init() async {
     await GetStorage.init();
@@ -29,6 +30,8 @@ class PreferencesService extends GetxService {
               DownpeedThemeTokens.sidebarMaxWidth,
             )
             .toDouble();
+    completionNotificationsEnabled.value =
+        _storage.read<bool>('${_prefix}_completion_notifications') ?? true;
   }
 
   int? get themeModeIndex =>
@@ -62,6 +65,11 @@ class PreferencesService extends GetxService {
   Future<void> resetSidebarWidth() async {
     sidebarWidth.value = DownpeedThemeTokens.sidebarWidth;
     await _write('${_prefix}_sidebar_width', sidebarWidth.value);
+  }
+
+  Future<void> setCompletionNotificationsEnabled(bool value) async {
+    completionNotificationsEnabled.value = value;
+    await _write('${_prefix}_completion_notifications', value);
   }
 
   Future<void> _write(String key, Object value) async {

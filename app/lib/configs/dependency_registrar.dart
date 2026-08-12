@@ -31,7 +31,11 @@ class DependencyRegistrar {
     }
     if (!Get.isRegistered<DesktopActionsService>()) {
       Get.put<DesktopActionsService>(
-        DesktopActionsService(platform: const MethodChannelDesktopActions()),
+        DesktopActionsService(
+          platform: const MethodChannelDesktopActions(),
+          completionNotificationsEnabled: () =>
+              PreferencesService.to.completionNotificationsEnabled.value,
+        ),
         permanent: true,
       );
     }

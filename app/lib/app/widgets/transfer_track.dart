@@ -42,11 +42,17 @@ class _TransferTrackPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     const gap = 4.0;
     const segments = 11;
+    const trackHeight = 4.0;
     final segmentWidth = (size.width - gap * (segments - 1)) / segments;
     final completed = progress * segments;
     for (var index = 0; index < segments; index++) {
       final rect = RRect.fromRectAndRadius(
-        Rect.fromLTWH(index * (segmentWidth + gap), 7, segmentWidth, 4),
+        Rect.fromLTWH(
+          index * (segmentWidth + gap),
+          (size.height - trackHeight) / 2,
+          segmentWidth,
+          trackHeight,
+        ),
         const Radius.circular(2),
       );
       final paint = Paint()

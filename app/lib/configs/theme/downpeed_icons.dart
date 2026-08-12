@@ -39,4 +39,8 @@ class DownpeedIcons {
   static const IconData clock = LucideIcons.clock3300;
   static const IconData more = LucideIcons.chevronRight300;
   static const IconData path = LucideIcons.folderTree300;
+  static const IconData notifications = LucideIcons.bell300;
+  static const IconData keyboard = LucideIcons.keyboard300;
+  static const IconData about = LucideIcons.badgeInfo300;
+  static const IconData licenses = LucideIcons.scrollText300;
 }

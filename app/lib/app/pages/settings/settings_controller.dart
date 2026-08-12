@@ -3,12 +3,13 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../../configs/build_info.dart';
 import '../../../services/app_service.dart';
 import '../../../services/engine_service.dart';
 import '../../../services/preferences_service.dart';
 import '../../routes/app_pages.dart';
 
-enum SettingsSection { appearance, workspace, engine }
+enum SettingsSection { appearance, workspace, notifications, engine, about }
 
 class SettingsController extends GetxController {
   SettingsController({
@@ -60,6 +61,18 @@ class SettingsController extends GetxController {
 
   void resetSidebarWidth() {
     unawaited(preferences.resetSidebarWidth());
+  }
+
+  void setCompletionNotificationsEnabled(bool value) {
+    unawaited(preferences.setCompletionNotificationsEnabled(value));
+  }
+
+  void openLicenses(BuildContext context) {
+    showLicensePage(
+      context: context,
+      applicationName: 'Downpeed',
+      applicationVersion: DownpeedBuildInfo.displayVersion,
+    );
   }
 
   Future<void> refreshEngine() => engineService.refresh();

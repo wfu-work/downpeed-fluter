@@ -2,10 +2,12 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import '../../../configs/build_info.dart';
 import '../../../configs/localization/l10n_keys.dart';
 import '../../../configs/theme/downpeed_icons.dart';
 import '../../../configs/theme/downpeed_theme_tokens.dart';
 import '../../../domains/engine_info.dart';
+import '../../widgets/brand_mark.dart';
 import '../../widgets/downpeed_controls.dart';
 import '../../widgets/engine_status_badge.dart';
 import 'settings_controller.dart';
@@ -203,6 +205,8 @@ class _SettingsNavigation extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       L10nKeys.settingsSubtitle.tr,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: colors.textSecondary,
                         height: 1.4,
@@ -497,6 +501,38 @@ class _SettingsContent extends StatelessWidget {
                         ),
                       ),
                     ],
+                    SettingsSection.notifications => [
+                      _SettingsRow(
+                        icon: DownpeedIcons.notifications,
+                        title: L10nKeys.settingsCompletionNotifications.tr,
+                        description: L10nKeys
+                            .settingsCompletionNotificationsDescription
+                            .tr,
+                        control: DownpeedSwitch(
+                          key: const ValueKey(
+                            'settings-completion-notifications',
+                          ),
+                          value: controller
+                              .preferences
+                              .completionNotificationsEnabled
+                              .value,
+                          onChanged:
+                              controller.setCompletionNotificationsEnabled,
+                        ),
+                      ),
+                      _SettingsRow(
+                        icon: DownpeedIcons.keyboard,
+                        title: L10nKeys.settingsNewDownloadShortcut.tr,
+                        description:
+                            L10nKeys.settingsNewDownloadShortcutDescription.tr,
+                        control: _SettingsValue(
+                          key: const ValueKey('settings-new-download-shortcut'),
+                          value: defaultTargetPlatform == TargetPlatform.macOS
+                              ? '⌘ N'
+                              : 'Ctrl N',
+                        ),
+                      ),
+                    ],
                     SettingsSection.engine => [
                       _SettingsRow(
                         icon: DownpeedIcons.engine,
@@ -521,14 +557,326 @@ class _SettingsContent extends StatelessWidget {
                         ),
                       ),
                     ],
+                    SettingsSection.about => [
+                      _SettingsRow(
+                        icon: DownpeedIcons.about,
+                        title: L10nKeys.settingsAboutAppVersion.tr,
+                        description:
+                            L10nKeys.settingsAboutAppVersionDescription.tr,
+                        control: _SettingsValue(
+                          key: const ValueKey('settings-app-version'),
+                          value: DownpeedBuildInfo.displayVersion,
+                        ),
+                      ),
+                      _SettingsRow(
+                        icon: DownpeedIcons.engine,
+                        title: L10nKeys.settingsAboutEngineVersion.tr,
+                        description: engineInfo == null
+                            ? L10nKeys.settingsAboutEngineUnavailable.tr
+                            : L10nKeys.settingsAboutEngineVersionDescription
+                                  .trParams({
+                                    'api': engineInfo.apiVersion,
+                                    'platform':
+                                        '${engineInfo.os}/${engineInfo.arch}',
+                                  }),
+                        control: _SettingsValue(
+                          key: const ValueKey('settings-about-engine-version'),
+                          value:
+                              engineInfo?.version ?? L10nKeys.engineOffline.tr,
+                        ),
+                      ),
+                      _SettingsRow(
+                        icon: DownpeedIcons.licenses,
+                        title: L10nKeys.settingsAboutLicenses.tr,
+                        description:
+                            L10nKeys.settingsAboutLicensesDescription.tr,
+                        control: TextButton.icon(
+                          key: const ValueKey('settings-open-licenses'),
+                          onPressed: () => controller.openLicenses(context),
+                          icon: const Icon(DownpeedIcons.licenses),
+                          label: Text(L10nKeys.settingsAboutOpenLicenses.tr),
+                        ),
+                      ),
+                    ],
                   },
                 ),
+                if (section == SettingsSection.appearance) ...[
+                  const SizedBox(height: 14),
+                  const _BrandMarkPreviews(),
+                  const SizedBox(height: 14),
+                  _SettingsPreferenceNote(
+                    key: const ValueKey('settings-appearance-note'),
+                    title: L10nKeys.settingsAppearanceNoteTitle.tr,
+                    body: L10nKeys.settingsAppearanceNoteBody.tr,
+                  ),
+                ],
+                if (section == SettingsSection.workspace) ...[
+                  const SizedBox(height: 14),
+                  _SettingsPreferenceNote(
+                    key: const ValueKey('settings-workspace-note'),
+                    title: L10nKeys.settingsWorkspaceNoteTitle.tr,
+                    body: L10nKeys.settingsWorkspaceNoteBody.tr,
+                  ),
+                ],
+                if (section == SettingsSection.notifications) ...[
+                  const SizedBox(height: 14),
+                  _SettingsPreferenceNote(
+                    key: const ValueKey('settings-notifications-note'),
+                    title: L10nKeys.settingsNotificationsNoteTitle.tr,
+                    body: L10nKeys.settingsNotificationsNoteBody.tr,
+                  ),
+                ],
+                if (section == SettingsSection.engine) ...[
+                  const SizedBox(height: 14),
+                  _SettingsPreferenceNote(
+                    key: const ValueKey('settings-engine-note'),
+                    title: L10nKeys.settingsEngineNoteTitle.tr,
+                    body: L10nKeys.settingsEngineNoteBody.tr,
+                  ),
+                ],
+                if (section == SettingsSection.about) ...[
+                  const SizedBox(height: 14),
+                  _SettingsPreferenceNote(
+                    key: const ValueKey('settings-about-note'),
+                    title: L10nKeys.settingsAboutNoteTitle.tr,
+                    body: L10nKeys.settingsAboutNoteBody.tr,
+                  ),
+                ],
               ],
             ),
           ),
         ),
       );
     });
+  }
+}
+
+class _SettingsPreferenceNote extends StatelessWidget {
+  const _SettingsPreferenceNote({
+    required this.title,
+    required this.body,
+    super.key,
+  });
+
+  final String title;
+  final String body;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.downpeedColors;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: colors.surfaceSubtle,
+        border: Border.all(color: colors.border),
+        borderRadius: BorderRadius.circular(DownpeedThemeTokens.radiusLarge),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Icon(
+              DownpeedIcons.info,
+              size: DownpeedThemeTokens.iconSize,
+              color: colors.textSecondary,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w500),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  body,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: colors.textSecondary,
+                    height: 1.45,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BrandMarkPreviews extends StatelessWidget {
+  const _BrandMarkPreviews();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.downpeedColors;
+    return Container(
+      key: const ValueKey('settings-logo-previews'),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: colors.surfaceRaised,
+        border: Border.all(color: colors.border),
+        borderRadius: BorderRadius.circular(DownpeedThemeTokens.radiusLarge),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Icon(
+                  DownpeedIcons.about,
+                  size: DownpeedThemeTokens.iconSize,
+                  color: colors.textSecondary,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      L10nKeys.settingsLogoPreview.tr,
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      L10nKeys.settingsLogoPreviewDescription.tr,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 440;
+              final previews = [
+                _BrandSurfacePreview(
+                  key: const ValueKey('settings-logo-light-preview'),
+                  markKey: const ValueKey('settings-logo-light-mark'),
+                  brightness: Brightness.light,
+                  label: L10nKeys.settingsLogoPreviewLight.tr,
+                ),
+                _BrandSurfacePreview(
+                  key: const ValueKey('settings-logo-dark-preview'),
+                  markKey: const ValueKey('settings-logo-dark-mark'),
+                  brightness: Brightness.dark,
+                  label: L10nKeys.settingsLogoPreviewDark.tr,
+                ),
+              ];
+              if (compact) {
+                return Column(
+                  children: [
+                    previews.first,
+                    const SizedBox(height: 10),
+                    previews.last,
+                  ],
+                );
+              }
+              return Row(
+                children: [
+                  Expanded(child: previews.first),
+                  const SizedBox(width: 10),
+                  Expanded(child: previews.last),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BrandSurfacePreview extends StatelessWidget {
+  const _BrandSurfacePreview({
+    required this.markKey,
+    required this.brightness,
+    required this.label,
+    super.key,
+  });
+
+  final Key markKey;
+  final Brightness brightness;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final previewColors = DownpeedThemeTokens.colorsFor(brightness);
+    return Semantics(
+      label: label,
+      image: true,
+      child: Container(
+        height: 118,
+        decoration: BoxDecoration(
+          color: previewColors.workspace,
+          border: Border.all(color: previewColors.borderStrong),
+          borderRadius: BorderRadius.circular(DownpeedThemeTokens.radius),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            DownpeedBrandMark(
+              key: markKey,
+              size: 54,
+              color: previewColors.text,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                color: previewColors.textSecondary,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SettingsValue extends StatelessWidget {
+  const _SettingsValue({required this.value, super.key});
+
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.downpeedColors;
+    return Container(
+      constraints: const BoxConstraints(
+        minHeight: DownpeedThemeTokens.controlHeight,
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: colors.surfaceSubtle,
+        border: Border.all(color: colors.border),
+        borderRadius: BorderRadius.circular(DownpeedThemeTokens.radius),
+      ),
+      child: Text(
+        value,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+          color: colors.textSecondary,
+          fontFeatures: const [FontFeature.tabularFigures()],
+        ),
+      ),
+    );
   }
 }
 
@@ -670,6 +1018,12 @@ List<_SettingsNavigationGroup> _settingsNavigationGroups() => [
         label: L10nKeys.settingsWorkspace.tr,
         section: SettingsSection.workspace,
       ),
+      _SettingsNavigationDestination(
+        key: const ValueKey('settings-nav-notifications'),
+        icon: DownpeedIcons.notifications,
+        label: L10nKeys.settingsNotifications.tr,
+        section: SettingsSection.notifications,
+      ),
     ],
   ),
   _SettingsNavigationGroup(
@@ -681,6 +1035,12 @@ List<_SettingsNavigationGroup> _settingsNavigationGroups() => [
         label: L10nKeys.settingsEngine.tr,
         section: SettingsSection.engine,
       ),
+      _SettingsNavigationDestination(
+        key: const ValueKey('settings-nav-about'),
+        icon: DownpeedIcons.about,
+        label: L10nKeys.settingsAbout.tr,
+        section: SettingsSection.about,
+      ),
     ],
   ),
 ];
@@ -688,14 +1048,19 @@ List<_SettingsNavigationGroup> _settingsNavigationGroups() => [
 String _settingsSectionTitle(SettingsSection section) => switch (section) {
   SettingsSection.appearance => L10nKeys.settingsAppearance.tr,
   SettingsSection.workspace => L10nKeys.settingsWorkspace.tr,
+  SettingsSection.notifications => L10nKeys.settingsNotifications.tr,
   SettingsSection.engine => L10nKeys.settingsEngine.tr,
+  SettingsSection.about => L10nKeys.settingsAbout.tr,
 };
 
 String _settingsSectionDescription(SettingsSection section) =>
     switch (section) {
       SettingsSection.appearance => L10nKeys.settingsAppearanceDescription.tr,
       SettingsSection.workspace => L10nKeys.settingsWorkspaceDescription.tr,
+      SettingsSection.notifications =>
+        L10nKeys.settingsNotificationsDescription.tr,
       SettingsSection.engine => L10nKeys.settingsEngineSectionDescription.tr,
+      SettingsSection.about => L10nKeys.settingsAboutDescription.tr,
     };
 
 String _engineTitle(EngineConnectionState state) => switch (state) {

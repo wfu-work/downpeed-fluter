@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 
 import '../../../configs/localization/l10n_keys.dart';
@@ -22,31 +25,42 @@ class TaskListView extends GetView<TaskListController> {
   Widget build(BuildContext context) {
     return Obx(() {
       final currentFilter = controller.filter.value;
-      return DownpeedAppShell(
-        selectedTaskFilter: currentFilter.index,
-        onTaskFilterChanged: (index) =>
-            controller.setFilter(TaskListFilter.values[index]),
-        taskCounts: TaskListFilter.values
-            .map(controller.countForFilter)
-            .toList(growable: false),
-        child: SafeArea(
-          left: false,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _TaskToolbar(controller: controller),
-              Expanded(
-                child: switch (controller.engineService.state.value) {
-                  EngineConnectionState.checking => const _CheckingState(),
-                  EngineConnectionState.online => _ReadyState(
-                    controller: controller,
+      return CallbackShortcuts(
+        bindings: <ShortcutActivator, VoidCallback>{
+          const SingleActivator(LogicalKeyboardKey.keyN, meta: true): () =>
+              unawaited(controller.openCreateDownload()),
+          const SingleActivator(LogicalKeyboardKey.keyN, control: true): () =>
+              unawaited(controller.openCreateDownload()),
+        },
+        child: Focus(
+          autofocus: true,
+          child: DownpeedAppShell(
+            selectedTaskFilter: currentFilter.index,
+            onTaskFilterChanged: (index) =>
+                controller.setFilter(TaskListFilter.values[index]),
+            taskCounts: TaskListFilter.values
+                .map(controller.countForFilter)
+                .toList(growable: false),
+            child: SafeArea(
+              left: false,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _TaskToolbar(controller: controller),
+                  Expanded(
+                    child: switch (controller.engineService.state.value) {
+                      EngineConnectionState.checking => const _CheckingState(),
+                      EngineConnectionState.online => _ReadyState(
+                        controller: controller,
+                      ),
+                      EngineConnectionState.offline => _OfflineState(
+                        controller: controller,
+                      ),
+                    },
                   ),
-                  EngineConnectionState.offline => _OfflineState(
-                    controller: controller,
-                  ),
-                },
+                ],
               ),
-            ],
+            ),
           ),
         ),
       );
@@ -80,14 +94,16 @@ class _TaskToolbar extends StatelessWidget {
             children: [
               Text(
                 L10nKeys.tasksTitle.tr,
-                style: Theme.of(context).textTheme.headlineSmall,
+                key: const ValueKey('task-toolbar-title'),
+                style: Theme.of(context).textTheme.titleLarge,
               ),
-              const SizedBox(height: 2),
+              const SizedBox(height: 1),
               Text(
                 L10nKeys.tasksSubtitle.tr,
+                key: const ValueKey('task-toolbar-subtitle'),
                 style: Theme.of(
                   context,
-                ).textTheme.bodyMedium?.copyWith(color: colors.textSecondary),
+                ).textTheme.bodySmall?.copyWith(color: colors.textMuted),
               ),
             ],
           );
@@ -309,12 +325,12 @@ class _TaskListPane extends StatelessWidget {
         if (controller.hasSelection)
           _BatchCommandStrip(controller: controller)
         else
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              DownpeedThemeTokens.pagePadding,
-              10,
-              DownpeedThemeTokens.pagePadding,
-              7,
+          Container(
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(color: context.downpeedColors.border),
+              ),
             ),
             child: Row(
               children: [
@@ -332,8 +348,8 @@ class _TaskListPane extends StatelessWidget {
                 Expanded(
                   child: Text(
                     L10nKeys.tasksCount.trParams({'count': '${tasks.length}'}),
-                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: context.downpeedColors.textSecondary,
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: context.downpeedColors.textMuted,
                     ),
                   ),
                 ),
@@ -426,12 +442,7 @@ class _BatchCommandStrip extends StatelessWidget {
     final selectedCount = controller.selectedTaskIds.length;
     return Container(
       key: const ValueKey('batch-command-strip'),
-      padding: const EdgeInsets.fromLTRB(
-        DownpeedThemeTokens.pagePadding,
-        8,
-        DownpeedThemeTokens.pagePadding,
-        8,
-      ),
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
       decoration: BoxDecoration(
         color: colors.surfaceSubtle,
         border: Border(bottom: BorderSide(color: colors.border)),
@@ -563,14 +574,14 @@ class _TaskRow extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(
             border: Border(bottom: BorderSide(color: colors.border)),
           ),
           child: LayoutBuilder(
             builder: (context, constraints) {
               final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
-              final stacked = constraints.maxWidth < 560 || textScale >= 1.6;
+              final stacked = constraints.maxWidth < 520 || textScale >= 1.6;
               final details = _TaskRowDetails(
                 task: task,
                 statusColor: statusColor,
@@ -590,38 +601,17 @@ class _TaskRow extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     details,
-                    const SizedBox(height: 9),
+                    const SizedBox(height: 4),
                     Align(alignment: Alignment.centerRight, child: action),
                   ],
                 );
               }
               return Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(child: details),
-                  const SizedBox(width: 16),
-                  SizedBox(
-                    width: 118,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          task.state == DownloadTaskState.downloading
-                              ? '${formatBytes(task.speedBps)}/s'
-                              : taskStateLabel(task.state),
-                          style: Theme.of(context).textTheme.labelMedium
-                              ?.copyWith(
-                                color: statusColor,
-                                fontFeatures: const [
-                                  FontFeature.tabularFigures(),
-                                ],
-                              ),
-                        ),
-                        const SizedBox(height: 5),
-                        action,
-                      ],
-                    ),
-                  ),
+                  const SizedBox(width: 8),
+                  action,
                 ],
               );
             },
@@ -648,6 +638,12 @@ class _TaskRowDetails extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.downpeedColors;
+    final speedText = task.state == DownloadTaskState.downloading
+        ? '${formatBytes(task.speedBps)}/s'
+        : null;
+    final progressText = task.total > 0
+        ? '${(task.progress * 100).round()}%'
+        : null;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -659,41 +655,95 @@ class _TaskRowDetails extends StatelessWidget {
             onChanged: (_) => onSelectionChanged(),
           ),
         ),
-        const SizedBox(width: 4),
-        Padding(
-          padding: const EdgeInsets.only(top: 2),
-          child: Icon(taskStateIcon(task.state), size: 16, color: statusColor),
+        const SizedBox(width: 6),
+        Container(
+          width: 30,
+          height: 30,
+          decoration: BoxDecoration(
+            color: colors.surfaceSubtle,
+            borderRadius: BorderRadius.circular(DownpeedThemeTokens.radius),
+            border: Border.all(color: colors.border),
+          ),
+          alignment: Alignment.center,
+          child: Icon(taskStateIcon(task.state), size: 15, color: statusColor),
         ),
-        const SizedBox(width: 13),
+        const SizedBox(width: 10),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                task.fileName,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  fontWeight: FontWeight.w500,
-                  height: 1.3,
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: Text(
+                      task.fileName,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w500,
+                        height: 1.3,
+                      ),
+                    ),
+                  ),
+                  if (speedText != null) ...[
+                    const SizedBox(width: 12),
+                    Text(
+                      speedText,
+                      key: ValueKey('task-speed-${task.id}'),
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: colors.text,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 4),
+              SizedBox(
+                height: 12,
+                child: TransferTrack(
+                  progress: task.progress,
+                  color: statusColor,
                 ),
               ),
-              const SizedBox(height: 5),
-              Text(
-                taskStateLabel(task.state),
-                style: Theme.of(
-                  context,
-                ).textTheme.labelSmall?.copyWith(color: statusColor),
-              ),
-              const SizedBox(height: 9),
-              TransferTrack(progress: task.progress, color: statusColor),
-              const SizedBox(height: 5),
-              Text(
-                taskProgressText(task),
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: colors.textSecondary,
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                ),
+              const SizedBox(height: 3),
+              Wrap(
+                spacing: 8,
+                runSpacing: 3,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Text(
+                    taskStateLabel(task.state),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.labelSmall?.copyWith(color: statusColor),
+                  ),
+                  Container(
+                    width: 3,
+                    height: 3,
+                    decoration: BoxDecoration(
+                      color: colors.borderStrong,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                  Text(
+                    taskProgressText(task),
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: colors.textMuted,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                  if (progressText != null)
+                    Text(
+                      progressText,
+                      key: ValueKey('task-progress-${task.id}'),
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: colors.textSecondary,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                ],
               ),
             ],
           ),

@@ -28,4 +28,14 @@ void main() {
       DownpeedThemeTokens.iconSize,
     );
   });
+
+  test('uses the Codex neutral dark palette', () {
+    final theme = AppTheme.dark;
+
+    expect(theme.colorScheme.primary, const Color(0xFFFFFFFF));
+    expect(theme.scaffoldBackgroundColor, const Color(0xFF131313));
+    expect(theme.colorScheme.surface, const Color(0xFF1F1F1F));
+    expect(theme.colorScheme.onSurface, const Color(0xFFDBDBDB));
+    expect(theme.dividerColor, const Color(0xFF3A3A3A));
+  });
 }

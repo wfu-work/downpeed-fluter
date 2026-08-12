@@ -9,6 +9,8 @@ class L10nKeys {
   static const navSettings = 'nav.settings';
   static const sidebarCollapse = 'sidebar.collapse';
   static const sidebarExpand = 'sidebar.expand';
+  static const sidebarThemeToLight = 'sidebar.theme.toLight';
+  static const sidebarThemeToDark = 'sidebar.theme.toDark';
   static const settingsTitle = 'settings.title';
   static const settingsSubtitle = 'settings.subtitle';
   static const settingsBackToTasks = 'settings.backToTasks';
@@ -28,6 +30,13 @@ class L10nKeys {
   static const settingsLanguageDescription = 'settings.language.description';
   static const settingsLanguageChinese = 'settings.language.chinese';
   static const settingsLanguageEnglish = 'settings.language.english';
+  static const settingsAppearanceNoteTitle = 'settings.appearance.note.title';
+  static const settingsAppearanceNoteBody = 'settings.appearance.note.body';
+  static const settingsLogoPreview = 'settings.logoPreview';
+  static const settingsLogoPreviewDescription =
+      'settings.logoPreview.description';
+  static const settingsLogoPreviewLight = 'settings.logoPreview.light';
+  static const settingsLogoPreviewDark = 'settings.logoPreview.dark';
   static const settingsWorkspace = 'settings.workspace';
   static const settingsWorkspaceDescription = 'settings.workspace.description';
   static const settingsSidebarExpanded = 'settings.sidebar.expanded';
@@ -36,11 +45,45 @@ class L10nKeys {
   static const settingsSidebarWidth = 'settings.sidebar.width';
   static const settingsSidebarWidthDescription =
       'settings.sidebar.width.description';
+  static const settingsWorkspaceNoteTitle = 'settings.workspace.note.title';
+  static const settingsWorkspaceNoteBody = 'settings.workspace.note.body';
+  static const settingsNotifications = 'settings.notifications';
+  static const settingsNotificationsDescription =
+      'settings.notifications.description';
+  static const settingsCompletionNotifications =
+      'settings.notifications.completion';
+  static const settingsCompletionNotificationsDescription =
+      'settings.notifications.completion.description';
+  static const settingsNewDownloadShortcut = 'settings.shortcuts.newDownload';
+  static const settingsNewDownloadShortcutDescription =
+      'settings.shortcuts.newDownload.description';
+  static const settingsNotificationsNoteTitle =
+      'settings.notifications.note.title';
+  static const settingsNotificationsNoteBody =
+      'settings.notifications.note.body';
   static const settingsReset = 'settings.reset';
   static const settingsEngine = 'settings.engine';
   static const settingsEngineDescription = 'settings.engine.description';
   static const settingsEngineSectionDescription =
       'settings.engine.sectionDescription';
+  static const settingsEngineNoteTitle = 'settings.engine.note.title';
+  static const settingsEngineNoteBody = 'settings.engine.note.body';
+  static const settingsAbout = 'settings.about';
+  static const settingsAboutDescription = 'settings.about.description';
+  static const settingsAboutAppVersion = 'settings.about.appVersion';
+  static const settingsAboutAppVersionDescription =
+      'settings.about.appVersion.description';
+  static const settingsAboutEngineVersion = 'settings.about.engineVersion';
+  static const settingsAboutEngineVersionDescription =
+      'settings.about.engineVersion.description';
+  static const settingsAboutEngineUnavailable =
+      'settings.about.engineVersion.unavailable';
+  static const settingsAboutLicenses = 'settings.about.licenses';
+  static const settingsAboutLicensesDescription =
+      'settings.about.licenses.description';
+  static const settingsAboutOpenLicenses = 'settings.about.openLicenses';
+  static const settingsAboutNoteTitle = 'settings.about.note.title';
+  static const settingsAboutNoteBody = 'settings.about.note.body';
   static const tasksTitle = 'tasks.title';
   static const tasksSubtitle = 'tasks.subtitle';
   static const tasksAdd = 'tasks.add';

@@ -84,11 +84,16 @@ class DesktopActionException implements Exception {
 }
 
 class DesktopActionsService extends GetxService {
-  DesktopActionsService({required this.platform});
+  DesktopActionsService({
+    required this.platform,
+    bool Function()? completionNotificationsEnabled,
+  }) : _completionNotificationsEnabled =
+           completionNotificationsEnabled ?? (() => true);
 
   static DesktopActionsService get to => Get.find<DesktopActionsService>();
 
   final DesktopActionsPlatform platform;
+  final bool Function() _completionNotificationsEnabled;
   final activeTaskIds = <String>{}.obs;
   final errorMessage = RxnString();
   final _feedbackTaskId = RxnString();
@@ -107,7 +112,11 @@ class DesktopActionsService extends GetxService {
       _performFileAction(task, platform.revealFile);
 
   Future<void> notifyCompleted(DownloadTask task) async {
-    if (!isSupported || task.state != DownloadTaskState.completed) return;
+    if (!isSupported ||
+        !_completionNotificationsEnabled() ||
+        task.state != DownloadTaskState.completed) {
+      return;
+    }
     try {
       await platform.showCompletionNotification(
         id: task.id,

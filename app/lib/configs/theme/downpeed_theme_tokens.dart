@@ -38,23 +38,23 @@ class DownpeedThemeTokens {
   static DownpeedResolvedColors colorsFor(Brightness brightness) {
     if (brightness == Brightness.dark) {
       return const DownpeedResolvedColors(
-        workspace: Color(0xFF1D1D1B),
-        sidebar: Color(0xFF171716),
-        sidebarSelection: Color(0xFF2A2A28),
-        surface: Color(0xFF232321),
-        surfaceSubtle: Color(0xFF292927),
-        surfaceRaised: Color(0xFF252523),
-        border: Color(0xFF353532),
-        borderStrong: Color(0xFF494945),
-        text: Color(0xFFEDEDE8),
-        textSecondary: Color(0xFFB1B1AA),
-        textMuted: Color(0xFF81817A),
-        accent: Color(0xFFEDEDE8),
-        onAccent: Color(0xFF1B1B19),
+        workspace: Color(0xFF131313),
+        sidebar: Color(0xFF1A1A1A),
+        sidebarSelection: Color(0xFF2A2A2A),
+        surface: Color(0xFF1F1F1F),
+        surfaceSubtle: Color(0xFF222222),
+        surfaceRaised: Color(0xFF222222),
+        border: Color(0xFF3A3A3A),
+        borderStrong: Color(0xFF404040),
+        text: Color(0xFFDBDBDB),
+        textSecondary: Color(0xFFAFAFAF),
+        textMuted: Color(0xFF767676),
+        accent: Color(0xFFFFFFFF),
+        onAccent: Color(0xFF131313),
         success: Color(0xFF56A66F),
         warning: Color(0xFFD09A52),
         danger: Color(0xFFD8716B),
-        track: Color(0xFF41413D),
+        track: Color(0xFF404040),
       );
     }
     return const DownpeedResolvedColors(

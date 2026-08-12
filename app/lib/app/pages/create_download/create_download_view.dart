@@ -76,14 +76,27 @@ class CreateDownloadDialog extends StatelessWidget {
         final compact = size.width < 640;
         final horizontalInset = compact ? 8.0 : 32.0;
         final verticalInset = compact ? 8.0 : 32.0;
-        final width = math.min(820.0, size.width - horizontalInset * 2);
-        final height = compact
-            ? size.height - verticalInset * 2
-            : math.min(760.0, size.height * 0.88);
         final colors = context.downpeedColors;
 
-        return Obx(
-          () => PopScope(
+        return Obx(() {
+          final isEntryPhase =
+              controller.phase.value == CreateDownloadPhase.idle;
+          final maxWidth = size.width - horizontalInset * 2;
+          final maxHeight = compact
+              ? size.height - verticalInset * 2
+              : math.min(760.0, size.height * 0.88);
+          final width = compact
+              ? maxWidth
+              : math.min(isEntryPhase ? 720.0 : 820.0, maxWidth);
+          final desktopHeight = isEntryPhase ? 450.0 : 760.0;
+          final height = compact
+              ? maxHeight
+              : math.min(desktopHeight, maxHeight);
+          final animationDuration = MediaQuery.disableAnimationsOf(context)
+              ? Duration.zero
+              : const Duration(milliseconds: 180);
+
+          return PopScope(
             canPop: !controller.isBusy,
             child: Dialog(
               insetPadding: EdgeInsets.symmetric(
@@ -91,14 +104,16 @@ class CreateDownloadDialog extends StatelessWidget {
                 vertical: verticalInset,
               ),
               clipBehavior: Clip.antiAlias,
-              elevation: 16,
+              elevation: 18,
               shadowColor: Colors.black.withValues(
                 alpha: Theme.of(context).brightness == Brightness.dark
-                    ? 0.5
-                    : 0.14,
+                    ? 0.46
+                    : 0.16,
               ),
-              child: SizedBox(
+              child: AnimatedContainer(
                 key: const ValueKey('create-download-dialog'),
+                duration: animationDuration,
+                curve: Curves.easeOutCubic,
                 width: width,
                 height: height,
                 child: Column(
@@ -106,10 +121,10 @@ class CreateDownloadDialog extends StatelessWidget {
                   children: [
                     Container(
                       padding: EdgeInsets.fromLTRB(
-                        16,
-                        compact ? 8 : 7,
+                        14,
+                        compact ? 8 : 9,
                         8,
-                        compact ? 8 : 7,
+                        compact ? 8 : 9,
                       ),
                       decoration: BoxDecoration(
                         color: colors.surfaceRaised,
@@ -119,11 +134,41 @@ class CreateDownloadDialog extends StatelessWidget {
                       ),
                       child: Row(
                         children: [
+                          Container(
+                            width: 30,
+                            height: 30,
+                            decoration: BoxDecoration(
+                              color: colors.surfaceSubtle,
+                              borderRadius: BorderRadius.circular(
+                                DownpeedThemeTokens.radius,
+                              ),
+                              border: Border.all(color: colors.border),
+                            ),
+                            alignment: Alignment.center,
+                            child: const Icon(DownpeedIcons.download),
+                          ),
+                          const SizedBox(width: 10),
                           Expanded(
-                            child: Text(
-                              L10nKeys.tasksAdd.tr,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.titleMedium,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  L10nKeys.tasksAdd.tr,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(
+                                    context,
+                                  ).textTheme.titleMedium,
+                                ),
+                                Text(
+                                  'HTTP / HTTPS',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: Theme.of(context).textTheme.labelSmall
+                                      ?.copyWith(color: colors.textMuted),
+                                ),
+                              ],
                             ),
                           ),
                           SizedBox.square(
@@ -157,7 +202,7 @@ class CreateDownloadDialog extends StatelessWidget {
                         child: _CreateDownloadContent(
                           controller: controller,
                           showEyebrow: false,
-                          wideTopPadding: 24,
+                          wideTopPadding: 22,
                         ),
                       ),
                     ),
@@ -165,8 +210,8 @@ class CreateDownloadDialog extends StatelessWidget {
                 ),
               ),
             ),
-          ),
-        );
+          );
+        });
       },
     );
   }
@@ -185,7 +230,6 @@ class _CreateDownloadContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.downpeedColors;
     return LayoutBuilder(
       builder: (context, constraints) {
         final compact = constraints.maxWidth < 640;
@@ -199,7 +243,7 @@ class _CreateDownloadContent extends StatelessWidget {
             compact
                 ? DownpeedThemeTokens.compactPagePadding
                 : DownpeedThemeTokens.pagePadding,
-            compact ? 28 : 40,
+            compact ? 28 : 30,
           ),
           child: Align(
             alignment: Alignment.topCenter,
@@ -208,33 +252,12 @@ class _CreateDownloadContent extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (showEyebrow) ...[
-                    Text(
-                      L10nKeys.createEyebrow.tr.toUpperCase(),
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: colors.accent,
-                        letterSpacing: 0.4,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                  ],
-                  Text(
-                    L10nKeys.createTitle.tr,
-                    style: Theme.of(context).textTheme.headlineMedium,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    L10nKeys.createSubtitle.tr,
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: colors.textSecondary,
-                      height: 1.45,
-                    ),
-                  ),
-                  SizedBox(height: compact ? 22 : 26),
+                  _CreateIntro(showEyebrow: showEyebrow),
+                  SizedBox(height: compact ? 20 : 22),
                   _URLForm(controller: controller),
                   const SizedBox(height: 12),
                   const _AdvancedOptions(),
-                  const SizedBox(height: 24),
+                  SizedBox(height: compact ? 16 : 18),
                   Obx(
                     () => switch (controller.phase.value) {
                       CreateDownloadPhase.idle => const _IdleHint(),
@@ -279,6 +302,66 @@ class _CreateDownloadContent extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _CreateIntro extends StatelessWidget {
+  const _CreateIntro({required this.showEyebrow});
+
+  final bool showEyebrow;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.downpeedColors;
+    return Row(
+      key: const ValueKey('create-download-intro'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            color: colors.surfaceSubtle,
+            borderRadius: BorderRadius.circular(
+              DownpeedThemeTokens.radiusLarge,
+            ),
+            border: Border.all(color: colors.border),
+          ),
+          alignment: Alignment.center,
+          child: Icon(DownpeedIcons.link, color: colors.textSecondary),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (showEyebrow) ...[
+                Text(
+                  L10nKeys.createEyebrow.tr.toUpperCase(),
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: colors.textSecondary,
+                    letterSpacing: 0.35,
+                  ),
+                ),
+                const SizedBox(height: 5),
+              ],
+              Text(
+                L10nKeys.createTitle.tr,
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
+              const SizedBox(height: 5),
+              Text(
+                L10nKeys.createSubtitle.tr,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: colors.textSecondary,
+                  height: 1.42,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -344,73 +427,110 @@ class _URLForm extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.downpeedColors;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          L10nKeys.createUrlLabel.tr,
-          style: Theme.of(context).textTheme.labelLarge,
-        ),
-        const SizedBox(height: 8),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final compact = constraints.maxWidth < 620;
-            final input = TextField(
-              key: const ValueKey('download-url-field'),
-              controller: controller.urlController,
-              focusNode: controller.urlFocusNode,
-              autofocus: true,
-              autocorrect: false,
-              enableSuggestions: false,
-              keyboardType: TextInputType.multiline,
-              textInputAction: TextInputAction.newline,
-              maxLines: 6,
-              minLines: 2,
-              decoration: InputDecoration(
-                hintText: L10nKeys.createUrlHint.tr,
-                prefixIcon: const Icon(DownpeedIcons.link),
-              ),
-            );
-            final action = Obx(
-              () => FilledButton.icon(
-                key: const ValueKey('resolve-download-button'),
-                onPressed: controller.hasInput.value && !controller.isResolving
-                    ? controller.resolve
-                    : null,
-                icon: controller.isResolving
-                    ? SizedBox(
-                        width: 15,
-                        height: 15,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: colors.onAccent,
-                        ),
-                      )
-                    : const Icon(DownpeedIcons.search),
-                label: Text(
-                  controller.isResolving
-                      ? L10nKeys.createResolving.tr
-                      : L10nKeys.createResolve.tr,
+    return Container(
+      key: const ValueKey('download-url-card'),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: colors.surfaceRaised,
+        borderRadius: BorderRadius.circular(DownpeedThemeTokens.radiusLarge),
+        border: Border.all(color: colors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  L10nKeys.createUrlLabel.tr,
+                  style: Theme.of(context).textTheme.labelLarge,
                 ),
               ),
-            );
-            if (compact) {
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [input, const SizedBox(height: 10), action],
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                decoration: BoxDecoration(
+                  color: colors.surfaceSubtle,
+                  borderRadius: BorderRadius.circular(
+                    DownpeedThemeTokens.radiusPill,
+                  ),
+                ),
+                child: Text(
+                  'HTTP / HTTPS',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: colors.textMuted,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 620;
+              final input = TextField(
+                key: const ValueKey('download-url-field'),
+                controller: controller.urlController,
+                focusNode: controller.urlFocusNode,
+                autofocus: true,
+                autocorrect: false,
+                enableSuggestions: false,
+                keyboardType: TextInputType.multiline,
+                textInputAction: TextInputAction.newline,
+                maxLines: 6,
+                minLines: 2,
+                decoration: InputDecoration(
+                  hintText: L10nKeys.createUrlHint.tr,
+                  prefixIcon: const Icon(DownpeedIcons.link),
+                  fillColor: colors.workspace,
+                ),
               );
-            }
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(child: input),
-                const SizedBox(width: 10),
-                action,
-              ],
-            );
-          },
-        ),
-      ],
+              final action = Obx(
+                () => FilledButton.icon(
+                  key: const ValueKey('resolve-download-button'),
+                  onPressed:
+                      controller.hasInput.value && !controller.isResolving
+                      ? controller.resolve
+                      : null,
+                  icon: controller.isResolving
+                      ? SizedBox(
+                          width: 15,
+                          height: 15,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: colors.onAccent,
+                          ),
+                        )
+                      : const Icon(DownpeedIcons.search),
+                  label: Text(
+                    controller.isResolving
+                        ? L10nKeys.createResolving.tr
+                        : L10nKeys.createResolve.tr,
+                  ),
+                ),
+              );
+              if (compact) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    input,
+                    const SizedBox(height: 10),
+                    SizedBox(height: 40, child: action),
+                  ],
+                );
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: input),
+                  const SizedBox(width: 10),
+                  SizedBox(width: 132, height: 64, child: action),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
     );
   }
 }
@@ -428,12 +548,16 @@ class _AdvancedOptions extends StatelessWidget {
       ),
       child: Container(
         decoration: BoxDecoration(
-          border: Border(bottom: BorderSide(color: colors.border)),
+          color: colors.surfaceRaised,
+          borderRadius: BorderRadius.circular(DownpeedThemeTokens.radiusLarge),
+          border: Border.all(color: colors.border),
         ),
+        clipBehavior: Clip.antiAlias,
         child: ExpansionTile(
           key: const ValueKey('advanced-options'),
-          tilePadding: EdgeInsets.zero,
-          childrenPadding: const EdgeInsets.only(bottom: 14),
+          dense: true,
+          tilePadding: const EdgeInsets.symmetric(horizontal: 13),
+          childrenPadding: const EdgeInsets.fromLTRB(40, 0, 14, 14),
           iconColor: colors.textSecondary,
           collapsedIconColor: colors.textMuted,
           leading: const Icon(DownpeedIcons.server),
@@ -467,20 +591,28 @@ class _IdleHint extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.downpeedColors;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(DownpeedIcons.info, color: colors.textMuted),
-        const SizedBox(width: 9),
-        Expanded(
-          child: Text(
-            L10nKeys.createIdleHint.tr,
-            style: Theme.of(
-              context,
-            ).textTheme.bodySmall?.copyWith(color: colors.textMuted),
+    return Container(
+      key: const ValueKey('create-download-idle-hint'),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: colors.surfaceSubtle.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(DownpeedThemeTokens.radius),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(DownpeedIcons.info, color: colors.textMuted),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Text(
+              L10nKeys.createIdleHint.tr,
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: colors.textMuted),
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

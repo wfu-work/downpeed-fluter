@@ -18,33 +18,78 @@ class LocalizationService extends Translations {
       L10nKeys.navSettings: '设置',
       L10nKeys.sidebarCollapse: '收起侧栏',
       L10nKeys.sidebarExpand: '展开侧栏',
+      L10nKeys.sidebarThemeToLight: '切换到浅色模式',
+      L10nKeys.sidebarThemeToDark: '切换到深色模式',
       L10nKeys.settingsTitle: '设置',
-      L10nKeys.settingsSubtitle: '调整外观、语言和本机工作区布局。',
+      L10nKeys.settingsSubtitle: '管理界面与本机偏好。',
       L10nKeys.settingsBackToTasks: '返回下载任务',
       L10nKeys.settingsBackToMenu: '返回设置菜单',
       L10nKeys.settingsNavigationPreferences: '偏好设置',
       L10nKeys.settingsNavigationSystem: '系统',
       L10nKeys.settingsAppearance: '外观',
-      L10nKeys.settingsAppearanceDescription: '调整界面主题与显示语言。',
+      L10nKeys.settingsAppearanceDescription:
+          '设置 Downpeed 的明暗外观和界面语言，让长时间使用更舒适。',
       L10nKeys.settingsTheme: '主题',
-      L10nKeys.settingsThemeDescription: '选择界面的明暗模式。',
+      L10nKeys.settingsThemeDescription: '跟随系统会随桌面外观自动切换，也可固定使用浅色或深色模式。',
       L10nKeys.settingsThemeSystem: '跟随系统',
       L10nKeys.settingsThemeLight: '浅色',
       L10nKeys.settingsThemeDark: '深色',
       L10nKeys.settingsLanguage: '语言',
-      L10nKeys.settingsLanguageDescription: '切换界面显示语言。',
+      L10nKeys.settingsLanguageDescription: '切换后界面文案会立即更新，不会更改任务名称、文件名或下载内容。',
       L10nKeys.settingsLanguageChinese: '简体中文',
       L10nKeys.settingsLanguageEnglish: 'English',
+      L10nKeys.settingsAppearanceNoteTitle: '外观偏好仅影响当前设备',
+      L10nKeys.settingsAppearanceNoteBody:
+          '主题和语言会在选择后立即生效，并保存在本机以便下次启动继续使用。这些选项不会影响正在进行的下载、任务数据或已保存文件。',
+      L10nKeys.settingsLogoPreview: 'Logo 预览',
+      L10nKeys.settingsLogoPreviewDescription:
+          '预览 Downpeed Logo 在浅色和深色界面中的固定对比效果。',
+      L10nKeys.settingsLogoPreviewLight: '浅色外观',
+      L10nKeys.settingsLogoPreviewDark: '深色外观',
       L10nKeys.settingsWorkspace: '工作区',
-      L10nKeys.settingsWorkspaceDescription: '设置侧栏的默认状态和显示宽度。',
+      L10nKeys.settingsWorkspaceDescription: '调整任务工作区的侧栏状态与宽度，让常用导航保持顺手。',
       L10nKeys.settingsSidebarExpanded: '默认展开侧栏',
-      L10nKeys.settingsSidebarExpandedDescription: '空间足够时显示完整菜单和任务数量。',
+      L10nKeys.settingsSidebarExpandedDescription:
+          '应用启动且窗口空间足够时，自动显示完整菜单、筛选入口和任务数量。',
       L10nKeys.settingsSidebarWidth: '侧栏宽度',
-      L10nKeys.settingsSidebarWidthDescription: '拖动侧栏右边缘即可自由调整。',
+      L10nKeys.settingsSidebarWidthDescription:
+          '在任务工作区拖动侧栏右边缘调整宽度，当前尺寸会自动保存在本机。',
+      L10nKeys.settingsWorkspaceNoteTitle: '布局会随窗口宽度自动适应',
+      L10nKeys.settingsWorkspaceNoteBody:
+          '侧栏偏好主要用于宽屏桌面窗口。窗口变窄时，Downpeed 会自动切换为紧凑导航；重新拉宽后继续使用已保存的展开状态和宽度，不会影响任务、筛选结果或下载进度。',
+      L10nKeys.settingsNotifications: '通知与快捷键',
+      L10nKeys.settingsNotificationsDescription: '管理下载完成提醒和任务工作区的常用键盘操作。',
+      L10nKeys.settingsCompletionNotifications: '下载完成通知',
+      L10nKeys.settingsCompletionNotificationsDescription:
+          '当运行中的任务首次进入完成状态时，发送一次系统通知。',
+      L10nKeys.settingsNewDownloadShortcut: '新建下载快捷键',
+      L10nKeys.settingsNewDownloadShortcutDescription:
+          '在任务工作区按下快捷键，可直接打开新建下载窗口。',
+      L10nKeys.settingsNotificationsNoteTitle: '通知权限由当前系统管理',
+      L10nKeys.settingsNotificationsNoteBody:
+          '关闭此选项会立即停止 Downpeed 发送新的完成通知，不影响下载任务。如果已在系统设置中拒绝通知权限，还需在系统中重新允许。',
       L10nKeys.settingsReset: '恢复默认',
       L10nKeys.settingsEngine: '本机引擎',
-      L10nKeys.settingsEngineDescription: '查看本地下载服务的连接状态。',
-      L10nKeys.settingsEngineSectionDescription: '检查本机下载服务版本和连接状态。',
+      L10nKeys.settingsEngineDescription: '本机引擎负责下载调度与文件写入，未连接时可使用右侧按钮重新检查。',
+      L10nKeys.settingsEngineSectionDescription:
+          '查看本机下载服务的连接状态与版本，确认任务列表和实时进度能否正常同步。',
+      L10nKeys.settingsEngineNoteTitle: '下载任务由本机引擎处理',
+      L10nKeys.settingsEngineNoteBody:
+          '本机引擎负责链接解析、队列调度、断点续传和文件写入，界面只读取并显示它的状态。使用刷新按钮只会重新检查连接，不会暂停、重启或修改下载任务。',
+      L10nKeys.settingsAbout: '关于与许可证',
+      L10nKeys.settingsAboutDescription: '查看应用、引擎与运行环境版本，以及开源组件的许可信息。',
+      L10nKeys.settingsAboutAppVersion: 'Downpeed 客户端',
+      L10nKeys.settingsAboutAppVersionDescription: '当前安装的桌面客户端版本。',
+      L10nKeys.settingsAboutEngineVersion: '本机引擎版本',
+      L10nKeys.settingsAboutEngineVersionDescription: 'API @api · @platform',
+      L10nKeys.settingsAboutEngineUnavailable: '连接本机引擎后显示版本与运行环境。',
+      L10nKeys.settingsAboutLicenses: '开源许可证',
+      L10nKeys.settingsAboutLicensesDescription:
+          '查看 Flutter 客户端使用的开源软件包及其许可文本。',
+      L10nKeys.settingsAboutOpenLicenses: '查看许可证',
+      L10nKeys.settingsAboutNoteTitle: '版本信息可用于问题诊断',
+      L10nKeys.settingsAboutNoteBody:
+          '反馈问题时，请同时提供客户端版本、引擎版本和 API 版本。许可证页只展示已随客户端编译的依赖。',
       L10nKeys.tasksTitle: '下载任务',
       L10nKeys.tasksSubtitle: '查看进度、速度和需要处理的任务。',
       L10nKeys.tasksAdd: '新建下载',
@@ -188,41 +233,91 @@ class LocalizationService extends Translations {
       L10nKeys.navSettings: 'Settings',
       L10nKeys.sidebarCollapse: 'Collapse sidebar',
       L10nKeys.sidebarExpand: 'Expand sidebar',
+      L10nKeys.sidebarThemeToLight: 'Switch to light mode',
+      L10nKeys.sidebarThemeToDark: 'Switch to dark mode',
       L10nKeys.settingsTitle: 'Settings',
-      L10nKeys.settingsSubtitle:
-          'Adjust appearance, language, and the local workspace layout.',
+      L10nKeys.settingsSubtitle: 'Manage local preferences.',
       L10nKeys.settingsBackToTasks: 'Back to transfers',
       L10nKeys.settingsBackToMenu: 'Back to settings',
       L10nKeys.settingsNavigationPreferences: 'Preferences',
       L10nKeys.settingsNavigationSystem: 'System',
       L10nKeys.settingsAppearance: 'Appearance',
       L10nKeys.settingsAppearanceDescription:
-          'Adjust the interface theme and display language.',
+          'Choose how Downpeed looks and reads for a more comfortable workspace.',
       L10nKeys.settingsTheme: 'Theme',
       L10nKeys.settingsThemeDescription:
-          'Choose how light and dark surfaces are displayed.',
+          'Follow your desktop appearance automatically, or keep light or dark mode on.',
       L10nKeys.settingsThemeSystem: 'System',
       L10nKeys.settingsThemeLight: 'Light',
       L10nKeys.settingsThemeDark: 'Dark',
       L10nKeys.settingsLanguage: 'Language',
-      L10nKeys.settingsLanguageDescription: 'Choose the interface language.',
+      L10nKeys.settingsLanguageDescription:
+          'Interface copy updates immediately without changing task names, file names, or downloads.',
       L10nKeys.settingsLanguageChinese: '简体中文',
       L10nKeys.settingsLanguageEnglish: 'English',
+      L10nKeys.settingsAppearanceNoteTitle:
+          'Appearance preferences stay on this device',
+      L10nKeys.settingsAppearanceNoteBody:
+          'Theme and language changes apply immediately and are saved locally for your next launch. They do not affect active downloads, task data, or saved files.',
+      L10nKeys.settingsLogoPreview: 'Logo preview',
+      L10nKeys.settingsLogoPreviewDescription:
+          'Preview the fixed Downpeed logo contrast on light and dark interface surfaces.',
+      L10nKeys.settingsLogoPreviewLight: 'Light appearance',
+      L10nKeys.settingsLogoPreviewDark: 'Dark appearance',
       L10nKeys.settingsWorkspace: 'Workspace',
       L10nKeys.settingsWorkspaceDescription:
-          'Configure the sidebar default state and display width.',
+          'Tune the transfer workspace sidebar so everyday navigation stays comfortable.',
       L10nKeys.settingsSidebarExpanded: 'Expand sidebar by default',
       L10nKeys.settingsSidebarExpandedDescription:
-          'Show the full menu and task counts when space allows.',
+          'Show the full menu, filters, and task counts at launch when the window has enough room.',
       L10nKeys.settingsSidebarWidth: 'Sidebar width',
       L10nKeys.settingsSidebarWidthDescription:
-          'Drag the sidebar edge to resize it freely.',
+          'Drag the sidebar edge in the transfer workspace. Its current size is saved on this device.',
+      L10nKeys.settingsWorkspaceNoteTitle:
+          'The layout adapts to the window width',
+      L10nKeys.settingsWorkspaceNoteBody:
+          'Sidebar preferences apply to wide desktop windows. Downpeed switches to compact navigation when space is limited and restores your saved width and expanded state when the window grows, without affecting tasks, filters, or download progress.',
+      L10nKeys.settingsNotifications: 'Notifications & shortcuts',
+      L10nKeys.settingsNotificationsDescription:
+          'Manage completion alerts and common keyboard actions in the transfer workspace.',
+      L10nKeys.settingsCompletionNotifications:
+          'Download completion notifications',
+      L10nKeys.settingsCompletionNotificationsDescription:
+          'Send one system notification when an active task first reaches the completed state.',
+      L10nKeys.settingsNewDownloadShortcut: 'New download shortcut',
+      L10nKeys.settingsNewDownloadShortcutDescription:
+          'Open the new download dialog directly from the transfer workspace.',
+      L10nKeys.settingsNotificationsNoteTitle:
+          'Notification permission is managed by your system',
+      L10nKeys.settingsNotificationsNoteBody:
+          'Turning this off immediately stops new Downpeed completion notifications without affecting downloads. If permission was denied in system settings, allow it there before notifications can appear.',
       L10nKeys.settingsReset: 'Reset',
       L10nKeys.settingsEngine: 'Local engine',
       L10nKeys.settingsEngineDescription:
-          'Review the local download service connection.',
+          'The local engine schedules downloads and writes files. Use the button on the right to check the connection again.',
       L10nKeys.settingsEngineSectionDescription:
-          'Review the local download service version and connection.',
+          'Review the local download service connection and version to confirm tasks and live progress can stay in sync.',
+      L10nKeys.settingsEngineNoteTitle:
+          'Downloads are handled by the local engine',
+      L10nKeys.settingsEngineNoteBody:
+          'The local engine resolves links, schedules the queue, resumes transfers, and writes files while the interface reads and presents its state. Refresh only checks the connection again; it does not pause, restart, or modify downloads.',
+      L10nKeys.settingsAbout: 'About & licenses',
+      L10nKeys.settingsAboutDescription:
+          'Review app, engine, and runtime versions together with open-source license information.',
+      L10nKeys.settingsAboutAppVersion: 'Downpeed client',
+      L10nKeys.settingsAboutAppVersionDescription:
+          'The currently installed desktop client version.',
+      L10nKeys.settingsAboutEngineVersion: 'Local engine version',
+      L10nKeys.settingsAboutEngineVersionDescription: 'API @api · @platform',
+      L10nKeys.settingsAboutEngineUnavailable:
+          'Connect the local engine to view its version and runtime.',
+      L10nKeys.settingsAboutLicenses: 'Open-source licenses',
+      L10nKeys.settingsAboutLicensesDescription:
+          'Review the open-source packages compiled into the Flutter client and their license text.',
+      L10nKeys.settingsAboutOpenLicenses: 'View licenses',
+      L10nKeys.settingsAboutNoteTitle: 'Version details help diagnose problems',
+      L10nKeys.settingsAboutNoteBody:
+          'When reporting an issue, include the client, engine, and API versions. The license page lists dependencies compiled into the client.',
       L10nKeys.tasksTitle: 'Transfers',
       L10nKeys.tasksSubtitle:
           'Review progress, speed, and tasks that need attention.',

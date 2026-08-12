@@ -21,3 +21,5 @@ Downpeed 的品牌标记是一座 D 形下载通道：外轮廓对应产品首�
 - Linux：`app/linux/runner/resources/app_icon.png`
 
 平台位图均由本目录中的 SVG 母版生成。修改母版后，应重新生成全部尺寸并执行对应平台构建，避免 Dock、任务栏或启动器继续使用旧图标。
+
+macOS 的 AppIcon 位图需要把母版合成到不透明、铺满画布的 Graphite 底色上，由系统统一应用最终圆角蒙版。不要在 macOS 位图中预先裁出圆角或保留外侧留白；macOS 26 会把这种旧式图标缩小后放进系统提供的底板，形成额外的白色外框。Windows 与 Linux 资源继续使用母版的原有安全区。
