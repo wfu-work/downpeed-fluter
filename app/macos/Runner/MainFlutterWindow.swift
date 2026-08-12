@@ -1,12 +1,20 @@
 import Cocoa
 import FlutterMacOS
+import ServiceManagement
 import UserNotifications
 
 class MainFlutterWindow: NSWindow {
   private static let desktopActionsChannel = "com.xiaoxi.downpeed/desktop_actions"
+  private static let startupChannel = "com.xiaoxi.downpeed/startup"
+  private static let startupArgument = "--downpeed-startup"
 
   override func awakeFromNib() {
-    let flutterViewController = FlutterViewController()
+    let launchedAtLogin = Self.wasLaunchedAsLoginItem
+    let project = FlutterDartProject()
+    if launchedAtLogin {
+      project.dartEntrypointArguments = [Self.startupArgument]
+    }
+    let flutterViewController = FlutterViewController(project: project)
     let windowFrame = self.frame
     self.contentViewController = flutterViewController
     self.setFrame(windowFrame, display: true)
@@ -14,8 +22,21 @@ class MainFlutterWindow: NSWindow {
 
     RegisterGeneratedPlugins(registry: flutterViewController)
     registerDesktopActions(with: flutterViewController)
+    registerStartupActions(with: flutterViewController)
 
     super.awakeFromNib()
+    if launchedAtLogin {
+      orderOut(nil)
+    }
+  }
+
+  private static var wasLaunchedAsLoginItem: Bool {
+    guard let event = NSAppleEventManager.shared().currentAppleEvent else {
+      return false
+    }
+    return event.eventClass == kCoreEventClass &&
+      event.eventID == kAEOpenApplication &&
+      event.paramDescriptor(forKeyword: keyAELaunchedAsLogInItem) != nil
   }
 
   private func configureImmersiveTitlebar() {
@@ -47,6 +68,59 @@ class MainFlutterWindow: NSWindow {
         self.revealFile(arguments: call.arguments, result: result)
       case "showCompletionNotification":
         self.showCompletionNotification(arguments: call.arguments, result: result)
+      default:
+        result(FlutterMethodNotImplemented)
+      }
+    }
+  }
+
+  private func registerStartupActions(with controller: FlutterViewController) {
+    let channel = FlutterMethodChannel(
+      name: Self.startupChannel,
+      binaryMessenger: controller.engine.binaryMessenger
+    )
+    channel.setMethodCallHandler { call, result in
+      guard #available(macOS 13.0, *) else {
+        if call.method == "isSupported" {
+          result(false)
+        } else {
+          result(FlutterError(
+            code: "unsupported",
+            message: "Login launch requires macOS 13 or later.",
+            details: nil
+          ))
+        }
+        return
+      }
+      let service = SMAppService.mainApp
+      switch call.method {
+      case "isSupported":
+        result(true)
+      case "isEnabled":
+        result(service.status == .enabled)
+      case "setEnabled":
+        guard let enabled = call.arguments as? Bool else {
+          result(FlutterError(
+            code: "invalid_argument",
+            message: "A login launch value is required.",
+            details: nil
+          ))
+          return
+        }
+        do {
+          if enabled {
+            try service.register()
+          } else if service.status != .notRegistered {
+            try service.unregister()
+          }
+          result((service.status == .enabled) == enabled)
+        } catch {
+          result(FlutterError(
+            code: "startup_update_failed",
+            message: "The system login item could not be updated.",
+            details: nil
+          ))
+        }
       default:
         result(FlutterMethodNotImplemented)
       }

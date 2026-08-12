@@ -10,6 +10,7 @@ import '../../../configs/theme/downpeed_theme_tokens.dart';
 import '../../../domains/batch_task_result.dart';
 import '../../../domains/engine_info.dart';
 import '../../../domains/download_task.dart';
+import '../../../services/embedded_engine_service.dart';
 import '../../widgets/brand_mark.dart';
 import '../../widgets/downpeed_app_shell.dart';
 import '../../widgets/engine_status_badge.dart';
@@ -92,10 +93,22 @@ class _TaskToolbar extends StatelessWidget {
           final title = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                L10nKeys.tasksTitle.tr,
-                key: const ValueKey('task-toolbar-title'),
-                style: Theme.of(context).textTheme.titleLarge,
+              Row(
+                key: const ValueKey('task-toolbar-heading'),
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: Text(
+                      L10nKeys.tasksTitle.tr,
+                      key: const ValueKey('task-toolbar-title'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                  ),
+                  const SizedBox(width: DownpeedThemeTokens.spaceSm),
+                  const EngineStatusBadge(dense: true),
+                ],
               ),
               const SizedBox(height: 1),
               Text(
@@ -288,9 +301,16 @@ class _ReadyState extends StatelessWidget {
                         fileActionError: controller.desktopActions.errorFor(
                           selected.id,
                         ),
+                        diagnosticsService: controller.btDiagnostics,
+                        diagnosticsExpanded: controller
+                            .diagnosticsExpandedTaskIds
+                            .contains(selected.id),
+                        onToggleDiagnostics: () =>
+                            controller.toggleDiagnostics(selected.id),
                         onPause: () => controller.pauseTask(selected),
                         onResume: () => controller.resumeTask(selected),
                         onCancel: () => controller.cancelTask(selected),
+                        onDelete: () => controller.deleteTask(selected),
                         onOpenFile: () => controller.openFile(selected),
                         onRevealFile: () => controller.revealFile(selected),
                       ),
@@ -353,6 +373,14 @@ class _TaskListPane extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (controller.filter.value == TaskListFilter.completed &&
+                    controller.completedTaskCount > 0)
+                  TextButton.icon(
+                    key: const ValueKey('clear-completed-button'),
+                    onPressed: controller.clearCompleted,
+                    icon: const Icon(DownpeedIcons.delete),
+                    label: Text(L10nKeys.tasksClearCompleted.tr),
+                  ),
                 if (eventError != null)
                   IconButton(
                     tooltip: eventError,
@@ -494,6 +522,22 @@ class _BatchCommandStrip extends StatelessWidget {
             label: Text(
               L10nKeys.tasksBatchCancel.tr,
               style: TextStyle(color: colors.danger),
+            ),
+          ),
+          TextButton.icon(
+            key: const ValueKey('batch-delete-button'),
+            onPressed: controller.canDeleteSelection
+                ? controller.deleteSelected
+                : null,
+            icon: Icon(
+              DownpeedIcons.delete,
+              color: controller.canDeleteSelection ? colors.danger : null,
+            ),
+            label: Text(
+              L10nKeys.tasksDeleteSelected.tr,
+              style: TextStyle(
+                color: controller.canDeleteSelection ? colors.danger : null,
+              ),
             ),
           ),
         ],
@@ -959,6 +1003,10 @@ class _OfflineState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.downpeedColors;
+    final errorMessage = controller.engineService.errorMessage.value;
+    final hasEmbeddedError =
+        Get.isRegistered<EmbeddedEngineService>() &&
+        EmbeddedEngineService.to.errorMessage.value != null;
     return Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(DownpeedThemeTokens.pagePadding),
@@ -974,33 +1022,35 @@ class _OfflineState extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                L10nKeys.engineOfflineBody.tr,
+                errorMessage ?? L10nKeys.engineOfflineBody.tr,
                 textAlign: TextAlign.center,
                 style: Theme.of(
                   context,
                 ).textTheme.bodyLarge?.copyWith(color: colors.textSecondary),
               ),
-              const SizedBox(height: 18),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 11,
-                ),
-                decoration: BoxDecoration(
-                  color: colors.surfaceSubtle,
-                  border: Border.all(color: colors.border),
-                  borderRadius: BorderRadius.circular(
-                    DownpeedThemeTokens.radius,
+              if (!hasEmbeddedError) ...[
+                const SizedBox(height: 18),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 11,
+                  ),
+                  decoration: BoxDecoration(
+                    color: colors.surfaceSubtle,
+                    border: Border.all(color: colors.border),
+                    borderRadius: BorderRadius.circular(
+                      DownpeedThemeTokens.radius,
+                    ),
+                  ),
+                  child: SelectableText(
+                    'cd backend && go run ./cmd/downpeedd',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: colors.textSecondary,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
                   ),
                 ),
-                child: SelectableText(
-                  'cd backend && go run ./cmd/downpeedd',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: colors.textSecondary,
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
-                ),
-              ),
+              ],
               const SizedBox(height: 20),
               FilledButton.icon(
                 key: const ValueKey('retry-engine-button'),

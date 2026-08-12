@@ -20,13 +20,14 @@ const (
 )
 
 type Config struct {
-	Address            string
-	AllowRemote        bool
-	DataDir            string
-	MaxConcurrentTasks int
-	MaxRetries         int
-	RetryBaseDelay     time.Duration
-	DownloadRateLimit  int64
+	Address                  string
+	AllowRemote              bool
+	DataDir                  string
+	DefaultDownloadDirectory string
+	MaxConcurrentTasks       int
+	MaxRetries               int
+	RetryBaseDelay           time.Duration
+	DownloadRateLimit        int64
 }
 
 func Parse(args []string, output io.Writer) (Config, error) {
@@ -37,11 +38,16 @@ func Parse(args []string, output io.Writer) (Config, error) {
 	if err != nil {
 		return Config{}, fmt.Errorf("resolve user configuration directory: %w", err)
 	}
+	userHomeDir, err := os.UserHomeDir()
+	if err != nil {
+		return Config{}, fmt.Errorf("resolve user home directory: %w", err)
+	}
 	cfg := Config{
-		DataDir:            filepath.Join(userConfigDir, "Downpeed"),
-		MaxConcurrentTasks: DefaultMaxConcurrentTasks,
-		MaxRetries:         DefaultMaxRetries,
-		RetryBaseDelay:     DefaultRetryBaseDelay,
+		DataDir:                  filepath.Join(userConfigDir, "Downpeed"),
+		DefaultDownloadDirectory: defaultDownloadDirectory(userHomeDir),
+		MaxConcurrentTasks:       DefaultMaxConcurrentTasks,
+		MaxRetries:               DefaultMaxRetries,
+		RetryBaseDelay:           DefaultRetryBaseDelay,
 	}
 	fs.StringVar(&cfg.Address, "address", DefaultAddress, "HTTP listen address")
 	fs.BoolVar(&cfg.AllowRemote, "allow-remote", false, "allow a non-loopback listen address")
@@ -57,6 +63,7 @@ func Parse(args []string, output io.Writer) (Config, error) {
 		return Config{}, fmt.Errorf("unexpected arguments: %s", strings.Join(fs.Args(), " "))
 	}
 	cfg.DataDir = filepath.Clean(strings.TrimSpace(cfg.DataDir))
+	cfg.DefaultDownloadDirectory = filepath.Clean(strings.TrimSpace(cfg.DefaultDownloadDirectory))
 	if err := cfg.Validate(); err != nil {
 		return Config{}, err
 	}
@@ -66,6 +73,16 @@ func Parse(args []string, output io.Writer) (Config, error) {
 func (cfg Config) Validate() error {
 	if !filepath.IsAbs(filepath.Clean(strings.TrimSpace(cfg.DataDir))) {
 		return errors.New("data directory must be an absolute path")
+	}
+	if strings.TrimSpace(cfg.DefaultDownloadDirectory) == "" {
+		userHomeDir, err := os.UserHomeDir()
+		if err != nil {
+			return fmt.Errorf("resolve user home directory: %w", err)
+		}
+		cfg.DefaultDownloadDirectory = defaultDownloadDirectory(userHomeDir)
+	}
+	if !filepath.IsAbs(filepath.Clean(strings.TrimSpace(cfg.DefaultDownloadDirectory))) {
+		return errors.New("default download directory must be an absolute path")
 	}
 	if cfg.MaxConcurrentTasks <= 0 || cfg.MaxConcurrentTasks > 64 {
 		return errors.New("maximum concurrent tasks must be between 1 and 64")

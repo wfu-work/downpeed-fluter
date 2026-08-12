@@ -16,6 +16,8 @@ class PreferencesService extends GetxService {
   final sidebarExpanded = true.obs;
   final sidebarWidth = DownpeedThemeTokens.sidebarWidth.obs;
   final completionNotificationsEnabled = true.obs;
+  final closeToTrayEnabled = true.obs;
+  final startHiddenOnLogin = false.obs;
 
   Future<void> init() async {
     await GetStorage.init();
@@ -32,6 +34,10 @@ class PreferencesService extends GetxService {
             .toDouble();
     completionNotificationsEnabled.value =
         _storage.read<bool>('${_prefix}_completion_notifications') ?? true;
+    closeToTrayEnabled.value =
+        _storage.read<bool>('${_prefix}_close_to_tray') ?? true;
+    startHiddenOnLogin.value =
+        _storage.read<bool>('${_prefix}_start_hidden_on_login') ?? false;
   }
 
   int? get themeModeIndex =>
@@ -70,6 +76,16 @@ class PreferencesService extends GetxService {
   Future<void> setCompletionNotificationsEnabled(bool value) async {
     completionNotificationsEnabled.value = value;
     await _write('${_prefix}_completion_notifications', value);
+  }
+
+  Future<void> setCloseToTrayEnabled(bool value) async {
+    closeToTrayEnabled.value = value;
+    await _write('${_prefix}_close_to_tray', value);
+  }
+
+  Future<void> setStartHiddenOnLogin(bool value) async {
+    startHiddenOnLogin.value = value;
+    await _write('${_prefix}_start_hidden_on_login', value);
   }
 
   Future<void> _write(String key, Object value) async {

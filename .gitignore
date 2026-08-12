@@ -4,3 +4,9 @@
 /.build/
 /dist/
 /backend/.data/
+/app/macos/Runner/Frameworks/libdownpeed.dylib
+/app/macos/Runner/Frameworks/libdownpeed.h
+/app/windows/runner/resources/downpeed.dll
+/app/windows/runner/resources/downpeed.h
+/app/linux/runner/resources/libdownpeed.so
+/app/linux/runner/resources/libdownpeed.h

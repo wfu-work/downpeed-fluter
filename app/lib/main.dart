@@ -8,8 +8,8 @@ import 'configs/localization/localization_service.dart';
 import 'configs/theme/app_theme.dart';
 import 'services/app_service.dart';
 
-Future<void> main() async {
-  await AppInitializer.init();
+Future<void> main(List<String> arguments) async {
+  await AppInitializer.init(launchArguments: arguments);
   runApp(
     DownpeedApp(
       initialThemeMode: AppService.to.themeMode.value,

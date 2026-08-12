@@ -2,6 +2,7 @@ package config
 
 import (
 	"io"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -17,6 +18,9 @@ func TestParseDefaultsToLoopback(t *testing.T) {
 	}
 	if !filepath.IsAbs(cfg.DataDir) {
 		t.Fatalf("DataDir = %q, want absolute path", cfg.DataDir)
+	}
+	if !filepath.IsAbs(cfg.DefaultDownloadDirectory) || filepath.Base(cfg.DefaultDownloadDirectory) != "Downloads" {
+		t.Fatalf("DefaultDownloadDirectory = %q, want system Downloads folder", cfg.DefaultDownloadDirectory)
 	}
 	if cfg.MaxConcurrentTasks != DefaultMaxConcurrentTasks || cfg.MaxRetries != DefaultMaxRetries || cfg.RetryBaseDelay != DefaultRetryBaseDelay || cfg.DownloadRateLimit != 0 {
 		t.Fatalf("scheduler defaults = %#v", cfg)
@@ -88,5 +92,24 @@ func TestParseAllowsExplicitRemoteAddress(t *testing.T) {
 	}
 	if !cfg.AllowRemote {
 		t.Fatal("AllowRemote = false, want true")
+	}
+}
+
+func TestLinuxDownloadDirectoryUsesXDGUserDirectory(t *testing.T) {
+	home := t.TempDir()
+	configHome := filepath.Join(home, "config")
+	if err := os.MkdirAll(configHome, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(
+		filepath.Join(configHome, "user-dirs.dirs"),
+		[]byte("XDG_DOWNLOAD_DIR=\"$HOME/下载\"\n"),
+		0o600,
+	); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("XDG_CONFIG_HOME", configHome)
+	if got := linuxDownloadDirectory(home); got != filepath.Join(home, "下载") {
+		t.Fatalf("linuxDownloadDirectory() = %q", got)
 	}
 }

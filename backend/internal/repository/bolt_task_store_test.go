@@ -95,3 +95,70 @@ func TestBoltTaskStoreRejectsRelativePath(t *testing.T) {
 		t.Fatal("OpenBoltTaskStore() error = nil")
 	}
 }
+
+func TestBoltTaskStoreDeletesTaskAcrossReopen(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "data", "tasks.db")
+	store, err := OpenBoltTaskStore(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	record := download.StoredTask{Task: download.Task{
+		ID:            "task-delete",
+		URL:           "https://example.com/file.bin",
+		FinalURL:      "https://example.com/file.bin",
+		FileName:      "file.bin",
+		SaveDirectory: filepath.Dir(path),
+		FilePath:      filepath.Join(filepath.Dir(path), "file.bin"),
+		State:         download.TaskStateCompleted,
+		Total:         -1,
+		CreatedAt:     time.Now().UTC(),
+		UpdatedAt:     time.Now().UTC(),
+	}}
+	if err = store.Save(context.Background(), record); err != nil {
+		t.Fatal(err)
+	}
+	if err = store.Delete(context.Background(), record.Task.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err = store.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	reopened, err := OpenBoltTaskStore(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reopened.Close()
+	records, err := reopened.Load(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(records) != 0 {
+		t.Fatalf("records after Delete() = %#v", records)
+	}
+}
+
+func TestBoltTaskStorePersistsEngineSettingsAcrossReopen(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "data", "tasks.db")
+	store, err := OpenBoltTaskStore(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	directory := filepath.Join(filepath.Dir(path), "downloads")
+	settings := download.EngineSettings{DefaultDownloadDirectory: directory}
+	if err = store.SaveSettings(context.Background(), settings); err != nil {
+		t.Fatal(err)
+	}
+	if err = store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := OpenBoltTaskStore(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reopened.Close()
+	loaded, err := reopened.LoadSettings(context.Background())
+	if err != nil || loaded != settings {
+		t.Fatalf("settings = %#v, error = %v", loaded, err)
+	}
+}

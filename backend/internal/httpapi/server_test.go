@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -77,6 +78,76 @@ func TestInfo(t *testing.T) {
 	if envelope.RequestID == "" {
 		t.Fatal("request ID is empty")
 	}
+}
+
+func TestSettingsAPIReadsUpdatesAndRejectsInvalidDirectory(t *testing.T) {
+	initial := t.TempDir()
+	selected := t.TempDir()
+	settings, err := download.NewSettingsManager(context.Background(), nil, initial)
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := New(time.Now(), WithSettingsService(settings))
+	defer server.Close()
+
+	getResponse := httptest.NewRecorder()
+	server.Handler().ServeHTTP(getResponse, httptest.NewRequest(http.MethodGet, "/api/v1/settings", nil))
+	if getResponse.Code != http.StatusOK {
+		t.Fatalf("get status = %d, body = %s", getResponse.Code, getResponse.Body.String())
+	}
+	var getEnvelope api.Envelope[download.EngineSettings]
+	if err = json.NewDecoder(getResponse.Body).Decode(&getEnvelope); err != nil {
+		t.Fatal(err)
+	}
+	if getEnvelope.Data.DefaultDownloadDirectory != initial {
+		t.Fatalf("settings = %#v", getEnvelope.Data)
+	}
+	if getEnvelope.Data.BitTorrent != download.DefaultBTPolicySettings() {
+		t.Fatalf("BT policy = %#v", getEnvelope.Data.BitTorrent)
+	}
+
+	policy := download.DefaultBTPolicySettings()
+	policy.MaxPeerConnections = 20
+	updateBody, _ := json.Marshal(download.EngineSettings{DefaultDownloadDirectory: selected, BitTorrent: policy})
+	putResponse := httptest.NewRecorder()
+	server.Handler().ServeHTTP(putResponse, httptest.NewRequest(http.MethodPut, "/api/v1/settings", bytes.NewReader(updateBody)))
+	if putResponse.Code != http.StatusOK {
+		t.Fatalf("put status = %d, body = %s", putResponse.Code, putResponse.Body.String())
+	}
+	var putEnvelope api.Envelope[download.EngineSettings]
+	if err = json.NewDecoder(putResponse.Body).Decode(&putEnvelope); err != nil {
+		t.Fatal(err)
+	}
+	if putEnvelope.Data.DefaultDownloadDirectory != selected || putEnvelope.Data.BitTorrent.MaxPeerConnections != 20 {
+		t.Fatalf("updated settings = %#v", putEnvelope.Data)
+	}
+
+	legacyDirectory := t.TempDir()
+	legacyBody, _ := json.Marshal(map[string]string{"defaultDownloadDirectory": legacyDirectory})
+	legacyResponse := httptest.NewRecorder()
+	server.Handler().ServeHTTP(legacyResponse, httptest.NewRequest(http.MethodPut, "/api/v1/settings", bytes.NewReader(legacyBody)))
+	if legacyResponse.Code != http.StatusOK {
+		t.Fatalf("legacy update status = %d, body = %s", legacyResponse.Code, legacyResponse.Body.String())
+	}
+	var legacyEnvelope api.Envelope[download.EngineSettings]
+	if err = json.NewDecoder(legacyResponse.Body).Decode(&legacyEnvelope); err != nil {
+		t.Fatal(err)
+	}
+	if legacyEnvelope.Data.DefaultDownloadDirectory != legacyDirectory || legacyEnvelope.Data.BitTorrent.MaxPeerConnections != 20 {
+		t.Fatalf("legacy update reset policy: %#v", legacyEnvelope.Data)
+	}
+
+	invalidBody, _ := json.Marshal(download.EngineSettings{DefaultDownloadDirectory: filepath.Join(selected, "missing")})
+	invalidResponse := httptest.NewRecorder()
+	server.Handler().ServeHTTP(invalidResponse, httptest.NewRequest(http.MethodPut, "/api/v1/settings", bytes.NewReader(invalidBody)))
+	assertAPIError(t, invalidResponse, http.StatusBadRequest, "invalid_download_directory", false)
+
+	unsafe := download.DefaultBTPolicySettings()
+	unsafe.UploadEnabled = true
+	unsafeBody, _ := json.Marshal(download.EngineSettings{DefaultDownloadDirectory: selected, BitTorrent: unsafe})
+	unsafeResponse := httptest.NewRecorder()
+	server.Handler().ServeHTTP(unsafeResponse, httptest.NewRequest(http.MethodPut, "/api/v1/settings", bytes.NewReader(unsafeBody)))
+	assertAPIError(t, unsafeResponse, http.StatusBadRequest, "invalid_bt_policy", false)
 }
 
 func TestHealthRejectsWrongMethod(t *testing.T) {
@@ -171,6 +242,228 @@ func TestResolveDownloadMapsResolverErrors(t *testing.T) {
 			)
 
 			assertAPIError(t, response, test.status, test.code, test.retryable)
+		})
+	}
+}
+
+func TestBTResolveEndpointsUseBoundedStableContracts(t *testing.T) {
+	resolver := &stubBTResolver{
+		resolveMagnet: func(_ context.Context, value string) (download.BTResolution, error) {
+			if !strings.HasPrefix(value, "magnet:") {
+				t.Fatalf("magnet = %q", value)
+			}
+			return download.BTResolution{
+				SourceType: download.BTSourceMagnet,
+				Name:       "Archive",
+				InfoHash:   "0123456789abcdef0123456789abcdef01234567",
+				TotalSize:  -1,
+				Files:      []download.BTFile{},
+				Trackers:   []download.BTTracker{},
+			}, nil
+		},
+		resolveTorrent: func(_ context.Context, value []byte) (download.BTResolution, error) {
+			if string(value) != "torrent-bytes" {
+				t.Fatalf("torrent bytes = %q", value)
+			}
+			return download.BTResolution{
+				SourceType:        download.BTSourceTorrent,
+				Name:              "Archive",
+				MetadataAvailable: true,
+				TotalSize:         12,
+				Files: []download.BTFile{
+					{Index: 0, Path: "Archive/file.bin", Size: 12},
+				},
+				Trackers: []download.BTTracker{},
+			}, nil
+		},
+	}
+	server := New(time.Now(), WithBTResolver(resolver))
+	defer server.Close()
+
+	magnetResponse := httptest.NewRecorder()
+	server.Handler().ServeHTTP(
+		magnetResponse,
+		httptest.NewRequest(http.MethodPost, "/api/v1/bt/resolve/magnet", bytes.NewBufferString(
+			`{"magnet":"magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567"}`,
+		)),
+	)
+	if magnetResponse.Code != http.StatusOK {
+		t.Fatalf("magnet status = %d, body = %s", magnetResponse.Code, magnetResponse.Body.String())
+	}
+	var magnet api.Envelope[download.BTResolution]
+	if err := json.NewDecoder(magnetResponse.Body).Decode(&magnet); err != nil {
+		t.Fatal(err)
+	}
+	if magnet.Data.SourceType != download.BTSourceMagnet || magnet.Data.MetadataAvailable {
+		t.Fatalf("magnet = %#v", magnet.Data)
+	}
+
+	torrentResponse := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/bt/resolve/torrent", bytes.NewBufferString("torrent-bytes"))
+	request.Header.Set("Content-Type", "application/x-bittorrent")
+	server.Handler().ServeHTTP(torrentResponse, request)
+	if torrentResponse.Code != http.StatusOK {
+		t.Fatalf("torrent status = %d, body = %s", torrentResponse.Code, torrentResponse.Body.String())
+	}
+	var torrent api.Envelope[download.BTResolution]
+	if err := json.NewDecoder(torrentResponse.Body).Decode(&torrent); err != nil {
+		t.Fatal(err)
+	}
+	if len(torrent.Data.Files) != 1 || torrent.Data.TotalSize != 12 {
+		t.Fatalf("torrent = %#v", torrent.Data)
+	}
+}
+
+func TestBTResolveEndpointsMapSafetyErrors(t *testing.T) {
+	server := New(time.Now(), WithBTResolver(&stubBTResolver{
+		resolveMagnet: func(context.Context, string) (download.BTResolution, error) {
+			return download.BTResolution{}, download.ErrBTInvalidMagnet
+		},
+		resolveTorrent: func(context.Context, []byte) (download.BTResolution, error) {
+			return download.BTResolution{}, download.ErrBTPathUnsafe
+		},
+	}))
+	defer server.Close()
+
+	magnet := httptest.NewRecorder()
+	server.Handler().ServeHTTP(magnet, httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/bt/resolve/magnet",
+		bytes.NewBufferString(`{"magnet":"invalid"}`),
+	))
+	assertAPIError(t, magnet, http.StatusBadRequest, "bt_invalid_magnet", false)
+
+	torrent := httptest.NewRecorder()
+	server.Handler().ServeHTTP(torrent, httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/bt/resolve/torrent",
+		bytes.NewBufferString("unsafe"),
+	))
+	assertAPIError(t, torrent, http.StatusBadRequest, "bt_path_unsafe", false)
+}
+
+func TestCreateBTTaskUsesExplicitRestrictedContract(t *testing.T) {
+	tasks := &stubTaskService{
+		createBT: func(_ context.Context, input download.CreateBTTaskRequest) (download.Task, error) {
+			if string(input.Metadata) != "torrent-bytes" || input.SaveDirectory != "/tmp/downloads" {
+				t.Fatalf("input = %#v", input)
+			}
+			if len(input.SelectedFileIndexes) != 1 || input.SelectedFileIndexes[0] != 2 || len(input.ExplicitPeers) != 1 || input.ExplicitPeers[0] != "8.8.8.8:6881" {
+				t.Fatalf("selection/peers = %#v", input)
+			}
+			return download.Task{ID: "bt-1", Protocol: download.ProtocolBT, State: download.TaskStateQueued}, nil
+		},
+	}
+	server := New(time.Now(), WithTaskService(tasks))
+	defer server.Close()
+	response := httptest.NewRecorder()
+	server.Handler().ServeHTTP(response, httptest.NewRequest(
+		http.MethodPost,
+		"/api/v1/bt/tasks",
+		bytes.NewBufferString(`{"metadata":"dG9ycmVudC1ieXRlcw==","saveDirectory":"/tmp/downloads","selectedFileIndexes":[2],"explicitPeers":["8.8.8.8:6881"]}`),
+	))
+	if response.Code != http.StatusCreated {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
+	var envelope api.Envelope[download.Task]
+	if err := json.NewDecoder(response.Body).Decode(&envelope); err != nil {
+		t.Fatal(err)
+	}
+	if envelope.Data.ID != "bt-1" || envelope.Data.Protocol != download.ProtocolBT {
+		t.Fatalf("task = %#v", envelope.Data)
+	}
+}
+
+func TestBTDiagnosticsReturnsSanitizedLiveConnectionState(t *testing.T) {
+	now := time.Date(2026, time.August, 12, 3, 0, 0, 0, time.UTC)
+	tasks := &stubTaskService{
+		diagnostics: func(_ context.Context, id string) (download.BTDiagnostics, error) {
+			if id != "bt-1" {
+				t.Fatalf("task id = %q", id)
+			}
+			return download.BTDiagnostics{
+				TaskID: id, State: download.TaskStateDownloading, Live: true,
+				Connections: download.BTConnectionDiagnostics{Configured: 2, Known: 2, Connected: 1, Pending: 1},
+				Traffic:     download.BTTrafficDiagnostics{UsefulBytes: 1024, UploadedBytes: 0},
+				Peers:       []download.BTPeerDiagnostics{{Address: "8.8.x.x:6881", Client: "test-peer", Network: "TCP", ReceivedBytes: 1024}},
+				Policy: download.BTPolicyDiagnostics{
+					MaxPeerConnections: download.DefaultBTPeerConnections,
+					ExplicitPeersOnly:  true,
+				}, UpdatedAt: now,
+			}, nil
+		},
+	}
+	server := New(time.Now(), WithTaskService(tasks))
+	defer server.Close()
+	response := httptest.NewRecorder()
+	server.Handler().ServeHTTP(response, httptest.NewRequest(
+		http.MethodGet,
+		"/api/v1/tasks/bt-1/bt/diagnostics",
+		nil,
+	))
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
+	var envelope api.Envelope[download.BTDiagnostics]
+	if err := json.NewDecoder(response.Body).Decode(&envelope); err != nil {
+		t.Fatal(err)
+	}
+	if !envelope.Data.Live || envelope.Data.Connections.Connected != 1 || len(envelope.Data.Peers) != 1 || envelope.Data.Peers[0].Address != "8.8.x.x:6881" || !envelope.Data.Policy.ExplicitPeersOnly || envelope.Data.Policy.UploadEnabled {
+		t.Fatalf("diagnostics = %#v", envelope.Data)
+	}
+}
+
+func TestBTDiagnosticsMapsTaskAndProtocolErrors(t *testing.T) {
+	tests := []struct {
+		name   string
+		err    error
+		status int
+		code   string
+	}{
+		{name: "missing", err: download.ErrTaskNotFound, status: http.StatusNotFound, code: "task_not_found"},
+		{name: "http task", err: download.ErrUnsupportedProtocol, status: http.StatusConflict, code: "bt_diagnostics_not_applicable"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			server := New(time.Now(), WithTaskService(&stubTaskService{
+				diagnostics: func(context.Context, string) (download.BTDiagnostics, error) {
+					return download.BTDiagnostics{}, test.err
+				},
+			}))
+			defer server.Close()
+			response := httptest.NewRecorder()
+			server.Handler().ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/v1/tasks/task-1/bt/diagnostics", nil))
+			assertAPIError(t, response, test.status, test.code, false)
+		})
+	}
+}
+
+func TestCreateBTTaskMapsRestrictedTransferErrors(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		code string
+	}{
+		{name: "peer required", err: download.ErrBTPeerRequired, code: "bt_peer_required"},
+		{name: "peer invalid", err: download.ErrBTPeerInvalid, code: "bt_peer_invalid"},
+		{name: "selection", err: download.ErrBTFileSelection, code: "bt_file_selection_invalid"},
+		{name: "metadata", err: download.ErrBTMetadataInvalid, code: "bt_metadata_invalid"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			server := New(time.Now(), WithTaskService(&stubTaskService{
+				createBT: func(context.Context, download.CreateBTTaskRequest) (download.Task, error) {
+					return download.Task{}, test.err
+				},
+			}))
+			defer server.Close()
+			response := httptest.NewRecorder()
+			server.Handler().ServeHTTP(response, httptest.NewRequest(
+				http.MethodPost,
+				"/api/v1/bt/tasks",
+				bytes.NewBufferString(`{"metadata":"dG9ycmVudC1ieXRlcw==","saveDirectory":"/tmp/downloads","selectedFileIndexes":[0],"explicitPeers":["8.8.8.8:6881"]}`),
+			))
+			assertAPIError(t, response, http.StatusBadRequest, test.code, false)
 		})
 	}
 }
@@ -326,6 +619,146 @@ func TestCancelTaskMapsNotFound(t *testing.T) {
 	)
 
 	assertAPIError(t, response, http.StatusNotFound, "task_not_found", false)
+}
+
+func TestCancelTaskSupportsExplicitAndLegacyRESTContracts(t *testing.T) {
+	var canceled []string
+	tasks := &stubTaskService{
+		cancel: func(_ context.Context, id string) (download.Task, error) {
+			canceled = append(canceled, id)
+			return download.Task{ID: id, State: download.TaskStateCanceled}, nil
+		},
+	}
+	server := New(time.Now(), WithTaskService(tasks))
+	defer server.Close()
+
+	for _, request := range []*http.Request{
+		httptest.NewRequest(http.MethodPut, "/api/v1/tasks/task-new/cancel", nil),
+		httptest.NewRequest(http.MethodDelete, "/api/v1/tasks/task-legacy", nil),
+	} {
+		response := httptest.NewRecorder()
+		server.Handler().ServeHTTP(response, request)
+		if response.Code != http.StatusOK {
+			t.Fatalf("%s %s status = %d, body = %s", request.Method, request.URL.Path, response.Code, response.Body.String())
+		}
+	}
+	if fmt.Sprint(canceled) != "[task-new task-legacy]" {
+		t.Fatalf("canceled = %v", canceled)
+	}
+}
+
+func TestDeleteTaskRecordReadsDeleteFilesQuery(t *testing.T) {
+	var deletedID string
+	var deleteFile bool
+	server := New(time.Now(), WithTaskService(&stubTaskService{
+		delete: func(_ context.Context, id string, value bool) (download.DeleteTaskResult, error) {
+			deletedID = id
+			deleteFile = value
+			return download.DeleteTaskResult{ID: id, FileDeleted: value}, nil
+		},
+	}))
+	defer server.Close()
+	response := httptest.NewRecorder()
+	server.Handler().ServeHTTP(
+		response,
+		httptest.NewRequest(http.MethodDelete, "/api/v1/tasks/task-1/record?deleteFiles=true", nil),
+	)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
+	var envelope api.Envelope[download.DeleteTaskResult]
+	if err := json.NewDecoder(response.Body).Decode(&envelope); err != nil {
+		t.Fatal(err)
+	}
+	if deletedID != "task-1" || !deleteFile || !envelope.Data.FileDeleted {
+		t.Fatalf("deletedID = %q, deleteFile = %t, result = %#v", deletedID, deleteFile, envelope.Data)
+	}
+}
+
+func TestDeleteTaskRecordRejectsInvalidDeleteFilesQuery(t *testing.T) {
+	server := New(time.Now(), WithTaskService(&stubTaskService{}))
+	defer server.Close()
+	response := httptest.NewRecorder()
+	server.Handler().ServeHTTP(
+		response,
+		httptest.NewRequest(http.MethodDelete, "/api/v1/tasks/task-1/record?deleteFiles=sometimes", nil),
+	)
+	assertAPIError(t, response, http.StatusBadRequest, "invalid_request", false)
+}
+
+func TestDeleteTasksBatchKeepsPerItemFailuresVisible(t *testing.T) {
+	var deleteFiles []bool
+	server := New(time.Now(), WithTaskService(&stubTaskService{
+		delete: func(_ context.Context, id string, deleteFile bool) (download.DeleteTaskResult, error) {
+			deleteFiles = append(deleteFiles, deleteFile)
+			if id == "active" {
+				return download.DeleteTaskResult{}, download.ErrTaskInvalidState
+			}
+			return download.DeleteTaskResult{ID: id, FileDeleted: deleteFile}, nil
+		},
+	}))
+	defer server.Close()
+	response := httptest.NewRecorder()
+	server.Handler().ServeHTTP(
+		response,
+		httptest.NewRequest(http.MethodPost, "/api/v1/tasks/batch/delete", bytes.NewBufferString(
+			`{"ids":["completed","active"],"deleteFiles":true}`,
+		)),
+	)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
+	var envelope api.Envelope[batchDeleteTaskResult]
+	if err := json.NewDecoder(response.Body).Decode(&envelope); err != nil {
+		t.Fatal(err)
+	}
+	if fmt.Sprint(deleteFiles) != "[true true]" || envelope.Data.Succeeded != 1 || envelope.Data.Failed != 1 {
+		t.Fatalf("deleteFiles = %v, result = %#v", deleteFiles, envelope.Data)
+	}
+	if envelope.Data.Items[1].Error == nil || envelope.Data.Items[1].Error.Code != "invalid_task_state" {
+		t.Fatalf("failed item = %#v", envelope.Data.Items[1])
+	}
+}
+
+func TestDeleteCompletedTasksOnlyDeletesCompletedRecordsAndPreservesFilesByDefault(t *testing.T) {
+	states := map[string]download.TaskState{
+		"completed-1": download.TaskStateCompleted,
+		"failed-1":    download.TaskStateFailed,
+		"active-1":    download.TaskStateDownloading,
+	}
+	var deleted []string
+	server := New(time.Now(), WithTaskService(&stubTaskService{
+		list: func(context.Context) ([]download.Task, error) {
+			return []download.Task{
+				{ID: "completed-1", State: states["completed-1"]},
+				{ID: "failed-1", State: states["failed-1"]},
+				{ID: "active-1", State: states["active-1"]},
+			}, nil
+		},
+		delete: func(_ context.Context, id string, deleteFile bool) (download.DeleteTaskResult, error) {
+			if deleteFile {
+				t.Fatal("clear completed unexpectedly requested file deletion")
+			}
+			deleted = append(deleted, id)
+			return download.DeleteTaskResult{ID: id}, nil
+		},
+	}))
+	defer server.Close()
+	response := httptest.NewRecorder()
+	server.Handler().ServeHTTP(
+		response,
+		httptest.NewRequest(http.MethodDelete, "/api/v1/tasks/completed?deleteFiles=true", nil),
+	)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
+	var envelope api.Envelope[batchDeleteTaskResult]
+	if err := json.NewDecoder(response.Body).Decode(&envelope); err != nil {
+		t.Fatal(err)
+	}
+	if fmt.Sprint(deleted) != "[completed-1]" || envelope.Data.Succeeded != 1 || envelope.Data.Failed != 0 {
+		t.Fatalf("deleted = %v, result = %#v", deleted, envelope.Data)
+	}
 }
 
 func TestPauseAndResumeTaskUseStableRESTContract(t *testing.T) {
@@ -1052,14 +1485,50 @@ type stubResolver struct {
 	resolve func(context.Context, download.ResolveRequest) (download.Resolution, error)
 }
 
+type stubBTResolver struct {
+	resolveMagnet  func(context.Context, string) (download.BTResolution, error)
+	resolveTorrent func(context.Context, []byte) (download.BTResolution, error)
+}
+
+func (resolver *stubBTResolver) ResolveMagnet(ctx context.Context, value string) (download.BTResolution, error) {
+	if resolver.resolveMagnet == nil {
+		return download.BTResolution{}, errors.New("unexpected ResolveMagnet call")
+	}
+	return resolver.resolveMagnet(ctx, value)
+}
+
+func (resolver *stubBTResolver) ResolveTorrent(ctx context.Context, value []byte) (download.BTResolution, error) {
+	if resolver.resolveTorrent == nil {
+		return download.BTResolution{}, errors.New("unexpected ResolveTorrent call")
+	}
+	return resolver.resolveTorrent(ctx, value)
+}
+
 type stubTaskService struct {
-	create func(context.Context, download.CreateTaskRequest) (download.Task, error)
-	list   func(context.Context) ([]download.Task, error)
-	get    func(context.Context, string) (download.Task, error)
-	pause  func(context.Context, string) (download.Task, error)
-	resume func(context.Context, string) (download.Task, error)
-	cancel func(context.Context, string) (download.Task, error)
-	events chan download.TaskEvent
+	create      func(context.Context, download.CreateTaskRequest) (download.Task, error)
+	createBT    func(context.Context, download.CreateBTTaskRequest) (download.Task, error)
+	list        func(context.Context) ([]download.Task, error)
+	get         func(context.Context, string) (download.Task, error)
+	pause       func(context.Context, string) (download.Task, error)
+	resume      func(context.Context, string) (download.Task, error)
+	cancel      func(context.Context, string) (download.Task, error)
+	delete      func(context.Context, string, bool) (download.DeleteTaskResult, error)
+	diagnostics func(context.Context, string) (download.BTDiagnostics, error)
+	events      chan download.TaskEvent
+}
+
+func (service *stubTaskService) CreateBT(ctx context.Context, input download.CreateBTTaskRequest) (download.Task, error) {
+	if service.createBT == nil {
+		return download.Task{}, download.ErrUnsupportedProtocol
+	}
+	return service.createBT(ctx, input)
+}
+
+func (service *stubTaskService) GetBTDiagnostics(ctx context.Context, id string) (download.BTDiagnostics, error) {
+	if service.diagnostics == nil {
+		return download.BTDiagnostics{}, download.ErrUnsupportedProtocol
+	}
+	return service.diagnostics(ctx, id)
 }
 
 func (service *stubTaskService) Pause(ctx context.Context, id string) (download.Task, error) {
@@ -1102,6 +1571,13 @@ func (service *stubTaskService) Cancel(ctx context.Context, id string) (download
 		return download.Task{}, errors.New("unexpected Cancel call")
 	}
 	return service.cancel(ctx, id)
+}
+
+func (service *stubTaskService) Delete(ctx context.Context, id string, deleteFile bool) (download.DeleteTaskResult, error) {
+	if service.delete == nil {
+		return download.DeleteTaskResult{}, errors.New("unexpected Delete call")
+	}
+	return service.delete(ctx, id, deleteFile)
 }
 
 func (service *stubTaskService) Subscribe(context.Context) <-chan download.TaskEvent {

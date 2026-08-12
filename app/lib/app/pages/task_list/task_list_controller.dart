@@ -5,12 +5,14 @@ import 'package:get/get.dart';
 import '../../../configs/localization/l10n_keys.dart';
 import '../../../domains/batch_task_result.dart';
 import '../../../services/engine_service.dart';
+import '../../../services/bt_diagnostics_service.dart';
 import '../../../services/desktop_actions_service.dart';
 import '../../../services/task_service.dart';
 import '../../../domains/download_task.dart';
 import '../../../domains/engine_info.dart';
 import '../create_download/create_download_view.dart';
 import '../../routes/app_pages.dart';
+import '../../widgets/delete_task_dialog.dart';
 
 enum TaskListFilter { all, active, completed, issues }
 
@@ -19,11 +21,13 @@ enum TaskListSort { newest, oldest, name, progress, size }
 class TaskListController extends GetxController {
   TaskListController({
     required this.engineService,
+    required this.btDiagnostics,
     required this.taskService,
     required this.desktopActions,
   });
 
   final EngineService engineService;
+  final BTDiagnosticsService btDiagnostics;
   final TaskService taskService;
   final DesktopActionsService desktopActions;
   final searchController = TextEditingController();
@@ -33,7 +37,9 @@ class TaskListController extends GetxController {
   final selectedTaskId = RxnString();
   final selectedTaskIds = <String>{}.obs;
   final batchMessage = RxnString();
+  final diagnosticsExpandedTaskIds = <String>{}.obs;
   Worker? _engineWorker;
+  Worker? _tasksWorker;
   bool _createDownloadOpen = false;
 
   List<DownloadTask> get tasks => taskService.tasks;
@@ -51,6 +57,15 @@ class TaskListController extends GetxController {
   }
 
   bool get hasSelection => selectedTaskIds.isNotEmpty;
+  int get completedTaskCount => countForFilter(TaskListFilter.completed);
+  bool get canDeleteSelection {
+    if (selectedTaskIds.isEmpty) return false;
+    return selectedTaskIds.every((id) {
+      final task = taskService.taskById(id);
+      return task != null && task.isTerminal && !taskService.isActing(id);
+    });
+  }
+
   bool get allVisibleSelected {
     final ids = visibleTasks.map((task) => task.id).toSet();
     return ids.isNotEmpty && ids.every(selectedTaskIds.contains);
@@ -82,6 +97,7 @@ class TaskListController extends GetxController {
     _engineWorker = ever(engineService.state, (state) {
       if (state == EngineConnectionState.online) taskService.start();
     });
+    _tasksWorker = ever(taskService.tasks, (_) => _pruneRemovedSelection());
   }
 
   Future<void> retryEngine() => engineService.refresh();
@@ -131,8 +147,19 @@ class TaskListController extends GetxController {
     if (compact) {
       Get.toNamed<void>(Routes.taskDetailFor(task.id));
     } else {
+      final previous = selectedTaskId.value;
+      if (previous != null && previous != task.id) {
+        diagnosticsExpandedTaskIds.remove(previous);
+        btDiagnostics.setExpanded(previous, false);
+      }
       selectedTaskId.value = task.id;
     }
+  }
+
+  Future<void> toggleDiagnostics(String taskId) async {
+    final expanded = !diagnosticsExpandedTaskIds.remove(taskId);
+    if (expanded) diagnosticsExpandedTaskIds.add(taskId);
+    await btDiagnostics.setExpanded(taskId, expanded);
   }
 
   void toggleTaskSelection(String id) {
@@ -187,9 +214,102 @@ class TaskListController extends GetxController {
 
   Future<void> cancelTask(DownloadTask task) => taskService.cancel(task.id);
 
+  Future<void> deleteTask(DownloadTask task) async {
+    if (!task.isTerminal || taskService.isActing(task.id)) return;
+    final deleteFile = await showDeleteTaskDialog(
+      taskCount: 1,
+      allowDeleteFiles: task.state == DownloadTaskState.completed,
+    );
+    if (deleteFile == null) return;
+    final result = await taskService.deleteTask(
+      task.id,
+      deleteFile: deleteFile,
+    );
+    if (result == null) {
+      batchMessage.value = L10nKeys.tasksDeleteError.tr;
+      return;
+    }
+    _clearRemovedSelection(<String>[result.id]);
+    batchMessage.value = L10nKeys.tasksDeleteComplete.trParams({'count': '1'});
+  }
+
+  Future<void> deleteSelected() async {
+    if (!canDeleteSelection) return;
+    final selectedTasks = selectedTaskIds
+        .map(taskService.taskById)
+        .whereType<DownloadTask>()
+        .take(maxTaskBatchSize)
+        .toList(growable: false);
+    final deleteFiles = await showDeleteTaskDialog(
+      taskCount: selectedTasks.length,
+      allowDeleteFiles: selectedTasks.any(
+        (task) => task.state == DownloadTaskState.completed,
+      ),
+    );
+    if (deleteFiles == null) return;
+    batchMessage.value = null;
+    final result = await taskService.deleteTasks(
+      selectedTasks.map((task) => task.id),
+      deleteFiles: deleteFiles,
+    );
+    if (result == null) {
+      batchMessage.value = L10nKeys.tasksDeleteError.tr;
+      return;
+    }
+    _clearRemovedSelection(result.successfulIDs);
+    batchMessage.value = result.failed > 0
+        ? L10nKeys.tasksDeletePartial.trParams({'failed': '${result.failed}'})
+        : L10nKeys.tasksDeleteComplete.trParams({
+            'count': '${result.succeeded}',
+          });
+  }
+
+  Future<void> clearCompleted() async {
+    final count = completedTaskCount;
+    if (count == 0) return;
+    final confirmed = await showDeleteTaskDialog(
+      taskCount: count,
+      clearCompleted: true,
+    );
+    if (confirmed == null) return;
+    batchMessage.value = null;
+    final result = await taskService.clearCompletedTasks();
+    if (result == null) {
+      batchMessage.value = L10nKeys.tasksDeleteError.tr;
+      return;
+    }
+    _clearRemovedSelection(result.successfulIDs);
+    batchMessage.value = result.failed > 0
+        ? L10nKeys.tasksDeletePartial.trParams({'failed': '${result.failed}'})
+        : L10nKeys.tasksDeleteComplete.trParams({
+            'count': '${result.succeeded}',
+          });
+  }
+
   Future<void> openFile(DownloadTask task) => desktopActions.openFile(task);
 
   Future<void> revealFile(DownloadTask task) => desktopActions.revealFile(task);
+
+  void _clearRemovedSelection(Iterable<String> ids) {
+    final removed = ids.toSet();
+    selectedTaskIds.removeAll(removed);
+    for (final id in removed) {
+      diagnosticsExpandedTaskIds.remove(id);
+      btDiagnostics.remove(id);
+    }
+    if (removed.contains(selectedTaskId.value)) selectedTaskId.value = null;
+  }
+
+  void _pruneRemovedSelection() {
+    final existing = taskService.tasks.map((task) => task.id).toSet();
+    selectedTaskIds.removeWhere((id) => !existing.contains(id));
+    final focused = selectedTaskId.value;
+    if (focused != null && !existing.contains(focused)) {
+      diagnosticsExpandedTaskIds.remove(focused);
+      btDiagnostics.remove(focused);
+      selectedTaskId.value = null;
+    }
+  }
 
   List<String> _eligibleSelection(BatchTaskAction action) {
     return selectedTaskIds
@@ -249,7 +369,11 @@ class TaskListController extends GetxController {
   @override
   void onClose() {
     _engineWorker?.dispose();
+    _tasksWorker?.dispose();
     searchController.dispose();
+    for (final id in diagnosticsExpandedTaskIds) {
+      btDiagnostics.setExpanded(id, false);
+    }
     super.onClose();
   }
 }

@@ -18,6 +18,7 @@ class L10nKeys {
   static const settingsNavigationPreferences =
       'settings.navigation.preferences';
   static const settingsNavigationSystem = 'settings.navigation.system';
+  static const settingsNavigationDownloads = 'settings.navigation.downloads';
   static const settingsAppearance = 'settings.appearance';
   static const settingsAppearanceDescription =
       'settings.appearance.description';
@@ -57,10 +58,75 @@ class L10nKeys {
   static const settingsNewDownloadShortcut = 'settings.shortcuts.newDownload';
   static const settingsNewDownloadShortcutDescription =
       'settings.shortcuts.newDownload.description';
+  static const settingsCloseToTray = 'settings.tray.closeToTray';
+  static const settingsCloseToTrayDescription =
+      'settings.tray.closeToTray.description';
+  static const settingsLaunchAtLogin = 'settings.startup.launchAtLogin';
+  static const settingsLaunchAtLoginDescription =
+      'settings.startup.launchAtLogin.description';
+  static const settingsStartHiddenOnLogin =
+      'settings.startup.startHiddenOnLogin';
+  static const settingsStartHiddenOnLoginDescription =
+      'settings.startup.startHiddenOnLogin.description';
+  static const settingsStartupUnavailableTitle =
+      'settings.startup.unavailable.title';
+  static const settingsStartupUnavailableBody =
+      'settings.startup.unavailable.body';
+  static const settingsStartupErrorTitle = 'settings.startup.error.title';
+  static const settingsStartupReadError = 'settings.startup.error.read';
+  static const settingsStartupUpdateError = 'settings.startup.error.update';
+  static const settingsStartupVerificationError =
+      'settings.startup.error.verification';
   static const settingsNotificationsNoteTitle =
       'settings.notifications.note.title';
   static const settingsNotificationsNoteBody =
       'settings.notifications.note.body';
+  static const settingsDownloads = 'settings.downloads';
+  static const settingsDownloadsDescription = 'settings.downloads.description';
+  static const settingsDownloadDirectory =
+      'settings.downloads.defaultDirectory';
+  static const settingsDownloadDirectoryDescription =
+      'settings.downloads.defaultDirectory.description';
+  static const settingsDownloadDirectoryChange =
+      'settings.downloads.defaultDirectory.change';
+  static const settingsDownloadDirectoryLoading =
+      'settings.downloads.defaultDirectory.loading';
+  static const settingsDownloadDirectorySaving =
+      'settings.downloads.defaultDirectory.saving';
+  static const settingsDownloadDirectoryUnavailable =
+      'settings.downloads.defaultDirectory.unavailable';
+  static const settingsDownloadDirectoryLoadError =
+      'settings.downloads.defaultDirectory.error.load';
+  static const settingsDownloadDirectorySaveError =
+      'settings.downloads.defaultDirectory.error.save';
+  static const settingsDownloadDirectoryInvalid =
+      'settings.downloads.defaultDirectory.error.invalid';
+  static const settingsDownloadDirectoryOffline =
+      'settings.downloads.defaultDirectory.error.offline';
+  static const settingsDownloadDirectoryPickerError =
+      'settings.downloads.defaultDirectory.error.picker';
+  static const settingsDownloadDirectoryErrorTitle =
+      'settings.downloads.defaultDirectory.error.title';
+  static const settingsDownloadsNoteTitle = 'settings.downloads.note.title';
+  static const settingsDownloadsNoteBody = 'settings.downloads.note.body';
+  static const settingsBT = 'settings.bt';
+  static const settingsBTDescription = 'settings.bt.description';
+  static const settingsBTPeerBudget = 'settings.bt.peerBudget';
+  static const settingsBTPeerBudgetDescription =
+      'settings.bt.peerBudget.description';
+  static const settingsBTDiscovery = 'settings.bt.discovery';
+  static const settingsBTDiscoveryDescription =
+      'settings.bt.discovery.description';
+  static const settingsBTTransferPolicy = 'settings.bt.transferPolicy';
+  static const settingsBTTransferPolicyDescription =
+      'settings.bt.transferPolicy.description';
+  static const settingsBTLocked = 'settings.bt.locked';
+  static const settingsBTPolicyNoteTitle = 'settings.bt.note.title';
+  static const settingsBTPolicyNoteBody = 'settings.bt.note.body';
+  static const settingsBTPolicyErrorTitle = 'settings.bt.error.title';
+  static const settingsBTPolicyInvalid = 'settings.bt.error.invalid';
+  static const settingsBTPolicyOffline = 'settings.bt.error.offline';
+  static const settingsBTPolicySaveError = 'settings.bt.error.save';
   static const settingsReset = 'settings.reset';
   static const settingsEngine = 'settings.engine';
   static const settingsEngineDescription = 'settings.engine.description';
@@ -100,6 +166,21 @@ class L10nKeys {
   static const tasksBatchPause = 'tasks.batch.pause';
   static const tasksBatchResume = 'tasks.batch.resume';
   static const tasksBatchCancel = 'tasks.batch.cancel';
+  static const tasksDeleteSelected = 'tasks.deleteSelected';
+  static const tasksClearCompleted = 'tasks.clearCompleted';
+  static const tasksClearCompletedTitle = 'tasks.clearCompleted.title';
+  static const tasksClearCompletedBody = 'tasks.clearCompleted.body';
+  static const tasksClearCompletedConfirm = 'tasks.clearCompleted.confirm';
+  static const tasksDeleteTitle = 'tasks.delete.title';
+  static const tasksDeleteBatchTitle = 'tasks.delete.batchTitle';
+  static const tasksDeleteBody = 'tasks.delete.body';
+  static const tasksDeleteBatchBody = 'tasks.delete.batchBody';
+  static const tasksDeleteFiles = 'tasks.delete.files';
+  static const tasksDeleteFilesDescription = 'tasks.delete.filesDescription';
+  static const tasksDeleteConfirm = 'tasks.delete.confirm';
+  static const tasksDeleteComplete = 'tasks.delete.complete';
+  static const tasksDeletePartial = 'tasks.delete.partial';
+  static const tasksDeleteError = 'tasks.delete.error';
   static const tasksBatchComplete = 'tasks.batch.complete';
   static const tasksBatchPartial = 'tasks.batch.partial';
   static const tasksNoMatchesTitle = 'tasks.noMatches.title';
@@ -170,8 +251,46 @@ class L10nKeys {
   static const createCreating = 'create.creating';
   static const createCreatingBody = 'create.creating.body';
   static const createTaskError = 'create.error.task';
+  static const createTaskActionError = 'create.error.taskAction';
   static const createCancelError = 'create.error.cancel';
   static const createEventsInterrupted = 'create.error.eventsInterrupted';
+  static const createBTChooseTorrent = 'create.bt.chooseTorrent';
+  static const createBTPickerHint = 'create.bt.pickerHint';
+  static const createBTResolvedTitle = 'create.bt.resolved.title';
+  static const createBTResolvedBody = 'create.bt.resolved.body';
+  static const createBTMagnetTitle = 'create.bt.magnet.title';
+  static const createBTMagnetBody = 'create.bt.magnet.body';
+  static const createBTInfoHash = 'create.bt.infoHash';
+  static const createBTTrackers = 'create.bt.trackers';
+  static const createBTPrivacy = 'create.bt.privacy';
+  static const createBTPrivate = 'create.bt.private';
+  static const createBTPublic = 'create.bt.public';
+  static const createBTFiles = 'create.bt.files';
+  static const createBTSelectAll = 'create.bt.selectAll';
+  static const createBTSelectedSummary = 'create.bt.selectedSummary';
+  static const createBTParsingOnly = 'create.bt.parsingOnly';
+  static const createBTMagnetParsingOnly = 'create.bt.magnet.parsingOnly';
+  static const createBTRestrictedTransfer = 'create.bt.restrictedTransfer';
+  static const createBTPeers = 'create.bt.peers';
+  static const createBTPeersBody = 'create.bt.peers.body';
+  static const createBTPeersHint = 'create.bt.peers.hint';
+  static const createBTSecurityNotice = 'create.bt.securityNotice';
+  static const createBTStart = 'create.bt.start';
+  static const createBTFilesRequired = 'create.bt.error.filesRequired';
+  static const createBTPeerRequired = 'create.bt.error.peerRequired';
+  static const createBTPeerInvalid = 'create.bt.error.peerInvalid';
+  static const createBTPeerRestricted = 'create.bt.error.peerRestricted';
+  static const createBTPeerLimit = 'create.bt.error.peerLimit';
+  static const createBTUnavailable = 'create.bt.error.unavailable';
+  static const createBTInvalidMagnet = 'create.bt.error.invalidMagnet';
+  static const createBTMetadataTooLarge = 'create.bt.error.metadataTooLarge';
+  static const createBTPathUnsafe = 'create.bt.error.pathUnsafe';
+  static const createBTFileLimit = 'create.bt.error.fileLimit';
+  static const createBTSizeLimit = 'create.bt.error.sizeLimit';
+  static const createBTTrackerInvalid = 'create.bt.error.trackerInvalid';
+  static const createBTTorrentError = 'create.bt.error.torrent';
+  static const createBTMagnetError = 'create.bt.error.magnet';
+  static const createBTMixedInput = 'create.bt.error.mixedInput';
   static const taskQueued = 'task.queued';
   static const taskQueuedBody = 'task.queued.body';
   static const taskDownloading = 'task.downloading';
@@ -188,8 +307,33 @@ class L10nKeys {
   static const taskFailedBody = 'task.failed.body';
   static const taskProgress = 'task.progress';
   static const taskSpeed = 'task.speed';
+  static const taskConnections = 'task.connections';
+  static const taskProtocol = 'task.protocol';
+  static const taskProtocolBT = 'task.protocol.bt';
+  static const taskBTDiagnostics = 'task.bt.diagnostics';
+  static const taskBTDiagnosticsBody = 'task.bt.diagnostics.body';
+  static const taskBTLive = 'task.bt.live';
+  static const taskBTStopped = 'task.bt.stopped';
+  static const taskBTConfigured = 'task.bt.configured';
+  static const taskBTPeerLimit = 'task.bt.peerLimit';
+  static const taskBTConnected = 'task.bt.connected';
+  static const taskBTPending = 'task.bt.pending';
+  static const taskBTHalfOpen = 'task.bt.halfOpen';
+  static const taskBTUsefulTraffic = 'task.bt.usefulTraffic';
+  static const taskBTUploadTraffic = 'task.bt.uploadTraffic';
+  static const taskBTPeers = 'task.bt.peers';
+  static const taskBTNoPeers = 'task.bt.noPeers';
+  static const taskBTPeerPrivacy = 'task.bt.peerPrivacy';
+  static const taskBTPolicy = 'task.bt.policy';
+  static const taskBTPolicyRestricted = 'task.bt.policy.restricted';
+  static const taskBTDisabled = 'task.bt.disabled';
+  static const taskBTUnexpectedEnabled = 'task.bt.unexpectedEnabled';
+  static const taskBTExplicitOnly = 'task.bt.explicitOnly';
+  static const taskBTDiagnosticsError = 'task.bt.diagnostics.error';
+  static const taskBTRefresh = 'task.bt.refresh';
   static const taskDestination = 'task.destination';
   static const taskCancel = 'task.cancel';
+  static const taskDelete = 'task.delete';
   static const taskCanceling = 'task.canceling';
   static const taskPause = 'task.pause';
   static const taskResume = 'task.resume';

@@ -16,6 +16,22 @@ func (m *Manager) restore(ctx context.Context) error {
 		return err
 	}
 	for _, record := range records {
+		if record.Task.Protocol == ProtocolBT {
+			task, request, reconcileErr := reconcileStoredBTTask(record)
+			if reconcileErr != nil {
+				return reconcileErr
+			}
+			if _, exists := m.tasks[task.ID]; exists {
+				return fmt.Errorf("%w: duplicate task ID", ErrTaskPersistence)
+			}
+			m.tasks[task.ID] = task
+			m.btRequests[task.ID] = request
+			m.btDiagnostics[task.ID] = newBTDiagnostics(task, request)
+			if err = m.store.Save(ctx, storedBTTask(task, request)); err != nil {
+				return err
+			}
+			continue
+		}
 		task, request, reconcileErr := reconcileStoredTask(record)
 		if reconcileErr != nil {
 			return reconcileErr
@@ -40,6 +56,9 @@ func (m *Manager) restore(ctx context.Context) error {
 
 func reconcileStoredTask(record StoredTask) (Task, TransferRequest, error) {
 	task := cloneTask(record.Task)
+	if task.Protocol == "" {
+		task.Protocol = ProtocolHTTP
+	}
 	if err := validateStoredTask(task); err != nil {
 		return Task{}, TransferRequest{}, err
 	}
@@ -82,6 +101,9 @@ func reconcileStoredTask(record StoredTask) (Task, TransferRequest, error) {
 }
 
 func validateStoredTask(task Task) error {
+	if task.Protocol != ProtocolHTTP {
+		return fmt.Errorf("%w: stored task protocol is invalid", ErrTaskPersistence)
+	}
 	parsedURL, err := url.ParseRequestURI(task.URL)
 	if err != nil || parsedURL.Host == "" || (parsedURL.Scheme != "http" && parsedURL.Scheme != "https") {
 		return fmt.Errorf("%w: stored task URL is invalid", ErrTaskPersistence)
@@ -200,6 +222,9 @@ func (m *Manager) persistTaskLocked(task Task) error {
 	if m.store == nil {
 		return nil
 	}
+	if task.Protocol == ProtocolBT {
+		return m.persistBTTaskLocked(task)
+	}
 	request := m.requests[task.ID]
 	if err := m.store.Save(context.Background(), StoredTask{
 		Task:         cloneTask(task),
@@ -208,6 +233,68 @@ func (m *Manager) persistTaskLocked(task Task) error {
 		Validator:    request.Validator,
 		Checkpoint:   CloneTransferCheckpoint(request.Checkpoint),
 	}); err != nil {
+		return fmt.Errorf("%w: %v", ErrTaskPersistence, err)
+	}
+	return nil
+}
+
+func reconcileStoredBTTask(record StoredTask) (Task, BTTransferRequest, error) {
+	if record.BT == nil {
+		return Task{}, BTTransferRequest{}, fmt.Errorf("%w: BT task state is missing", ErrTaskPersistence)
+	}
+	task := cloneTask(record.Task)
+	if task.Protocol != ProtocolBT || task.ID == "" || task.FileName == "" || task.FileName != SafeFileName(task.FileName) {
+		return Task{}, BTTransferRequest{}, fmt.Errorf("%w: BT task identity is invalid", ErrTaskPersistence)
+	}
+	if !filepath.IsAbs(task.SaveDirectory) || task.FilePath != filepath.Join(task.SaveDirectory, task.FileName) {
+		return Task{}, BTTransferRequest{}, fmt.Errorf("%w: BT destination is invalid", ErrTaskPersistence)
+	}
+	if len(record.BT.Metadata) == 0 || len(record.BT.Metadata) > MaxTorrentMetadataBytes || record.BT.Identity == "" || record.BT.Total < 0 {
+		return Task{}, BTTransferRequest{}, fmt.Errorf("%w: BT protocol state is invalid", ErrTaskPersistence)
+	}
+	request := BTTransferRequest{
+		Metadata: append([]byte(nil), record.BT.Metadata...), SaveDirectory: task.SaveDirectory,
+		Name: record.BT.Name, Identity: record.BT.Identity, Total: record.BT.Total,
+		SelectedFileIndexes: append([]int(nil), record.BT.SelectedFileIndexes...),
+		ExplicitPeers:       append([]string(nil), record.BT.ExplicitPeers...), Files: append([]BTFile(nil), record.BT.Files...),
+		Policy: record.BT.Policy,
+	}
+	if request.Policy == (BTPolicySettings{}) {
+		request.Policy = DefaultBTPolicySettings()
+	}
+	if _, err := normalizeBTPolicySettings(request.Policy); err != nil {
+		return Task{}, BTTransferRequest{}, fmt.Errorf("%w: stored BT policy is invalid", ErrTaskPersistence)
+	}
+	now := time.Now().UTC()
+	if task.State == TaskStateDownloading || task.State == TaskStateQueued || task.State == TaskStateRetrying {
+		task.State = TaskStatePaused
+		task.SpeedBPS = 0
+		task.Connections = 0
+		task.NextRetryAt = nil
+		task.CompletedAt = nil
+		task.UpdatedAt = now
+	}
+	if task.State != TaskStatePaused && !isTerminalState(task.State) {
+		return Task{}, BTTransferRequest{}, fmt.Errorf("%w: unknown BT task state", ErrTaskPersistence)
+	}
+	return task, request, nil
+}
+
+func storedBTTask(task Task, request BTTransferRequest) StoredTask {
+	return StoredTask{Task: cloneTask(task), BT: &StoredBTTask{
+		Metadata: append([]byte(nil), request.Metadata...), Name: request.Name, Identity: request.Identity, Total: request.Total,
+		Files: append([]BTFile(nil), request.Files...), SelectedFileIndexes: append([]int(nil), request.SelectedFileIndexes...),
+		ExplicitPeers: append([]string(nil), request.ExplicitPeers...),
+		Policy:        request.Policy,
+	}}
+}
+
+func (m *Manager) persistBTTaskLocked(task Task) error {
+	request, ok := m.btRequests[task.ID]
+	if !ok {
+		return fmt.Errorf("%w: BT transfer state is missing", ErrTaskPersistence)
+	}
+	if err := m.store.Save(context.Background(), storedBTTask(task, request)); err != nil {
 		return fmt.Errorf("%w: %v", ErrTaskPersistence, err)
 	}
 	return nil

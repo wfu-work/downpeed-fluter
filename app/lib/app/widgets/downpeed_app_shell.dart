@@ -262,11 +262,6 @@ class _ExpandedSidebar extends StatelessWidget {
               onTap: onSelected == null ? null : () => onSelected!(index),
             ),
           const Spacer(),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 8),
-            child: EngineStatusBadge(),
-          ),
-          const SizedBox(height: DownpeedThemeTokens.space),
           Row(
             children: [
               Expanded(
@@ -360,7 +355,6 @@ class _CollapsedSidebar extends StatelessWidget {
             onPressed: onSelected == null ? null : () => onSelected!(index),
           ),
         const Spacer(),
-        const EngineStatusBadge(compact: true),
         Padding(
           padding: const EdgeInsets.only(bottom: DownpeedThemeTokens.spaceSm),
           child: _CollapsedDestination(

@@ -26,6 +26,7 @@ class LocalizationService extends Translations {
       L10nKeys.settingsBackToMenu: '返回设置菜单',
       L10nKeys.settingsNavigationPreferences: '偏好设置',
       L10nKeys.settingsNavigationSystem: '系统',
+      L10nKeys.settingsNavigationDownloads: '下载与网络',
       L10nKeys.settingsAppearance: '外观',
       L10nKeys.settingsAppearanceDescription:
           '设置 Downpeed 的明暗外观和界面语言，让长时间使用更舒适。',
@@ -65,9 +66,59 @@ class LocalizationService extends Translations {
       L10nKeys.settingsNewDownloadShortcut: '新建下载快捷键',
       L10nKeys.settingsNewDownloadShortcutDescription:
           '在任务工作区按下快捷键，可直接打开新建下载窗口。',
+      L10nKeys.settingsCloseToTray: '关闭窗口时保留在托盘',
+      L10nKeys.settingsCloseToTrayDescription: '关闭主窗口后继续运行下载；可从系统托盘恢复窗口或完整退出。',
+      L10nKeys.settingsLaunchAtLogin: '登录时启动 Downpeed',
+      L10nKeys.settingsLaunchAtLoginDescription: '由系统登录项管理；手动打开应用始终显示窗口。',
+      L10nKeys.settingsStartHiddenOnLogin: '登录启动时静默运行',
+      L10nKeys.settingsStartHiddenOnLoginDescription:
+          '仅由系统登录项唤起时隐藏主窗口并留在托盘；托盘不可用时会显示窗口。',
+      L10nKeys.settingsStartupUnavailableTitle: '当前系统暂不支持登录启动',
+      L10nKeys.settingsStartupUnavailableBody:
+          'macOS 需要 13 或更高版本；Windows 与 Linux 需要可写的当前用户登录项。手动启动不受影响。',
+      L10nKeys.settingsStartupErrorTitle: '登录启动设置未更改',
+      L10nKeys.settingsStartupReadError: '无法读取当前系统登录项状态，请稍后重试。',
+      L10nKeys.settingsStartupUpdateError: '系统未能更新登录项，已恢复为系统当前状态。',
+      L10nKeys.settingsStartupVerificationError: '系统返回的登录项状态与请求不一致，已显示实际状态。',
       L10nKeys.settingsNotificationsNoteTitle: '通知权限由当前系统管理',
       L10nKeys.settingsNotificationsNoteBody:
           '关闭此选项会立即停止 Downpeed 发送新的完成通知，不影响下载任务。如果已在系统设置中拒绝通知权限，还需在系统中重新允许。',
+      L10nKeys.settingsDownloads: '下载与文件',
+      L10nKeys.settingsDownloadsDescription: '设置新任务的默认保存位置，减少重复选择文件夹的操作。',
+      L10nKeys.settingsDownloadDirectory: '默认下载目录',
+      L10nKeys.settingsDownloadDirectoryDescription:
+          '新建 HTTP 下载时会自动使用此目录，仍可在单个任务中临时更改。',
+      L10nKeys.settingsDownloadDirectoryChange: '更改文件夹',
+      L10nKeys.settingsDownloadDirectoryLoading: '正在读取…',
+      L10nKeys.settingsDownloadDirectorySaving: '正在保存…',
+      L10nKeys.settingsDownloadDirectoryUnavailable: '连接引擎后显示',
+      L10nKeys.settingsDownloadDirectoryLoadError: '暂时无法读取默认下载目录，请检查本机引擎。',
+      L10nKeys.settingsDownloadDirectorySaveError: '无法保存默认下载目录，请稍后重试。',
+      L10nKeys.settingsDownloadDirectoryInvalid: '所选文件夹不存在或当前无法使用，请选择其他本地目录。',
+      L10nKeys.settingsDownloadDirectoryOffline: '本机引擎未连接，暂时无法更改默认下载目录。',
+      L10nKeys.settingsDownloadDirectoryPickerError: '无法打开文件夹选择器，请稍后重试。',
+      L10nKeys.settingsDownloadDirectoryErrorTitle: '默认目录未更改',
+      L10nKeys.settingsDownloadsNoteTitle: '默认使用系统下载文件夹',
+      L10nKeys.settingsDownloadsNoteBody:
+          '首次启动时默认为当前电脑的“下载”文件夹。更改后由本机引擎保存，并应用于之后新建的任务；已有任务、进行中的下载和已保存文件不会移动。',
+      L10nKeys.settingsBT: 'BitTorrent',
+      L10nKeys.settingsBTDescription: '管理受限 BT 传输的 Peer 预算，并查看引擎强制关闭的网络能力。',
+      L10nKeys.settingsBTPeerBudget: 'Peer 连接上限',
+      L10nKeys.settingsBTPeerBudgetDescription:
+          '用于新建 BT 任务的每任务连接预算；较低值可减少资源占用。',
+      L10nKeys.settingsBTDiscovery: '发现与入站',
+      L10nKeys.settingsBTDiscoveryDescription:
+          'Tracker · DHT · PEX · WebSeed · IPv6 · 入站连接',
+      L10nKeys.settingsBTTransferPolicy: '上传与做种',
+      L10nKeys.settingsBTTransferPolicyDescription: '下载期间不上传数据，完成后不进入自动做种。',
+      L10nKeys.settingsBTLocked: '安全锁定',
+      L10nKeys.settingsBTPolicyNoteTitle: '策略由本机引擎执行',
+      L10nKeys.settingsBTPolicyNoteBody:
+          'Peer 上限修改后只影响之后新建的 BT 任务。当前只连接用户明确填写的公网 IPv4 Peer；Tracker、DHT、PEX、WebSeed、IPv6、入站、上传和做种在完成独立安全门禁前不能开启。',
+      L10nKeys.settingsBTPolicyErrorTitle: 'BT 策略未更改',
+      L10nKeys.settingsBTPolicyInvalid: '连接上限超出当前引擎允许的安全范围。',
+      L10nKeys.settingsBTPolicyOffline: '本机引擎未连接，暂时无法更改 BT 策略。',
+      L10nKeys.settingsBTPolicySaveError: '无法保存 BT 策略，请稍后重试。',
       L10nKeys.settingsReset: '恢复默认',
       L10nKeys.settingsEngine: '本机引擎',
       L10nKeys.settingsEngineDescription: '本机引擎负责下载调度与文件写入，未连接时可使用右侧按钮重新检查。',
@@ -106,6 +157,21 @@ class LocalizationService extends Translations {
       L10nKeys.tasksBatchPause: '批量暂停',
       L10nKeys.tasksBatchResume: '批量继续',
       L10nKeys.tasksBatchCancel: '批量取消',
+      L10nKeys.tasksDeleteSelected: '删除记录',
+      L10nKeys.tasksClearCompleted: '清空已完成',
+      L10nKeys.tasksClearCompletedTitle: '清空已完成任务？',
+      L10nKeys.tasksClearCompletedBody: '只会从任务列表移除 @count 条已完成记录，下载文件会保留。',
+      L10nKeys.tasksClearCompletedConfirm: '清空记录',
+      L10nKeys.tasksDeleteTitle: '删除任务记录？',
+      L10nKeys.tasksDeleteBatchTitle: '删除 @count 个任务？',
+      L10nKeys.tasksDeleteBody: '默认只从任务列表移除这条记录，下载文件会保留。',
+      L10nKeys.tasksDeleteBatchBody: '默认只从任务列表移除这 @count 条记录，已有下载文件会保留。',
+      L10nKeys.tasksDeleteFiles: '同时删除已完成文件',
+      L10nKeys.tasksDeleteFilesDescription: '这会永久删除 Downpeed 已完成并保存到本机的普通文件。',
+      L10nKeys.tasksDeleteConfirm: '删除记录',
+      L10nKeys.tasksDeleteComplete: '已删除 @count 条任务记录。',
+      L10nKeys.tasksDeletePartial: '部分任务未能删除（@failed 条）。',
+      L10nKeys.tasksDeleteError: '无法删除任务记录，请稍后重试。',
       L10nKeys.tasksBatchComplete: '已更新 @count 个任务。',
       L10nKeys.tasksBatchPartial: '@failed 个任务未能更新，已保留选择。',
       L10nKeys.tasksNoMatchesTitle: '当前视图没有任务',
@@ -130,8 +196,7 @@ class LocalizationService extends Translations {
       L10nKeys.createTitle: '检查下载链接',
       L10nKeys.createSubtitle: '粘贴一个或多行链接，确认文件信息后统一加入任务队列。',
       L10nKeys.createUrlLabel: '下载地址',
-      L10nKeys.createUrlHint:
-          'https://example.com/archive.zip\n每行一个链接，最多 100 个',
+      L10nKeys.createUrlHint: '粘贴链接，每行一个，最多 100 个',
       L10nKeys.createResolve: '解析链接',
       L10nKeys.createResolving: '正在检查远端文件',
       L10nKeys.createResolvingBody: '读取文件名、大小与断点续传能力。',
@@ -177,8 +242,50 @@ class LocalizationService extends Translations {
       L10nKeys.createCreating: '正在创建下载任务',
       L10nKeys.createCreatingBody: '本机引擎正在把任务加入传输队列。',
       L10nKeys.createTaskError: '无法创建下载任务，请检查引擎状态后重试。',
+      L10nKeys.createTaskActionError: '暂时无法更新任务状态，请稍后重试。',
       L10nKeys.createCancelError: '任务暂时无法取消，请稍后重试。',
       L10nKeys.createEventsInterrupted: '实时进度连接已中断，任务仍会在引擎中继续。',
+      L10nKeys.createBTChooseTorrent: '选择 Torrent 文件',
+      L10nKeys.createBTPickerHint:
+          '支持 Magnet 链接或不超过 8 MiB 的 .torrent 文件；解析过程不会连接 Peer。',
+      L10nKeys.createBTResolvedTitle: 'Torrent 元数据已验证',
+      L10nKeys.createBTResolvedBody: '文件路径与声明大小已由本机 Go 引擎检查。',
+      L10nKeys.createBTMagnetTitle: 'Magnet 身份已验证',
+      L10nKeys.createBTMagnetBody: '纯解析阶段不会连接 Tracker、DHT 或 Peer，因此暂时没有文件列表。',
+      L10nKeys.createBTInfoHash: 'InfoHash',
+      L10nKeys.createBTTrackers: 'Tracker',
+      L10nKeys.createBTPrivacy: '隐私标记',
+      L10nKeys.createBTPrivate: '私有 Torrent',
+      L10nKeys.createBTPublic: '公开 Torrent',
+      L10nKeys.createBTFiles: '文件选择',
+      L10nKeys.createBTSelectAll: '选择全部文件',
+      L10nKeys.createBTSelectedSummary: '已选择 @selected / @total 个文件 · @size',
+      L10nKeys.createBTParsingOnly: '当前阶段只完成安全解析与文件选择，不会开始 BT 传输或写入下载目录。',
+      L10nKeys.createBTMagnetParsingOnly: 'Magnet 当前只验证身份，不获取远端元数据，也不能创建传输任务。',
+      L10nKeys.createBTRestrictedTransfer:
+          '受限 BT 模式只连接你明确填写的公网 IPv4 Peer；Tracker、DHT、PEX、WebSeed、入站连接、上传和做种均保持关闭。',
+      L10nKeys.createBTPeers: '显式 Peer',
+      L10nKeys.createBTPeersBody:
+          '每行输入一个公网 IPv4:端口。Downpeed 不会使用 Torrent 内的 Tracker 自动发现 Peer。',
+      L10nKeys.createBTPeersHint: '例如：8.8.8.8:6881',
+      L10nKeys.createBTSecurityNotice:
+          'Peer 会看到你的公网 IP。只下载你有权获取和保存的内容；首版不会上传任何数据。',
+      L10nKeys.createBTStart: '开始受限 BT 下载',
+      L10nKeys.createBTFilesRequired: '请至少选择一个 Torrent 文件。',
+      L10nKeys.createBTPeerRequired: '至少填写一个公网 IPv4 Peer 才能开始下载。',
+      L10nKeys.createBTPeerInvalid: 'Peer 必须使用 IPv4:端口格式，端口范围为 1–65535。',
+      L10nKeys.createBTPeerRestricted: 'Loopback、私网、链路本地和保留网段不能作为 BT Peer。',
+      L10nKeys.createBTPeerLimit: '单个任务最多填写 80 个 Peer。',
+      L10nKeys.createBTUnavailable: '当前引擎未启用受限 BT 传输，请更新或重启引擎。',
+      L10nKeys.createBTInvalidMagnet: 'Magnet 链接缺少有效 InfoHash，或参数不符合安全限制。',
+      L10nKeys.createBTMetadataTooLarge: 'Torrent 文件不能超过 8 MiB。',
+      L10nKeys.createBTPathUnsafe: 'Torrent 中包含不安全、冲突或可能越过保存目录的文件路径。',
+      L10nKeys.createBTFileLimit: 'Torrent 文件数量超过 10,000 个，无法安全显示。',
+      L10nKeys.createBTSizeLimit: 'Torrent 声明的文件体积超过当前安全上限。',
+      L10nKeys.createBTTrackerInvalid: 'Torrent 中包含不支持或格式不安全的 Tracker 地址。',
+      L10nKeys.createBTTorrentError: '无法解析这个 Torrent 文件，请确认文件完整且格式受支持。',
+      L10nKeys.createBTMagnetError: '无法解析这个 Magnet 链接。',
+      L10nKeys.createBTMixedInput: 'Magnet 需要单独解析，不能和 HTTP 链接批量混合。',
       L10nKeys.taskQueued: '等待传输',
       L10nKeys.taskQueuedBody: '任务已进入队列，会在并发槽位可用时自动开始。',
       L10nKeys.taskDownloading: '正在传输',
@@ -195,8 +302,34 @@ class LocalizationService extends Translations {
       L10nKeys.taskFailedBody: '引擎已停止传输，文件没有被保留。',
       L10nKeys.taskProgress: '已传输',
       L10nKeys.taskSpeed: '实时速度',
+      L10nKeys.taskConnections: 'Peer 连接',
+      L10nKeys.taskProtocol: '协议',
+      L10nKeys.taskProtocolBT: '受限 BitTorrent',
+      L10nKeys.taskBTDiagnostics: '连接诊断',
+      L10nKeys.taskBTDiagnosticsBody: '按需查看实时 Peer、流量与受限网络策略。',
+      L10nKeys.taskBTLive: '实时',
+      L10nKeys.taskBTStopped: '未运行',
+      L10nKeys.taskBTConfigured: '已配置',
+      L10nKeys.taskBTPeerLimit: '连接上限',
+      L10nKeys.taskBTConnected: '已连接',
+      L10nKeys.taskBTPending: '待连接',
+      L10nKeys.taskBTHalfOpen: '握手中',
+      L10nKeys.taskBTUsefulTraffic: '有效接收',
+      L10nKeys.taskBTUploadTraffic: '已上传',
+      L10nKeys.taskBTPeers: 'Peer',
+      L10nKeys.taskBTNoPeers: '当前没有已建立的 Peer 连接。',
+      L10nKeys.taskBTPeerPrivacy: 'Peer 地址已脱敏，只保留网络前缀和端口。',
+      L10nKeys.taskBTPolicy: '网络策略',
+      L10nKeys.taskBTPolicyRestricted:
+          'Tracker · DHT · PEX · WebSeed · 入站 · IPv6 · 上传 · 做种',
+      L10nKeys.taskBTDisabled: '全部关闭',
+      L10nKeys.taskBTUnexpectedEnabled: '检测到已启用能力',
+      L10nKeys.taskBTExplicitOnly: '仅显式公网 IPv4 Peer',
+      L10nKeys.taskBTDiagnosticsError: '无法读取连接诊断，请稍后重试。',
+      L10nKeys.taskBTRefresh: '刷新诊断',
       L10nKeys.taskDestination: '保存到',
       L10nKeys.taskCancel: '取消下载',
+      L10nKeys.taskDelete: '删除任务记录',
       L10nKeys.taskCanceling: '正在取消',
       L10nKeys.taskPause: '暂停',
       L10nKeys.taskResume: '继续',
@@ -241,6 +374,7 @@ class LocalizationService extends Translations {
       L10nKeys.settingsBackToMenu: 'Back to settings',
       L10nKeys.settingsNavigationPreferences: 'Preferences',
       L10nKeys.settingsNavigationSystem: 'System',
+      L10nKeys.settingsNavigationDownloads: 'Downloads & network',
       L10nKeys.settingsAppearance: 'Appearance',
       L10nKeys.settingsAppearanceDescription:
           'Choose how Downpeed looks and reads for a more comfortable workspace.',
@@ -287,10 +421,82 @@ class LocalizationService extends Translations {
       L10nKeys.settingsNewDownloadShortcut: 'New download shortcut',
       L10nKeys.settingsNewDownloadShortcutDescription:
           'Open the new download dialog directly from the transfer workspace.',
+      L10nKeys.settingsCloseToTray: 'Keep running in the tray',
+      L10nKeys.settingsCloseToTrayDescription:
+          'Keep downloads running after the main window closes. Restore or fully quit from the system tray.',
+      L10nKeys.settingsLaunchAtLogin: 'Launch Downpeed at login',
+      L10nKeys.settingsLaunchAtLoginDescription:
+          'Managed by the operating system. Manual launches always show the window.',
+      L10nKeys.settingsStartHiddenOnLogin: 'Start quietly at login',
+      L10nKeys.settingsStartHiddenOnLoginDescription:
+          'Hide the window only when launched by the system login item. If the tray is unavailable, the window is shown.',
+      L10nKeys.settingsStartupUnavailableTitle:
+          'Login launch is unavailable on this system',
+      L10nKeys.settingsStartupUnavailableBody:
+          'macOS 13 or later is required. Windows and Linux need a writable per-user login item. Manual launch is unaffected.',
+      L10nKeys.settingsStartupErrorTitle:
+          'The login launch setting was not changed',
+      L10nKeys.settingsStartupReadError:
+          'The current system login item could not be read. Try again later.',
+      L10nKeys.settingsStartupUpdateError:
+          'The system could not update the login item. The actual system state has been restored.',
+      L10nKeys.settingsStartupVerificationError:
+          'The system reported a different login item state. The actual state is shown.',
       L10nKeys.settingsNotificationsNoteTitle:
           'Notification permission is managed by your system',
       L10nKeys.settingsNotificationsNoteBody:
           'Turning this off immediately stops new Downpeed completion notifications without affecting downloads. If permission was denied in system settings, allow it there before notifications can appear.',
+      L10nKeys.settingsDownloads: 'Downloads & files',
+      L10nKeys.settingsDownloadsDescription:
+          'Choose where new tasks save files by default and avoid selecting the same folder repeatedly.',
+      L10nKeys.settingsDownloadDirectory: 'Default download folder',
+      L10nKeys.settingsDownloadDirectoryDescription:
+          'New HTTP downloads use this folder automatically. You can still override it for an individual task.',
+      L10nKeys.settingsDownloadDirectoryChange: 'Change folder',
+      L10nKeys.settingsDownloadDirectoryLoading: 'Loading…',
+      L10nKeys.settingsDownloadDirectorySaving: 'Saving…',
+      L10nKeys.settingsDownloadDirectoryUnavailable:
+          'Connect the engine to view',
+      L10nKeys.settingsDownloadDirectoryLoadError:
+          'The default download folder could not be read. Check the local engine.',
+      L10nKeys.settingsDownloadDirectorySaveError:
+          'The default download folder could not be saved. Try again.',
+      L10nKeys.settingsDownloadDirectoryInvalid:
+          'This folder does not exist or cannot be used. Choose another local folder.',
+      L10nKeys.settingsDownloadDirectoryOffline:
+          'The local engine is offline, so the default download folder cannot be changed.',
+      L10nKeys.settingsDownloadDirectoryPickerError:
+          'The folder picker could not be opened. Try again.',
+      L10nKeys.settingsDownloadDirectoryErrorTitle:
+          'Default folder not changed',
+      L10nKeys.settingsDownloadsNoteTitle:
+          'The system Downloads folder is the default',
+      L10nKeys.settingsDownloadsNoteBody:
+          'On first launch, Downpeed uses this computer’s Downloads folder. Changes are stored by the local engine and apply to newly created tasks; existing tasks, active downloads, and saved files are not moved.',
+      L10nKeys.settingsBT: 'BitTorrent',
+      L10nKeys.settingsBTDescription:
+          'Manage the peer budget for restricted BT transfers and review capabilities locked off by the engine.',
+      L10nKeys.settingsBTPeerBudget: 'Peer connection limit',
+      L10nKeys.settingsBTPeerBudgetDescription:
+          'Per-task connection budget for newly created BT tasks. Lower values reduce resource use.',
+      L10nKeys.settingsBTDiscovery: 'Discovery & inbound',
+      L10nKeys.settingsBTDiscoveryDescription:
+          'Tracker · DHT · PEX · WebSeed · IPv6 · inbound connections',
+      L10nKeys.settingsBTTransferPolicy: 'Upload & seeding',
+      L10nKeys.settingsBTTransferPolicyDescription:
+          'No data upload while downloading and no automatic seeding after completion.',
+      L10nKeys.settingsBTLocked: 'Security locked',
+      L10nKeys.settingsBTPolicyNoteTitle:
+          'The policy is enforced by the local engine',
+      L10nKeys.settingsBTPolicyNoteBody:
+          'Peer-limit changes apply only to newly created BT tasks. Downpeed currently connects only to explicit public IPv4 peers; Tracker, DHT, PEX, WebSeed, IPv6, inbound, upload, and seeding cannot be enabled until their independent security gates are complete.',
+      L10nKeys.settingsBTPolicyErrorTitle: 'BT policy not changed',
+      L10nKeys.settingsBTPolicyInvalid:
+          'The connection limit is outside the engine’s current safe range.',
+      L10nKeys.settingsBTPolicyOffline:
+          'The local engine is offline, so the BT policy cannot be changed.',
+      L10nKeys.settingsBTPolicySaveError:
+          'The BT policy could not be saved. Try again.',
       L10nKeys.settingsReset: 'Reset',
       L10nKeys.settingsEngine: 'Local engine',
       L10nKeys.settingsEngineDescription:
@@ -335,6 +541,26 @@ class LocalizationService extends Translations {
       L10nKeys.tasksBatchPause: 'Pause selected',
       L10nKeys.tasksBatchResume: 'Resume selected',
       L10nKeys.tasksBatchCancel: 'Cancel selected',
+      L10nKeys.tasksDeleteSelected: 'Delete records',
+      L10nKeys.tasksClearCompleted: 'Clear completed',
+      L10nKeys.tasksClearCompletedTitle: 'Clear completed tasks?',
+      L10nKeys.tasksClearCompletedBody:
+          'This removes @count completed records from the list. Downloaded files are kept.',
+      L10nKeys.tasksClearCompletedConfirm: 'Clear records',
+      L10nKeys.tasksDeleteTitle: 'Delete task record?',
+      L10nKeys.tasksDeleteBatchTitle: 'Delete @count tasks?',
+      L10nKeys.tasksDeleteBody:
+          'By default, only this record is removed from the list. The downloaded file is kept.',
+      L10nKeys.tasksDeleteBatchBody:
+          'By default, only these @count records are removed from the list. Downloaded files are kept.',
+      L10nKeys.tasksDeleteFiles: 'Also delete completed files',
+      L10nKeys.tasksDeleteFilesDescription:
+          'This permanently deletes regular files that Downpeed completed and saved locally.',
+      L10nKeys.tasksDeleteConfirm: 'Delete records',
+      L10nKeys.tasksDeleteComplete: 'Deleted @count task records.',
+      L10nKeys.tasksDeletePartial: '@failed tasks could not be deleted.',
+      L10nKeys.tasksDeleteError:
+          'Task records could not be deleted. Try again.',
       L10nKeys.tasksBatchComplete: 'Updated @count tasks.',
       L10nKeys.tasksBatchPartial:
           '@failed tasks could not be updated and remain selected.',
@@ -364,8 +590,7 @@ class LocalizationService extends Translations {
       L10nKeys.createSubtitle:
           'Paste one or more links, inspect them, then add the files to one queue.',
       L10nKeys.createUrlLabel: 'Download URL',
-      L10nKeys.createUrlHint:
-          'https://example.com/archive.zip\nOne link per line, up to 100',
+      L10nKeys.createUrlHint: 'Paste links, one per line, up to 100',
       L10nKeys.createResolve: 'Inspect link',
       L10nKeys.createResolving: 'Inspecting the remote file',
       L10nKeys.createResolvingBody:
@@ -432,10 +657,70 @@ class LocalizationService extends Translations {
           'The local engine is adding the task to the transfer queue.',
       L10nKeys.createTaskError:
           'Could not create the task. Check the engine and try again.',
+      L10nKeys.createTaskActionError:
+          'The task state could not be updated. Try again shortly.',
       L10nKeys.createCancelError:
           'The task cannot be canceled right now. Try again shortly.',
       L10nKeys.createEventsInterrupted:
           'Live progress was interrupted. The task continues in the engine.',
+      L10nKeys.createBTChooseTorrent: 'Choose Torrent file',
+      L10nKeys.createBTPickerHint:
+          'Use a Magnet link or a .torrent file up to 8 MiB. Parsing does not contact peers.',
+      L10nKeys.createBTResolvedTitle: 'Torrent metadata verified',
+      L10nKeys.createBTResolvedBody:
+          'File paths and declared sizes were checked by the local Go engine.',
+      L10nKeys.createBTMagnetTitle: 'Magnet identity verified',
+      L10nKeys.createBTMagnetBody:
+          'This parsing stage does not contact trackers, DHT, or peers, so the file list is not available yet.',
+      L10nKeys.createBTInfoHash: 'InfoHash',
+      L10nKeys.createBTTrackers: 'Trackers',
+      L10nKeys.createBTPrivacy: 'Privacy flag',
+      L10nKeys.createBTPrivate: 'Private Torrent',
+      L10nKeys.createBTPublic: 'Public Torrent',
+      L10nKeys.createBTFiles: 'File selection',
+      L10nKeys.createBTSelectAll: 'Select all files',
+      L10nKeys.createBTSelectedSummary:
+          '@selected of @total files selected · @size',
+      L10nKeys.createBTParsingOnly:
+          'This stage only performs safe parsing and file selection. It does not start BT transfer or write to the download folder.',
+      L10nKeys.createBTMagnetParsingOnly:
+          'Magnet currently verifies identity only. It does not fetch remote metadata or create a transfer task.',
+      L10nKeys.createBTRestrictedTransfer:
+          'Restricted BT only contacts public IPv4 peers you enter. Trackers, DHT, PEX, web seeds, incoming peers, uploads, and seeding remain disabled.',
+      L10nKeys.createBTPeers: 'Explicit peers',
+      L10nKeys.createBTPeersBody:
+          'Enter one public IPv4:port per line. Downpeed does not use Torrent trackers to discover peers.',
+      L10nKeys.createBTPeersHint: 'Example: 8.8.8.8:6881',
+      L10nKeys.createBTSecurityNotice:
+          'Peers can see your public IP. Only download content you are allowed to obtain and save; this release never uploads data.',
+      L10nKeys.createBTStart: 'Start restricted BT download',
+      L10nKeys.createBTFilesRequired: 'Select at least one Torrent file.',
+      L10nKeys.createBTPeerRequired:
+          'Enter at least one public IPv4 peer before starting.',
+      L10nKeys.createBTPeerInvalid:
+          'Peers must use IPv4:port format with a port from 1 to 65535.',
+      L10nKeys.createBTPeerRestricted:
+          'Loopback, private, link-local, and reserved networks cannot be BT peers.',
+      L10nKeys.createBTPeerLimit: 'A task can use up to 80 explicit peers.',
+      L10nKeys.createBTUnavailable:
+          'Restricted BT is not enabled in this engine. Update or restart it.',
+      L10nKeys.createBTInvalidMagnet:
+          'The Magnet link has no valid InfoHash or exceeds safe parameter limits.',
+      L10nKeys.createBTMetadataTooLarge:
+          'Torrent metadata cannot exceed 8 MiB.',
+      L10nKeys.createBTPathUnsafe:
+          'The Torrent contains an unsafe, conflicting, or escaping file path.',
+      L10nKeys.createBTFileLimit:
+          'The Torrent has more than 10,000 files and cannot be displayed safely.',
+      L10nKeys.createBTSizeLimit:
+          'The Torrent declares more data than the current safety limit.',
+      L10nKeys.createBTTrackerInvalid:
+          'The Torrent contains an unsupported or unsafe Tracker address.',
+      L10nKeys.createBTTorrentError:
+          'This Torrent file could not be parsed. Check that it is complete and supported.',
+      L10nKeys.createBTMagnetError: 'This Magnet link could not be parsed.',
+      L10nKeys.createBTMixedInput:
+          'Inspect Magnet links separately from HTTP batch links.',
       L10nKeys.taskQueued: 'Waiting to transfer',
       L10nKeys.taskQueuedBody:
           'The task is queued and starts when a concurrency slot is available.',
@@ -459,8 +744,37 @@ class LocalizationService extends Translations {
           'The engine stopped the transfer and did not keep the file.',
       L10nKeys.taskProgress: 'Transferred',
       L10nKeys.taskSpeed: 'Live speed',
+      L10nKeys.taskConnections: 'Peer connections',
+      L10nKeys.taskProtocol: 'Protocol',
+      L10nKeys.taskProtocolBT: 'Restricted BitTorrent',
+      L10nKeys.taskBTDiagnostics: 'Connection diagnostics',
+      L10nKeys.taskBTDiagnosticsBody:
+          'Inspect live peers, traffic, and restricted network policy on demand.',
+      L10nKeys.taskBTLive: 'Live',
+      L10nKeys.taskBTStopped: 'Not running',
+      L10nKeys.taskBTConfigured: 'Configured',
+      L10nKeys.taskBTPeerLimit: 'Peer limit',
+      L10nKeys.taskBTConnected: 'Connected',
+      L10nKeys.taskBTPending: 'Pending',
+      L10nKeys.taskBTHalfOpen: 'Handshaking',
+      L10nKeys.taskBTUsefulTraffic: 'Useful received',
+      L10nKeys.taskBTUploadTraffic: 'Uploaded',
+      L10nKeys.taskBTPeers: 'Peers',
+      L10nKeys.taskBTNoPeers: 'No peer connection is currently established.',
+      L10nKeys.taskBTPeerPrivacy:
+          'Peer addresses are masked to a network prefix and port.',
+      L10nKeys.taskBTPolicy: 'Network policy',
+      L10nKeys.taskBTPolicyRestricted:
+          'Tracker · DHT · PEX · WebSeed · inbound · IPv6 · upload · seeding',
+      L10nKeys.taskBTDisabled: 'All disabled',
+      L10nKeys.taskBTUnexpectedEnabled: 'Enabled capability detected',
+      L10nKeys.taskBTExplicitOnly: 'Explicit public IPv4 peers only',
+      L10nKeys.taskBTDiagnosticsError:
+          'Connection diagnostics could not be loaded. Try again.',
+      L10nKeys.taskBTRefresh: 'Refresh diagnostics',
       L10nKeys.taskDestination: 'Save to',
       L10nKeys.taskCancel: 'Cancel download',
+      L10nKeys.taskDelete: 'Delete task record',
       L10nKeys.taskCanceling: 'Canceling',
       L10nKeys.taskPause: 'Pause',
       L10nKeys.taskResume: 'Resume',

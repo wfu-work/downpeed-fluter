@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"runtime"
 	"strconv"
 	"sync/atomic"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/wfu-work/downpeed-fluter/backend/internal/buildinfo"
 	"github.com/wfu-work/downpeed-fluter/backend/internal/download"
+	btprotocol "github.com/wfu-work/downpeed-fluter/backend/internal/protocol/bt"
 	httpprotocol "github.com/wfu-work/downpeed-fluter/backend/internal/protocol/http"
 	"github.com/wfu-work/downpeed-fluter/backend/pkg/api"
 )
@@ -25,12 +27,16 @@ const (
 )
 
 type Server struct {
-	startedAt time.Time
-	requests  atomic.Uint64
-	resolver  download.Resolver
-	tasks     download.TaskService
-	closer    interface{ Close() error }
-	handler   http.Handler
+	startedAt     time.Time
+	requests      atomic.Uint64
+	resolver      download.Resolver
+	btResolver    download.BTResolver
+	btTasks       download.BTTaskCreator
+	btDiagnostics download.BTDiagnosticsService
+	tasks         download.TaskService
+	settings      download.SettingsService
+	closer        interface{ Close() error }
+	handler       http.Handler
 }
 
 type Option func(*Server)
@@ -49,9 +55,31 @@ func WithTaskService(tasks download.TaskService) Option {
 			return
 		}
 		server.tasks = tasks
+		if creator, ok := tasks.(download.BTTaskCreator); ok {
+			server.btTasks = creator
+		}
+		if diagnostics, ok := tasks.(download.BTDiagnosticsService); ok {
+			server.btDiagnostics = diagnostics
+		}
 		server.closer = nil
 		if closer, ok := tasks.(interface{ Close() error }); ok {
 			server.closer = closer
+		}
+	}
+}
+
+func WithBTResolver(resolver download.BTResolver) Option {
+	return func(server *Server) {
+		if resolver != nil {
+			server.btResolver = resolver
+		}
+	}
+}
+
+func WithSettingsService(settings download.SettingsService) Option {
+	return func(server *Server) {
+		if settings != nil {
+			server.settings = settings
 		}
 	}
 }
@@ -76,9 +104,16 @@ type Info struct {
 }
 
 func New(startedAt time.Time, options ...Option) *Server {
+	settings, _ := download.NewSettingsManager(
+		context.Background(),
+		nil,
+		os.TempDir(),
+	)
 	server := &Server{
-		startedAt: startedAt.UTC(),
-		resolver:  httpprotocol.NewResolver(nil),
+		startedAt:  startedAt.UTC(),
+		resolver:   httpprotocol.NewResolver(nil),
+		btResolver: btprotocol.NewResolver(),
+		settings:   settings,
 	}
 	for _, option := range options {
 		option(server)
@@ -91,14 +126,25 @@ func New(startedAt time.Time, options ...Option) *Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/health", server.health)
 	mux.HandleFunc("GET /api/v1/info", server.info)
+	mux.HandleFunc("GET /api/v1/settings", server.getSettings)
+	mux.HandleFunc("PUT /api/v1/settings", server.updateSettings)
 	mux.HandleFunc("POST /api/v1/tasks/resolve", server.resolveDownload)
+	mux.HandleFunc("POST /api/v1/bt/resolve/magnet", server.resolveMagnet)
+	mux.HandleFunc("POST /api/v1/bt/resolve/torrent", server.resolveTorrent)
+	mux.HandleFunc("POST /api/v1/bt/tasks", server.createBTTask)
+	mux.HandleFunc("GET /api/v1/tasks/{id}/bt/diagnostics", server.getBTDiagnostics)
 	mux.HandleFunc("POST /api/v1/tasks", server.createTask)
 	mux.HandleFunc("POST /api/v1/tasks/batch", server.createTasksBatch)
 	mux.HandleFunc("POST /api/v1/tasks/batch/actions", server.actOnTasksBatch)
+	mux.HandleFunc("POST /api/v1/tasks/batch/delete", server.deleteTasksBatch)
 	mux.HandleFunc("GET /api/v1/tasks", server.listTasks)
 	mux.HandleFunc("GET /api/v1/tasks/{id}", server.getTask)
 	mux.HandleFunc("PUT /api/v1/tasks/{id}/pause", server.pauseTask)
 	mux.HandleFunc("PUT /api/v1/tasks/{id}/resume", server.resumeTask)
+	mux.HandleFunc("PUT /api/v1/tasks/{id}/cancel", server.cancelTask)
+	mux.HandleFunc("DELETE /api/v1/tasks/completed", server.deleteCompletedTasks)
+	mux.HandleFunc("DELETE /api/v1/tasks/{id}/record", server.deleteTask)
+	// Kept for API v1 compatibility. New clients use PUT /cancel.
 	mux.HandleFunc("DELETE /api/v1/tasks/{id}", server.cancelTask)
 	mux.HandleFunc("GET /api/v1/events", server.events)
 	server.handler = server.withRequestContext(server.withRecovery(mux))

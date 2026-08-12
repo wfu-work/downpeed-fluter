@@ -1,7 +1,7 @@
 # BT/Magnet 威胁模型
 
-版本：1.0  
-日期：2026-08-11  
+版本：1.1
+日期：2026-08-12
 范围：Downpeed Go 内核中的 Torrent/Magnet 解析、元数据获取、Tracker/DHT/PEX、Peer 连接、分片写入、校验、上传和任务诊断。Flutter 只展示经过领域模型归一化的数据，不直接解析 Torrent 或建立 Peer 连接。
 
 ## 资产与信任边界
@@ -59,8 +59,17 @@ flowchart LR
 - 不跟随保存根下由外部程序替换的符号链接或重解析点；临时文件使用排他创建，最终文件使用不覆盖的原子发布策略。
 - 临时文件与最终文件位于同一文件系统；取消清理未完成文件，暂停只保留经检查点确认的 Piece。
 - 多文件 Torrent 只为用户选择的文件分配数据；相邻未选文件的共享 Piece 只能写入受控临时存储，不能发布为用户未选择的文件。
+- 当前实现使用保存根目录下的隐藏 staging 目录；发布时通过目录作用域文件 API 重新检查 staging 不是符号链接，创建目标不覆盖现有文件，并只硬链接已校验的选中文件。staging 在校验和发布完成后清理，取消时也会清理。
 
 ## 网络、SSRF 与隐私
+
+### 当前受限传输基线
+
+M3 首个可下载版本只接受 `.torrent` 元数据和用户明确填写的公网 IPv4 Peer，不从 Torrent/Magnet 自动采用 Tracker、DHT node、PEX、WebSeed、HTTP metadata source 或嵌入 Peer。Tracker、DHT、PEX、WebSeed、IPv6、uTP、端口映射、入站连接、上传和自动做种均强制关闭；Magnet 仍只做身份解析。所有显式 Peer 在创建任务时规范化、去重并按本文件的受限地址策略过滤，任务最多 80 个 Peer。
+
+引擎设置持久化 1–80 的每任务 Peer 连接预算，默认 80；预算在新任务创建时快照到任务协议状态，并同时约束 established 与 half-open 连接，后续设置变化不热切换运行中任务。设置 API 对发现、入站、IPv6、上传和做种实施 fail closed：任何开启值都被 `invalid_bt_policy` 拒绝，不能绕过 UI 解锁上游默认能力。
+
+`anacrolix/torrent v1.61.0` 内置 HTTPS Tracker 客户端设置了 `InsecureSkipVerify: true`，因此当前版本禁止启用其自动 Tracker 路径。公共 Tracker 只有在 Downpeed 自行提供完成证书验证、重定向与地址过滤的适配器，或升级并重新审查已修复的上游版本后才能开放。
 
 ### Tracker 与 HTTP
 
@@ -101,7 +110,9 @@ flowchart LR
 ## 日志、API 与界面
 
 - Go 错误映射为稳定代码，例如 `bt_metadata_too_large`、`bt_path_unsafe`、`bt_private_address_blocked`、`bt_piece_hash_mismatch`，Flutter 不显示原始网络错误。
-- Peer IP 在普通 UI 中按隐私模式脱敏；完整连接诊断需要用户主动展开，诊断导出默认再次脱敏。
+- BT 连接诊断只在用户主动展开后请求；普通 API 和 UI 只返回 `203.10.x.x:6881` 形式的 IPv4 `/16` 网络前缀与端口，IPv6、无端口或异常值统一返回 `Hidden`，不返回完整 Peer IP。
+- 诊断只在任务正在下载时标记为 `live`；暂停、完成、失败、取消和恢复后不伪装实时连接。Peer 列表等短期连接数据仅保留在进程内存，不持久化到任务数据库。
+- 诊断导出默认必须继续脱敏，不得因导出功能恢复完整 Peer IP。
 - Magnet 仅显示安全 display name 和截断 InfoHash；Tracker 只显示 scheme/host，不显示 passkey。
 - “开始 BT 下载”前提示上传、IP 可见性和内容合规边界；Downpeed 不内置资源搜索、推荐或侵权内容来源。
 
@@ -120,4 +131,3 @@ flowchart LR
 | 配置 | UPnP、WebTorrent、WebSeed、IPv6、自动做种默认关闭，上传和接受连接有限速 |
 
 解析器应增加固定回归样本和 Go fuzz target；网络测试使用本地可控 Tracker/Peer，不依赖公共 swarm。任何安全不变量被放宽时，先更新本文件、测试和用户可见设置，再修改适配器。
-

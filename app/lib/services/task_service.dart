@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 
 import '../data/clients/engine_client.dart';
 import '../domains/batch_task_result.dart';
+import '../domains/delete_task_result.dart';
 import '../domains/download_task.dart';
 import 'desktop_actions_service.dart';
 
@@ -73,6 +74,74 @@ class TaskService extends GetxService {
 
   Future<void> cancel(String id) => _perform(id, client.cancelTask);
 
+  Future<DeleteTaskResult?> deleteTask(
+    String id, {
+    bool deleteFile = false,
+  }) async {
+    if (isActing(id)) return null;
+    actionTaskIds.add(id);
+    errorMessage.value = null;
+    try {
+      final result = await client.deleteTask(id, deleteFile: deleteFile);
+      _removeIDs(<String>[result.id]);
+      return result;
+    } on EngineClientException catch (error) {
+      errorMessage.value = error.message;
+    } on Object {
+      errorMessage.value = 'The engine could not delete this task.';
+    } finally {
+      actionTaskIds.remove(id);
+    }
+    return null;
+  }
+
+  Future<BatchDeleteTaskResult?> deleteTasks(
+    Iterable<String> ids, {
+    bool deleteFiles = false,
+  }) async {
+    final taskIds = ids.toSet().take(maxTaskBatchSize).toList(growable: false);
+    if (taskIds.isEmpty || taskIds.any(isActing)) return null;
+    actionTaskIds.addAll(taskIds);
+    errorMessage.value = null;
+    try {
+      final result = await client.deleteTasks(
+        taskIds,
+        deleteFiles: deleteFiles,
+      );
+      _removeIDs(result.successfulIDs);
+      return result;
+    } on EngineClientException catch (error) {
+      errorMessage.value = error.message;
+    } on Object {
+      errorMessage.value = 'The engine could not delete the selected tasks.';
+    } finally {
+      actionTaskIds.removeAll(taskIds);
+    }
+    return null;
+  }
+
+  Future<BatchDeleteTaskResult?> clearCompletedTasks() async {
+    final completedIDs = tasks
+        .where((task) => task.state == DownloadTaskState.completed)
+        .map((task) => task.id)
+        .toList(growable: false);
+    if (completedIDs.isEmpty || completedIDs.any(isActing)) return null;
+    actionTaskIds.addAll(completedIDs);
+    errorMessage.value = null;
+    try {
+      final result = await client.clearCompletedTasks();
+      _removeIDs(result.successfulIDs);
+      return result;
+    } on EngineClientException catch (error) {
+      errorMessage.value = error.message;
+    } on Object {
+      errorMessage.value = 'The engine could not clear completed tasks.';
+    } finally {
+      actionTaskIds.removeAll(completedIDs);
+    }
+    return null;
+  }
+
   Future<BatchTaskResult?> actOnTasks(
     Iterable<String> ids,
     BatchTaskAction action,
@@ -129,6 +198,9 @@ class TaskService extends GetxService {
               event.task.state == DownloadTaskState.completed) {
             unawaited(desktopActions.notifyCompleted(event.task));
           }
+        } else if (event.type == 'task.removed') {
+          eventErrorMessage.value = null;
+          _removeIDs(<String>[event.task.id]);
         }
       },
       onError: (_) {
@@ -156,6 +228,12 @@ class TaskService extends GetxService {
       updated[index] = value;
     }
     _replaceTasks(updated);
+  }
+
+  void _removeIDs(Iterable<String> ids) {
+    final removed = ids.toSet();
+    if (removed.isEmpty) return;
+    tasks.removeWhere((task) => removed.contains(task.id));
   }
 
   int _newestFirst(DownloadTask left, DownloadTask right) =>

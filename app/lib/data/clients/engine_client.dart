@@ -1,11 +1,16 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 
 import '../../domains/batch_task_result.dart';
+import '../../domains/bt_resolution.dart';
+import '../../domains/bt_diagnostics.dart';
+import '../../domains/delete_task_result.dart';
 import '../../domains/download_resolution.dart';
 import '../../domains/download_task.dart';
 import '../../domains/engine_info.dart';
+import '../../domains/engine_settings.dart';
 
 const defaultEngineBaseUrl = String.fromEnvironment(
   'DOWNPEED_API_BASE_URL',
@@ -15,7 +20,20 @@ const defaultEngineBaseUrl = String.fromEnvironment(
 abstract interface class EngineClient {
   Future<EngineInfo> fetchInfo();
 
+  Future<EngineSettings> fetchSettings();
+
+  Future<EngineSettings> updateSettings({
+    required String defaultDownloadDirectory,
+    required BTPolicySettings bitTorrent,
+  });
+
   Future<DownloadResolution> resolveDownload(String url);
+
+  Future<BTResolution> resolveMagnet(String magnet);
+
+  Future<BTResolution> resolveTorrent(List<int> bytes);
+
+  Future<BTDiagnostics> fetchBTDiagnostics(String taskId);
 
   Future<DownloadTask> createTask({
     required String url,
@@ -25,6 +43,13 @@ abstract interface class EngineClient {
     bool acceptRanges = false,
     String etag = '',
     String lastModified = '',
+  });
+
+  Future<DownloadTask> createBTTask({
+    required List<int> metadata,
+    required String saveDirectory,
+    required List<int> selectedFileIndexes,
+    required List<String> explicitPeers,
   });
 
   Future<BatchTaskResult> createTasks(List<CreateTaskInput> tasks);
@@ -38,6 +63,15 @@ abstract interface class EngineClient {
   Future<DownloadTask> resumeTask(String id);
 
   Future<DownloadTask> cancelTask(String id);
+
+  Future<DeleteTaskResult> deleteTask(String id, {bool deleteFile = false});
+
+  Future<BatchDeleteTaskResult> deleteTasks(
+    List<String> ids, {
+    bool deleteFiles = false,
+  });
+
+  Future<BatchDeleteTaskResult> clearCompletedTasks();
 
   Future<BatchTaskResult> actOnTasks(List<String> ids, BatchTaskAction action);
 
@@ -94,6 +128,51 @@ class DioEngineClient implements EngineClient {
   }
 
   @override
+  Future<EngineSettings> fetchSettings() async {
+    try {
+      final response = await _dio.get<Map<String, dynamic>>('/api/v1/settings');
+      return EngineSettings.fromJson(_readData(response.data));
+    } on EngineClientException {
+      rethrow;
+    } on DioException catch (error) {
+      throw _normalizeDioError(error);
+    } on FormatException {
+      throw const EngineClientException(
+        'The engine returned unsupported settings.',
+        code: 'incompatible_engine',
+        retryable: false,
+      );
+    }
+  }
+
+  @override
+  Future<EngineSettings> updateSettings({
+    required String defaultDownloadDirectory,
+    required BTPolicySettings bitTorrent,
+  }) async {
+    try {
+      final response = await _dio.put<Map<String, dynamic>>(
+        '/api/v1/settings',
+        data: <String, dynamic>{
+          'defaultDownloadDirectory': defaultDownloadDirectory,
+          'bitTorrent': bitTorrent.toJson(),
+        },
+      );
+      return EngineSettings.fromJson(_readData(response.data));
+    } on EngineClientException {
+      rethrow;
+    } on DioException catch (error) {
+      throw _normalizeDioError(error);
+    } on FormatException {
+      throw const EngineClientException(
+        'The engine returned unsupported settings.',
+        code: 'incompatible_engine',
+        retryable: false,
+      );
+    }
+  }
+
+  @override
   Future<DownloadResolution> resolveDownload(String url) async {
     try {
       final response = await _dio.post<Map<String, dynamic>>(
@@ -112,6 +191,83 @@ class DioEngineClient implements EngineClient {
         code: 'incompatible_engine',
         retryable: false,
       );
+    }
+  }
+
+  @override
+  Future<BTResolution> resolveMagnet(String magnet) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '/api/v1/bt/resolve/magnet',
+        data: <String, dynamic>{'magnet': magnet},
+      );
+      return BTResolution.fromJson(_readData(response.data));
+    } on EngineClientException {
+      rethrow;
+    } on DioException catch (error) {
+      throw _normalizeDioError(error);
+    } on Object catch (error) {
+      if (error is FormatException || error is TypeError) {
+        throw const EngineClientException(
+          'The engine returned unsupported BT metadata.',
+          code: 'incompatible_engine',
+          retryable: false,
+        );
+      }
+      rethrow;
+    }
+  }
+
+  @override
+  Future<BTResolution> resolveTorrent(List<int> bytes) async {
+    try {
+      final payload = Uint8List.fromList(bytes);
+      final response = await _dio.post<Map<String, dynamic>>(
+        '/api/v1/bt/resolve/torrent',
+        data: Stream<List<int>>.value(payload),
+        options: Options(
+          contentType: 'application/x-bittorrent',
+          headers: <String, dynamic>{'Content-Length': payload.length},
+          receiveTimeout: const Duration(seconds: 10),
+        ),
+      );
+      return BTResolution.fromJson(_readData(response.data));
+    } on EngineClientException {
+      rethrow;
+    } on DioException catch (error) {
+      throw _normalizeDioError(error);
+    } on Object catch (error) {
+      if (error is FormatException || error is TypeError) {
+        throw const EngineClientException(
+          'The engine returned unsupported BT metadata.',
+          code: 'incompatible_engine',
+          retryable: false,
+        );
+      }
+      rethrow;
+    }
+  }
+
+  @override
+  Future<BTDiagnostics> fetchBTDiagnostics(String taskId) async {
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '/api/v1/tasks/${Uri.encodeComponent(taskId)}/bt/diagnostics',
+      );
+      return BTDiagnostics.fromJson(_readData(response.data));
+    } on EngineClientException {
+      rethrow;
+    } on DioException catch (error) {
+      throw _normalizeDioError(error);
+    } on Object catch (error) {
+      if (error is FormatException || error is TypeError) {
+        throw const EngineClientException(
+          'The engine returned unsupported BT diagnostics.',
+          code: 'incompatible_engine',
+          retryable: false,
+        );
+      }
+      rethrow;
     }
   }
 
@@ -146,6 +302,37 @@ class DioEngineClient implements EngineClient {
     } on FormatException {
       throw const EngineClientException(
         'The engine returned an unsupported download task.',
+        code: 'incompatible_engine',
+        retryable: false,
+      );
+    }
+  }
+
+  @override
+  Future<DownloadTask> createBTTask({
+    required List<int> metadata,
+    required String saveDirectory,
+    required List<int> selectedFileIndexes,
+    required List<String> explicitPeers,
+  }) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '/api/v1/bt/tasks',
+        data: <String, dynamic>{
+          'metadata': base64Encode(metadata),
+          'saveDirectory': saveDirectory,
+          'selectedFileIndexes': selectedFileIndexes,
+          'explicitPeers': explicitPeers,
+        },
+      );
+      return DownloadTask.fromJson(_readData(response.data));
+    } on EngineClientException {
+      rethrow;
+    } on DioException catch (error) {
+      throw _normalizeDioError(error);
+    } on FormatException {
+      throw const EngineClientException(
+        'The engine returned an unsupported BT download task.',
         code: 'incompatible_engine',
         retryable: false,
       );
@@ -231,8 +418,8 @@ class DioEngineClient implements EngineClient {
   @override
   Future<DownloadTask> cancelTask(String id) async {
     try {
-      final response = await _dio.delete<Map<String, dynamic>>(
-        '/api/v1/tasks/${Uri.encodeComponent(id)}',
+      final response = await _dio.put<Map<String, dynamic>>(
+        '/api/v1/tasks/${Uri.encodeComponent(id)}/cancel',
       );
       return DownloadTask.fromJson(_readData(response.data));
     } on EngineClientException {
@@ -245,6 +432,83 @@ class DioEngineClient implements EngineClient {
         code: 'incompatible_engine',
         retryable: false,
       );
+    }
+  }
+
+  @override
+  Future<DeleteTaskResult> deleteTask(
+    String id, {
+    bool deleteFile = false,
+  }) async {
+    try {
+      final response = await _dio.delete<Map<String, dynamic>>(
+        '/api/v1/tasks/${Uri.encodeComponent(id)}/record',
+        queryParameters: <String, dynamic>{'deleteFiles': deleteFile},
+      );
+      return DeleteTaskResult.fromJson(_readData(response.data));
+    } on EngineClientException {
+      rethrow;
+    } on DioException catch (error) {
+      throw _normalizeDioError(error);
+    } on Object catch (error) {
+      if (error is FormatException || error is TypeError) {
+        throw const EngineClientException(
+          'The engine returned an unsupported deleted task result.',
+          code: 'incompatible_engine',
+          retryable: false,
+        );
+      }
+      rethrow;
+    }
+  }
+
+  @override
+  Future<BatchDeleteTaskResult> deleteTasks(
+    List<String> ids, {
+    bool deleteFiles = false,
+  }) async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '/api/v1/tasks/batch/delete',
+        data: <String, dynamic>{'ids': ids, 'deleteFiles': deleteFiles},
+      );
+      return BatchDeleteTaskResult.fromJson(_readData(response.data));
+    } on EngineClientException {
+      rethrow;
+    } on DioException catch (error) {
+      throw _normalizeDioError(error);
+    } on Object catch (error) {
+      if (error is FormatException || error is TypeError) {
+        throw const EngineClientException(
+          'The engine returned an unsupported batch deleted task result.',
+          code: 'incompatible_engine',
+          retryable: false,
+        );
+      }
+      rethrow;
+    }
+  }
+
+  @override
+  Future<BatchDeleteTaskResult> clearCompletedTasks() async {
+    try {
+      final response = await _dio.delete<Map<String, dynamic>>(
+        '/api/v1/tasks/completed',
+      );
+      return BatchDeleteTaskResult.fromJson(_readData(response.data));
+    } on EngineClientException {
+      rethrow;
+    } on DioException catch (error) {
+      throw _normalizeDioError(error);
+    } on Object catch (error) {
+      if (error is FormatException || error is TypeError) {
+        throw const EngineClientException(
+          'The engine returned an unsupported batch deleted task result.',
+          code: 'incompatible_engine',
+          retryable: false,
+        );
+      }
+      rethrow;
     }
   }
 

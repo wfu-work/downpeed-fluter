@@ -2,7 +2,7 @@
 
 Downpeed 是一款桌面优先、本地优先的跨平台下载管理器。项目采用 **Go 下载内核 + Flutter 客户端**：Go 负责协议、调度、持久化和文件操作，Flutter 负责原生感界面与桌面交互，两端通过版本化 REST API 和事件流通信。
 
-> 当前状态：M0、M1、M2 已完成，M3 已完成 BT/Magnet 组件许可证与安全审查。HTTP 下载已形成可靠闭环；下一步实现受限的 Torrent/Magnet 解析与文件树选择，暂不建立 Peer/DHT 网络连接。
+> 当前状态：M0、M1、M2 与 M3 已完成，M4 已完成 Go 动态库与 Flutter FFI 生命周期桥接，并完成三平台系统托盘、关闭到托盘、开机启动、按偏好静默进入托盘和优雅退出闭环。桌面发布构建会将 Go 内核作为 `c-shared` 动态库嵌入应用，由 Flutter 负责启动、就绪探测与安全停止；开发模式仍可连接独立 Go 进程。BT/Magnet 已形成组件审查、安全解析、`.torrent + 显式公网 IPv4 Peer` 受限下载、按需连接诊断和内核策略闭环。用户可设置新 BT 任务的 Peer 连接预算；Tracker、DHT、PEX、WebSeed、IPv6、入站、上传和做种在完成各自安全门禁前由 Go 内核强制关闭。Magnet 当前仍只解析身份，不获取元数据或创建传输任务。
 
 ## 产品定位
 
@@ -23,7 +23,7 @@ Downpeed 不是 Gopeed 的换皮 Fork。当前阶段不复制 Gopeed 的 GPLv3 �
 
 | 领域 | 选型 | 用途与理由 |
 | --- | --- | --- |
-| 下载内核 | Go 1.25+ | 并发、网络和跨平台构建能力成熟 |
+| 下载内核 | Go 1.26.5+ | 并发、网络和跨平台构建能力成熟；最低补丁版本由漏洞门禁约束 |
 | HTTP API | Go `net/http`、版本化 JSON API | 使用标准库路由，减少基础依赖 |
 | 事件同步 | Server-Sent Events（SSE） | 单向高频进度更新比轮询轻量，断线可重连 |
 | 本地持久化 | bbolt | 单机任务、配置和协议状态；事务简单、部署为零 |
@@ -37,7 +37,7 @@ Downpeed 不是 Gopeed 的换皮 Fork。当前阶段不复制 Gopeed 的 GPLv3 �
 | 轻量偏好 | GetStorage | 主题、语言、侧栏宽度等非核心 UI 偏好 |
 | 图标 | `lucide_icons_flutter` | 统一、克制、适合桌面工具的线性图标 |
 | 文件选择 | `file_selector` | 桌面保存目录和 Torrent 文件选择 |
-| 桌面能力 | Flutter MethodChannel、系统原生 API；`window_manager`、`tray_manager` 待 M4 引入 | 完成通知、文件打开与定位；后续扩展窗口、托盘和后台运行 |
+| 桌面能力 | Flutter FFI、MethodChannel、系统原生 API、`window_manager`、`tray_manager`、`launch_at_startup` | FFI 管理内嵌 Go 引擎生命周期；MethodChannel 完成通知、文件打开、定位及 macOS 登录项；窗口、托盘与启动插件管理三平台窗口显隐、登录启动和退出 |
 | 国际化 | GetX Translations + `intl` | 初期简体中文和英文，文案从第一天可本地化 |
 | 测试 | Go `testing`、`httptest`、`flutter_test`、`integration_test` | 核心契约、控制器、组件和主流程测试 |
 | 构建发布 | GitHub Actions、Go build、Flutter build | 多平台检查、签名和发布自动化 |
@@ -52,7 +52,7 @@ Downpeed 不是 Gopeed 的换皮 Fork。当前阶段不复制 Gopeed 的 GPLv3 �
                          └──HTTP/SSE──> 本地下载服务
 ```
 
-默认只监听 `127.0.0.1` 的随机或显式端口。远程访问属于后续独立能力，启用时必须配置认证和 TLS 边界。
+内嵌引擎默认只监听 `127.0.0.1:17680`，构建时可以用 `DOWNPEED_ENGINE_ADDRESS` 指定其他 Loopback 端口；FFI 配置不提供远程监听开关。远程访问属于后续独立能力，启用时必须配置认证和 TLS 边界。
 
 ## 总体架构
 
@@ -173,10 +173,12 @@ task_list/
 
 ### 5. BT 与 Magnet
 
-- Torrent/Magnet 解析、文件树选择
-- Tracker、DHT、Peer 状态和做种策略
-- 下载优先级、上传限速和分享率
-- 该模块在 HTTP 下载稳定后实施
+- Torrent/Magnet 安全解析、紧凑文件列表和文件选择（已完成）
+- 受限 `.torrent` 传输：只连接用户明确填写的公网 IPv4 Peer，支持进度、连接数、暂停、继续、取消和重启恢复（已完成）
+- BT 任务连接诊断：展开时按需请求并刷新连接、流量、校验和安全策略；Peer 地址默认脱敏（已完成）
+- BT 策略闭环：Go 内核持久化 1–80 的 Peer 连接预算，在新任务创建时快照并执行；设置页明确展示受限能力（已完成）
+- Tracker、DHT、PEX、WebSeed、IPv6、入站连接、上传和做种由内核策略锁定关闭，非法 API 配置会被拒绝
+- 公共 Tracker/DHT、Magnet 元数据获取、上传和做种在独立安全门禁完成后实施
 
 ### 6. 调度与网络
 
@@ -215,6 +217,7 @@ task_list/
 - macOS 保留原生窗口按钮并让内容延伸到透明标题栏；主操作使用墨色/反色，状态使用独立语义色。
 - 使用 Codex 式紧凑系统字体层级：正文 13px、控件标签 12.5px、页面标题 19px；采用克制的 400/500/600 字重，中文优先 PingFang SC，数据使用等宽数字。
 - 桌面控件统一为 32px 高，常规图标统一为 15px；Lucide 图标使用 300 线宽版本，并统一 hover、focus、selected 和 disabled 状态，避免 Material 默认的大尺寸与厚重感。
+- 引擎连接状态以内联辅助信息显示在任务工作区标题旁；侧栏底部只承载设置与主题操作，避免把状态伪装成导航项。
 - 任务列表是主体，不把每个任务包装成厚重悬浮卡片。
 - 任务进度使用“传输轨道”表达分段和状态，完成后退为安静的语义标记。
 - 动画只表达创建、状态切换和进度活动，并支持减少动态效果。
@@ -260,16 +263,29 @@ POST   /api/v1/tasks/resolve
 POST   /api/v1/tasks
 POST   /api/v1/tasks/batch
 POST   /api/v1/tasks/batch/actions
+POST   /api/v1/tasks/batch/delete
 GET    /api/v1/tasks
 GET    /api/v1/tasks/{id}
 PATCH  /api/v1/tasks/{id}
 PUT    /api/v1/tasks/{id}/pause
 PUT    /api/v1/tasks/{id}/resume
+PUT    /api/v1/tasks/{id}/cancel
 POST   /api/v1/tasks/{id}/retry
-DELETE /api/v1/tasks/{id}
+DELETE /api/v1/tasks/{id}/record
+DELETE /api/v1/tasks/completed
+DELETE /api/v1/tasks/{id}              # v1 兼容取消接口
 GET    /api/v1/events
 GET    /api/v1/settings
 PUT    /api/v1/settings
+```
+
+M3 起：
+
+```text
+POST   /api/v1/bt/resolve/magnet
+POST   /api/v1/bt/resolve/torrent
+POST   /api/v1/bt/tasks
+GET    /api/v1/tasks/{id}/bt/diagnostics
 ```
 
 统一响应：
@@ -286,17 +302,33 @@ PUT    /api/v1/settings
 
 `POST /api/v1/tasks/resolve` 当前接受 `url` 与可选 `headers`，只支持 HTTP/HTTPS。解析结果返回原始 URL、最终重定向 URL、安全文件名、总大小、内容类型、`acceptRanges`，以及可选的 `etag`、`lastModified`；远端未提供总大小时 `size` 为 `-1`。解析操作只读取响应头或请求首字节，不创建任务、不写入下载文件。HEAD 缺少大小、Range 能力或可用于 `If-Range` 的校验器时，内核会补一次 `Range: bytes=0-0` 探测；两次探测期间资源校验器发生变化会中止解析。
 
-`POST /api/v1/tasks` 使用解析后的 URL、文件名、用户明确选择的绝对保存目录，以及 `expectedSize`、`acceptRanges`、可选 `etag` 和 `lastModified` 创建任务。Range 可用、大小已知、文件不小于 1 MiB 且存在可用 `If-Range` 校验器时，Go 内核把文件划为四个连续区间并发下载；小文件、未知大小、Range 不可用或缺少安全校验器时保持单连接 GET。`GET /api/v1/tasks` 与 `GET /api/v1/tasks/{id}` 返回 Go 内核中的任务状态，`GET /api/v1/events` 通过 SSE 推送 `task.updated`。
+`POST /api/v1/bt/resolve/magnet` 接受 JSON `{"magnet":"..."}`，只解析 v1/v2 InfoHash、安全显示名和 Tracker 身份，不请求元数据，也不连接 Tracker、DHT 或 Peer。`POST /api/v1/bt/resolve/torrent` 接受 `application/x-bittorrent` 原始字节，请求体上限为 8 MiB；Go 内核负责校验 Bencode、Piece 数量、路径、符号链接、文件数量、路径深度、声明体积和 Tracker 格式。响应中的 Tracker 仅返回去重后的 `scheme` 与 `host[:port]`，不会返回 announce path、query 或 passkey。Flutter 不解析 Bencode，只显示 Go 返回的稳定领域模型。
+
+`POST /api/v1/bt/tasks` 接受 Base64 编码的已验证 `.torrent` 元数据、绝对保存目录、文件索引选择集和最多 80 个显式 Peer。首版 Peer 必须是 `公网 IPv4:端口`；Loopback、RFC1918、链路本地、CGNAT、文档、基准、组播与保留网段都会被 Go 内核拒绝。任务 URL 只持久化为 `bt://<InfoHash>`，不会存储完整 Magnet 或暴露 Tracker passkey。BT 使用隐藏 staging 目录，只发布哈希校验完成的选中文件；暂停保留 staging，取消清理 staging，重启后恢复为暂停。Tracker、DHT、PEX、WebSeed、IPv6、入站连接、端口映射、上传与自动做种全部关闭。
+
+`GET /api/v1/tasks/{id}/bt/diagnostics` 返回 Go 内核统计的已知、已连接、待连接、half-open 与 Seeder 数，接收、有效、上传、浪费 Chunk 与 Piece 校验统计，以及已连接 Peer 和强制网络策略。Peer IPv4 地址只返回类似 `203.10.x.x:6881` 的脱敏值，不支持的地址形式返回 `Hidden`。Flutter 只在用户展开“连接诊断”时请求，展开期间每 2 秒刷新，收起后停止轮询；仅运行中任务标记为实时诊断。
+
+`POST /api/v1/tasks` 使用解析后的 URL、文件名、用户明确选择的绝对保存目录，以及 `expectedSize`、`acceptRanges`、可选 `etag` 和 `lastModified` 创建任务。Range 可用、大小已知、文件不小于 1 MiB 且存在可用 `If-Range` 校验器时，Go 内核把文件划为四个连续区间并发下载；小文件、未知大小、Range 不可用或缺少安全校验器时保持单连接 GET。`GET /api/v1/tasks` 与 `GET /api/v1/tasks/{id}` 返回 Go 内核中的任务状态，`GET /api/v1/events` 通过 SSE 推送 `task.updated` 和 `task.removed`。
+
+`GET /api/v1/settings` 返回 Go 引擎持久化的业务设置，`PUT /api/v1/settings` 更新并回读引擎已接受的最终值。`defaultDownloadDirectory` 首次启动时使用操作系统的用户下载目录；用户后续选择的目录必须是已存在的绝对本地目录。`bitTorrent.maxPeerConnections` 允许 1–80，设置页提供 12/24/40/80 四档；新建 BT 任务快照当时策略，修改不会热切换已有任务。`explicitPeersOnly` 必须为 `true`，Tracker、DHT、PEX、WebSeed、IPv6、入站、上传和做种必须为 `false`；任何试图开启的请求都返回 `invalid_bt_policy`。旧数据库自动迁移为 80 连接的安全默认值；旧版客户端在 PUT 中省略 `bitTorrent` 时保留当前 BT 策略。Flutter 不复制业务设置。
 
 批量粘贴按非空行解析、按首次出现顺序去重，一次最多 100 个 URL；客户端逐项解析远端元数据后，以共同保存目录调用 `POST /api/v1/tasks/batch`。批量创建和 `POST /api/v1/tasks/batch/actions` 都返回带原始索引的逐项结果，允许部分成功并明确暴露失败项；批量操作只接受 `pause`、`resume`、`cancel`。内核仍是每个任务状态的唯一事实源，批量端点按顺序复用单任务安全操作，FIFO 调度器继续决定实际启动顺序。
 
 任务工具栏和空状态中的“新建下载”“粘贴链接”都在当前任务工作区上方打开模态流程，不再导航到独立页面。每次打开都会创建新的 `CreateDownloadController`，关闭后释放文本输入、焦点和任务事件订阅；解析、目录选择或创建请求进行中暂时禁止关闭。桌面链接检查首屏使用 720px 紧凑面板，解析后按内容扩展至最大 820px；窄于 640px 的窗口使用 8px 边距的近全屏布局，正文区保持滚动并支持 200% 文字缩放。`/tasks/new` 路由继续复用相同内容区，供深链接、自动化和兼容测试使用。
 
+新建 HTTP 下载会自动填入引擎设置中的默认下载目录，因此用户解析链接后可直接开始下载；“更改位置”仍只覆盖当前新建流程，不会修改全局默认值。设置页的“下载与文件”分组可通过系统目录选择器更新全局默认目录，更新失败时保留服务端原值并显示本地化错误。修改只影响之后创建的任务，不移动已有任务或本地文件。
+
 任务工作台可按全部、正在传输、已完成和需要处理筛选，并按最新、最早、文件名、进度或体积排序；搜索覆盖文件名、URL 和保存目录。多选命令条只提交状态允许的任务，成功项立即以引擎响应回写，失败项保留选择以便用户继续处理。
 
-桌面侧栏支持展开、图标化收起和鼠标拖拽调节宽度，展开状态与宽度作为本机界面偏好保存；窗口空间不足时自动切换为紧凑底部导航。展开菜单使用统一的紧凑行高、柔和选中底色、细选中标记和轻量任务数量徽标，并提供桌面悬停反馈。展开侧栏的设置入口右侧提供浅色与深色主题快速切换，修改会立即生效并保存在本机。侧栏设置入口打开独立设置页，使用单行摘要和分组菜单：宽屏采用左侧分组导航与右侧单分组内容，窄屏采用菜单到详情的主从导航；当前可管理主题、语言、侧栏偏好、完成通知、新建下载快捷键、本机引擎状态和版本许可信息。外观页明确说明偏好立即生效、仅保存在本机且不影响任务数据，并同时预览 Logo 在浅色与深色界面中的固定效果；工作区页说明宽窄窗口间的响应式切换和布局偏好恢复规则；本机引擎页说明引擎职责与刷新连接的影响边界。Flutter 不复制下载业务配置。
+取消下载使用 `PUT /api/v1/tasks/{id}/cancel`；原 `DELETE /api/v1/tasks/{id}` 只作为 API v1 兼容路径保留。完成、失败或已取消任务可通过 `DELETE /api/v1/tasks/{id}/record` 删除记录，批量删除使用 `POST /api/v1/tasks/batch/delete`，清空已完成使用 `DELETE /api/v1/tasks/completed`。删除记录默认保留本地文件；只有用户在确认框明确选择 `deleteFiles=true` 时，Go 内核才会检查并删除已完成任务对应的普通文件。正在排队、下载、重试或暂停的任务必须先取消，不能直接删除。清空已完成端点始终保留文件，即使调用方附带文件删除参数也不会执行；批量部分失败按项返回并保留在列表中。
 
-分段请求必须逐一返回与请求起止位置、总大小完全匹配的 `206 Partial Content`、`Content-Range`，并在提供 `Content-Length` 时保持一致。内核以各段已确认写入的字节数聚合进度，不使用预分配临时文件的表面大小；完成前再次校验分段边界、各段长度和文件总大小，随后 `Sync` 并原子发布。畸形 Range、响应截断或大小变化不会发布最终文件。`PUT /api/v1/tasks/{id}/pause` 停止传输并保留检查点，`PUT /api/v1/tasks/{id}/resume` 只请求每个未完成分段的剩余区间；单连接旧任务继续使用原有尾部 Range 续传。`DELETE /api/v1/tasks/{id}` 可取消下载中或已暂停任务并清理未完成文件。
+桌面应用首次启动使用 `1280 × 800` 的默认窗口尺寸，为任务名称、速度和操作区保留更充足的可视空间；窗口仍可自由缩放，空间不足时自动切换响应式布局。桌面侧栏支持展开、图标化收起和鼠标拖拽调节宽度，展开状态与宽度作为本机界面偏好保存；窗口空间不足时自动切换为紧凑底部导航。展开菜单使用统一的紧凑行高、柔和选中底色、细选中标记和轻量任务数量徽标，并提供桌面悬停反馈。展开侧栏的设置入口右侧提供浅色与深色主题快速切换，修改会立即生效并保存在本机。侧栏设置入口打开独立设置页，使用单行摘要和分组菜单：宽屏采用左侧分组导航与右侧单分组内容，窄屏采用菜单到详情的主从导航；当前可管理主题、语言、侧栏偏好、完成通知、新建下载快捷键、关闭到托盘、系统登录启动、登录后静默运行、本机引擎状态和版本许可信息。外观页明确说明偏好立即生效、仅保存在本机且不影响任务数据，并同时预览 Logo 在浅色与深色界面中的固定效果；工作区页说明宽窄窗口间的响应式切换和布局偏好恢复规则；本机引擎页说明引擎职责与刷新连接的影响边界。Flutter 不复制下载业务配置。
+
+macOS、Windows 和 Linux 桌面构建会创建系统托盘入口，支持显示主窗口、新建下载和完整退出。默认关闭主窗口只隐藏到托盘，下载任务与内嵌 Go 引擎继续运行；用户可在“通知与快捷键”中关闭该行为。托盘初始化失败时，关闭窗口安全回退为停止内嵌引擎并退出，避免留下没有界面入口的后台进程。托盘“退出”会先解除窗口关闭拦截、移除托盘，再等待 `DownpeedStop` 完成后终止应用。Linux 需要 AppIndicator 运行库；未提供托盘区域的 GNOME 环境可能还需启用 AppIndicator 扩展。
+
+“登录时启动 Downpeed”直接管理操作系统登录项，系统读回结果是界面状态的唯一事实源，Flutter 不把该开关复制到 GetStorage。macOS 13 及以上使用 `SMAppService.mainApp`，Windows 使用当前用户 Run 注册表项，Linux 使用 XDG autostart `.desktop` 文件；macOS 旧版本会在设置中明确显示不可用。系统登录项以内部参数 `--downpeed-startup` 唤起应用，只有该启动来源且用户另行开启“登录启动时静默运行”时才隐藏主窗口并留在托盘；手动打开应用始终显示窗口。静默偏好仅作为本机 UI 偏好保存，托盘初始化或窗口隐藏失败时会强制显示并聚焦主窗口，避免产生没有可恢复入口的后台进程。
+
+分段请求必须逐一返回与请求起止位置、总大小完全匹配的 `206 Partial Content`、`Content-Range`，并在提供 `Content-Length` 时保持一致。内核以各段已确认写入的字节数聚合进度，不使用预分配临时文件的表面大小；完成前再次校验分段边界、各段长度和文件总大小，随后 `Sync` 并原子发布。畸形 Range、响应截断或大小变化不会发布最终文件。`PUT /api/v1/tasks/{id}/pause` 停止传输并保留检查点，`PUT /api/v1/tasks/{id}/resume` 只请求每个未完成分段的剩余区间；单连接旧任务继续使用原有尾部 Range 续传。`PUT /api/v1/tasks/{id}/cancel` 可取消下载中或已暂停任务并清理未完成文件。
 
 资源一致性校验优先使用强 ETag，缺少强 ETag 时回退到合法的 Last-Modified；弱 ETag 不单独用于 `If-Range`。首次完整 GET 分别使用 `If-Match` 或 `If-Unmodified-Since`，Range 与分段请求统一使用 `If-Range`。HTTP `412`、Range 条件失败回退为 `200`，或响应校验器发生变化时，任务以不可重试的 `remote_resource_changed` 停止且不发布文件。已有部分数据但缺少可用校验器的旧任务会以 `resume_not_supported` 拒绝续传；自动重试则丢弃该部分数据并从 0 安全重下，避免拼接新旧内容。
 
@@ -352,20 +384,27 @@ Flutter 只在已知任务通过 SSE 从非完成态切换为 `completed` 时发
 - [x] 批量任务、筛选、排序和批量操作
 - [x] ETag/Last-Modified 变化处理
 - [x] 完成通知、打开文件和在文件管理器中显示
+- [x] 终态任务记录删除、可选文件删除、批量删除和清空已完成
+- [x] 默认下载目录、系统下载文件夹初始化与设置页持久化
 
 完成标准：异常断网、应用退出和服务重启不会静默损坏文件，任务状态可以正确恢复。
 
 ### M3：BT/Magnet
 
 - [x] 完成组件许可证和安全审查（[组件审查](docs/bt-component-review.md) / [威胁模型](docs/security/bt-threat-model.md) / [门禁策略](docs/licenses/bt-dependency-policy.json)）
-- [ ] Torrent/Magnet 解析和文件树选择
-- [ ] Peer、Tracker、DHT、上传和做种策略
-- [ ] BT 任务详情与连接诊断
+- [x] Torrent/Magnet 安全纯解析和文件选择（8 MiB 元数据上限，Magnet 不联网，Tracker 凭据不出现在 API）
+- [x] 受限 `.torrent` 传输闭环（显式公网 IPv4 Peer、文件选择、进度/连接数、暂停/继续/取消、持久化恢复）
+- [x] Peer、Tracker、DHT、上传和做种策略（Peer 预算可调，高风险能力由内核锁定关闭并拒绝非法配置）
+- [x] BT 任务详情与连接诊断（按需轮询、Peer 脱敏、连接/流量/校验与强制关闭策略）
 
 ### M4：桌面产品化
 
-- [ ] Go 动态库与 Flutter FFI 生命周期桥接
+- [x] Go 动态库与 Flutter FFI 生命周期桥接
 - [ ] 系统托盘、开机启动、快捷键和浏览器接管
+  - [x] macOS/Windows/Linux 系统托盘、关闭到托盘、窗口恢复和优雅退出
+  - [x] 开机启动与静默进入托盘
+  - [ ] 完整应用内快捷键与可选全局快捷键
+  - [ ] `downpeed://` 浏览器接管入口与 URL 安全校验
 - [ ] Windows 签名、macOS 公证、Linux 包
 - [ ] 自动更新、崩溃诊断和第三方许可证生成
 - [ ] 完整集成测试与性能基准
@@ -417,8 +456,9 @@ make doctor
 make dev             # 单终端同时启动 Go 引擎和当前平台 Flutter 客户端
 make engine          # 只启动 Go 引擎，阻塞当前终端
 make app             # 只启动 Flutter 客户端，需要另一终端运行 make engine
+make build-engine-library # 构建并嵌入当前平台 Go 动态库
 make check           # 格式、静态分析、Go/Flutter 测试、竞态检测和 Go 构建
-make build           # 构建当前宿主平台 Release 客户端和 Go 引擎
+make build           # 构建当前宿主平台 Release 客户端和内嵌 Go 引擎
 make package         # 打包当前平台发布物
 ```
 
@@ -431,6 +471,14 @@ make dev ENGINE_ADDRESS=127.0.0.1:17681 \
   DOWNLOAD_RATE_LIMIT=10485760
 ```
 
+引擎生命周期由编译变量 `DOWNPEED_ENGINE_MODE` 控制：
+
+- `external`：只连接 `DOWNPEED_API_BASE_URL` 指定的独立引擎，`make app` 与 `make dev` 使用此模式。
+- `embedded`：必须加载应用包内的 Go 动态库，正式 `make build`/`make package` 使用此模式。
+- `auto`：默认模式；先探测现有独立引擎，离线时再启动内嵌动态库，适合本地调试应用包。
+
+三种模式的任务、设置与事件通信都继续使用 REST/SSE；FFI 只暴露 `DownpeedStart`、`DownpeedStop` 和脱敏错误读取接口。内嵌引擎启动返回前已完成监听，应用退出请求会等待下载检查点和数据库安全关闭。
+
 Flutter 桌面应用不能跨平台编译，因此发布目标必须在对应操作系统执行：
 
 ```bash
@@ -439,7 +487,7 @@ make package-windows  # Windows：生成便携 ZIP
 make package-linux    # Linux：生成便携 tar.gz
 ```
 
-产物写入 `dist/`。M4 的 FFI 生命周期桥接尚未实现，当前发布包会同时携带 Flutter 客户端、`downpeedd` 引擎和临时启动器：macOS 使用 `Start Downpeed.command`，Windows 使用 `start-downpeed-windows.cmd`，Linux 使用 `start-downpeed.sh`。签名、公证、Windows 安装器、Linux DEB/RPM 和应用内自动拉起引擎仍属于 M4，不把当前便携包冒充最终商店安装包。
+产物写入 `dist/`。发布构建会分别嵌入 `libdownpeed.dylib`、`downpeed.dll` 或 `libdownpeed.so`，用户直接启动 Downpeed 客户端即可，不再携带临时双进程启动器。`c-shared` 构建依赖目标系统可用的 CGO/C 编译工具链，并使用 `nosqlite` 构建标签保持 BT 分片完成状态沿用已审查的 bbolt 路径，避免因 CGO 自动切换到未审查的 SQLite 依赖；Flutter 桌面客户端和动态库都应在对应系统原生构建。签名、公证、Windows 安装器和 Linux DEB/RPM 仍属于 M4 后续工作，不把当前未签名产物冒充最终商店安装包。
 
 也可以不用 Makefile，分别启动两端：
 
@@ -458,7 +506,8 @@ go run ./cmd/downpeedd \
 cd app
 flutter pub get
 flutter run -d macos \
-  --dart-define=DOWNPEED_API_BASE_URL=http://127.0.0.1:17680
+  --dart-define=DOWNPEED_API_BASE_URL=http://127.0.0.1:17680 \
+  --dart-define=DOWNPEED_ENGINE_MODE=external
 ```
 
 其他桌面设备可将 `macos` 替换为 `windows` 或 `linux`。

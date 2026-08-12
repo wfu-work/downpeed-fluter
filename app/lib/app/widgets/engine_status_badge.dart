@@ -7,9 +7,11 @@ import '../../domains/engine_info.dart';
 import '../../services/engine_service.dart';
 
 class EngineStatusBadge extends StatelessWidget {
-  const EngineStatusBadge({super.key, this.compact = false});
+  const EngineStatusBadge({super.key, this.compact = false, this.dense = false})
+    : assert(!compact || !dense);
 
   final bool compact;
+  final bool dense;
 
   @override
   Widget build(BuildContext context) {
@@ -39,8 +41,12 @@ class EngineStatusBadge extends StatelessWidget {
           child: Container(
             key: const ValueKey('engine-status-badge'),
             padding: EdgeInsets.symmetric(
-              horizontal: 8,
-              vertical: compact ? 10 : 6,
+              horizontal: dense ? 4 : 8,
+              vertical: compact
+                  ? 10
+                  : dense
+                  ? 2
+                  : 6,
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -58,9 +64,15 @@ class EngineStatusBadge extends StatelessWidget {
                   const SizedBox(width: 8),
                   Text(
                     label,
-                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: colors.textSecondary,
-                    ),
+                    style:
+                        (dense
+                                ? Theme.of(context).textTheme.labelSmall
+                                : Theme.of(context).textTheme.labelMedium)
+                            ?.copyWith(
+                              color: dense
+                                  ? colors.textMuted
+                                  : colors.textSecondary,
+                            ),
                   ),
                 ],
               ],

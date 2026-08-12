@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import '../../../services/engine_service.dart';
 import '../../../services/desktop_actions_service.dart';
 import '../../../services/task_service.dart';
+import '../../../services/bt_diagnostics_service.dart';
 import 'task_list_controller.dart';
 
 class TaskListBinding extends Bindings {
@@ -13,6 +14,7 @@ class TaskListBinding extends Bindings {
         () => TaskListController(
           engineService: EngineService.to,
           taskService: TaskService.to,
+          btDiagnostics: Get.find<BTDiagnosticsService>(),
           desktopActions: DesktopActionsService.to,
         ),
       );

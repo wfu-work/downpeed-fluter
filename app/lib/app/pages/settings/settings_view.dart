@@ -7,6 +7,7 @@ import '../../../configs/localization/l10n_keys.dart';
 import '../../../configs/theme/downpeed_icons.dart';
 import '../../../configs/theme/downpeed_theme_tokens.dart';
 import '../../../domains/engine_info.dart';
+import '../../../services/startup_service.dart';
 import '../../widgets/brand_mark.dart';
 import '../../widgets/downpeed_controls.dart';
 import '../../widgets/engine_status_badge.dart';
@@ -532,6 +533,188 @@ class _SettingsContent extends StatelessWidget {
                               : 'Ctrl N',
                         ),
                       ),
+                      _SettingsRow(
+                        icon: DownpeedIcons.tray,
+                        title: L10nKeys.settingsCloseToTray.tr,
+                        description: L10nKeys.settingsCloseToTrayDescription.tr,
+                        control: DownpeedSwitch(
+                          key: const ValueKey('settings-close-to-tray'),
+                          value:
+                              controller.preferences.closeToTrayEnabled.value,
+                          onChanged: controller.setCloseToTrayEnabled,
+                        ),
+                      ),
+                      _SettingsRow(
+                        icon: DownpeedIcons.startup,
+                        title: L10nKeys.settingsLaunchAtLogin.tr,
+                        description:
+                            L10nKeys.settingsLaunchAtLoginDescription.tr,
+                        control: DownpeedSwitch(
+                          key: const ValueKey('settings-launch-at-login'),
+                          value: controller.startupService.enabled.value,
+                          onChanged:
+                              controller.startupService.supported.value &&
+                                  !controller.startupService.isLoading.value
+                              ? controller.setLaunchAtLogin
+                              : null,
+                        ),
+                      ),
+                      _SettingsRow(
+                        icon: DownpeedIcons.tray,
+                        title: L10nKeys.settingsStartHiddenOnLogin.tr,
+                        description:
+                            L10nKeys.settingsStartHiddenOnLoginDescription.tr,
+                        control: DownpeedSwitch(
+                          key: const ValueKey('settings-start-hidden-on-login'),
+                          value:
+                              controller.preferences.startHiddenOnLogin.value,
+                          onChanged:
+                              controller.startupService.supported.value &&
+                                  controller.startupService.enabled.value &&
+                                  !controller.startupService.isLoading.value
+                              ? controller.setStartHiddenOnLogin
+                              : null,
+                        ),
+                      ),
+                    ],
+                    SettingsSection.downloads => [
+                      _SettingsRow(
+                        icon: DownpeedIcons.folder,
+                        title: L10nKeys.settingsDownloadDirectory.tr,
+                        description:
+                            L10nKeys.settingsDownloadDirectoryDescription.tr,
+                        control: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 360),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              _SettingsValue(
+                                key: const ValueKey(
+                                  'settings-default-download-directory',
+                                ),
+                                value:
+                                    controller
+                                        .engineSettingsService
+                                        .defaultDownloadDirectory ??
+                                    (controller
+                                            .engineSettingsService
+                                            .isLoading
+                                            .value
+                                        ? L10nKeys
+                                              .settingsDownloadDirectoryLoading
+                                              .tr
+                                        : L10nKeys
+                                              .settingsDownloadDirectoryUnavailable
+                                              .tr),
+                              ),
+                              const SizedBox(height: 8),
+                              OutlinedButton.icon(
+                                key: const ValueKey(
+                                  'settings-choose-download-directory',
+                                ),
+                                onPressed:
+                                    controller
+                                                .engineSettingsService
+                                                .defaultDownloadDirectory ==
+                                            null ||
+                                        controller
+                                            .isPickingDownloadDirectory
+                                            .value ||
+                                        controller
+                                            .engineSettingsService
+                                            .isSaving
+                                            .value
+                                    ? null
+                                    : controller.chooseDefaultDownloadDirectory,
+                                icon: const Icon(DownpeedIcons.folder),
+                                label: Text(
+                                  controller
+                                          .engineSettingsService
+                                          .isSaving
+                                          .value
+                                      ? L10nKeys
+                                            .settingsDownloadDirectorySaving
+                                            .tr
+                                      : L10nKeys
+                                            .settingsDownloadDirectoryChange
+                                            .tr,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                    SettingsSection.bitTorrent => [
+                      _SettingsRow(
+                        icon: DownpeedIcons.connections,
+                        title: L10nKeys.settingsBTPeerBudget.tr,
+                        description:
+                            L10nKeys.settingsBTPeerBudgetDescription.tr,
+                        control:
+                            controller.engineSettingsService.bitTorrent == null
+                            ? _SettingsValue(
+                                key: const ValueKey(
+                                  'settings-bt-peer-budget-loading',
+                                ),
+                                value: L10nKeys
+                                    .settingsDownloadDirectoryLoading
+                                    .tr,
+                              )
+                            : DownpeedSegmentedControl<int>(
+                                key: const ValueKey('settings-bt-peer-budget'),
+                                segments: [
+                                  for (final count in <int>{
+                                    12,
+                                    24,
+                                    40,
+                                    80,
+                                    controller
+                                        .engineSettingsService
+                                        .bitTorrent!
+                                        .maxPeerConnections,
+                                  }.toList()..sort())
+                                    DownpeedSegment<int>(
+                                      value: count,
+                                      label: '$count',
+                                    ),
+                                ],
+                                selected: controller
+                                    .engineSettingsService
+                                    .bitTorrent!
+                                    .maxPeerConnections,
+                                onSelected: controller.selectBTPeerConnections,
+                              ),
+                      ),
+                      _SettingsRow(
+                        icon: DownpeedIcons.shield,
+                        title: L10nKeys.settingsBTDiscovery.tr,
+                        description: L10nKeys.settingsBTDiscoveryDescription.tr,
+                        control: _LockedPolicyValue(
+                          key: const ValueKey('settings-bt-discovery-locked'),
+                          safe:
+                              controller
+                                  .engineSettingsService
+                                  .bitTorrent
+                                  ?.restrictedCapabilitiesDisabled ??
+                              false,
+                        ),
+                      ),
+                      _SettingsRow(
+                        icon: DownpeedIcons.upload,
+                        title: L10nKeys.settingsBTTransferPolicy.tr,
+                        description:
+                            L10nKeys.settingsBTTransferPolicyDescription.tr,
+                        control: _LockedPolicyValue(
+                          key: const ValueKey('settings-bt-upload-locked'),
+                          safe:
+                              controller
+                                  .engineSettingsService
+                                  .bitTorrent
+                                  ?.restrictedCapabilitiesDisabled ??
+                              false,
+                        ),
+                      ),
                     ],
                     SettingsSection.engine => [
                       _SettingsRow(
@@ -619,11 +802,70 @@ class _SettingsContent extends StatelessWidget {
                   ),
                 ],
                 if (section == SettingsSection.notifications) ...[
+                  if (controller.startupService.failure.value != null) ...[
+                    const SizedBox(height: 14),
+                    _SettingsPreferenceNote(
+                      key: const ValueKey('settings-startup-error'),
+                      title: L10nKeys.settingsStartupErrorTitle.tr,
+                      body: _startupFailureMessage(
+                        controller.startupService.failure.value!,
+                      ),
+                    ),
+                  ] else if (!controller.startupService.isLoading.value &&
+                      !controller.startupService.supported.value) ...[
+                    const SizedBox(height: 14),
+                    _SettingsPreferenceNote(
+                      key: const ValueKey('settings-startup-unavailable'),
+                      title: L10nKeys.settingsStartupUnavailableTitle.tr,
+                      body: L10nKeys.settingsStartupUnavailableBody.tr,
+                    ),
+                  ],
                   const SizedBox(height: 14),
                   _SettingsPreferenceNote(
                     key: const ValueKey('settings-notifications-note'),
                     title: L10nKeys.settingsNotificationsNoteTitle.tr,
                     body: L10nKeys.settingsNotificationsNoteBody.tr,
+                  ),
+                ],
+                if (section == SettingsSection.downloads) ...[
+                  if (controller.engineSettingsService.errorMessage.value !=
+                      null) ...[
+                    const SizedBox(height: 14),
+                    _SettingsPreferenceNote(
+                      key: const ValueKey('settings-downloads-error'),
+                      title: L10nKeys.settingsDownloadDirectoryErrorTitle.tr,
+                      body:
+                          controller.engineSettingsService.errorMessage.value!,
+                    ),
+                  ],
+                  const SizedBox(height: 14),
+                  _SettingsPreferenceNote(
+                    key: const ValueKey('settings-downloads-note'),
+                    title: L10nKeys.settingsDownloadsNoteTitle.tr,
+                    body: L10nKeys.settingsDownloadsNoteBody.tr,
+                  ),
+                ],
+                if (section == SettingsSection.bitTorrent) ...[
+                  if (controller
+                          .engineSettingsService
+                          .btPolicyErrorMessage
+                          .value !=
+                      null) ...[
+                    const SizedBox(height: 14),
+                    _SettingsPreferenceNote(
+                      key: const ValueKey('settings-bt-error'),
+                      title: L10nKeys.settingsBTPolicyErrorTitle.tr,
+                      body: controller
+                          .engineSettingsService
+                          .btPolicyErrorMessage
+                          .value!,
+                    ),
+                  ],
+                  const SizedBox(height: 14),
+                  _SettingsPreferenceNote(
+                    key: const ValueKey('settings-bt-note'),
+                    title: L10nKeys.settingsBTPolicyNoteTitle.tr,
+                    body: L10nKeys.settingsBTPolicyNoteBody.tr,
                   ),
                 ],
                 if (section == SettingsSection.engine) ...[
@@ -860,6 +1102,7 @@ class _SettingsValue extends StatelessWidget {
     return Container(
       constraints: const BoxConstraints(
         minHeight: DownpeedThemeTokens.controlHeight,
+        maxWidth: 360,
       ),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
@@ -875,6 +1118,47 @@ class _SettingsValue extends StatelessWidget {
           color: colors.textSecondary,
           fontFeatures: const [FontFeature.tabularFigures()],
         ),
+      ),
+    );
+  }
+}
+
+class _LockedPolicyValue extends StatelessWidget {
+  const _LockedPolicyValue({required this.safe, super.key});
+
+  final bool safe;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.downpeedColors;
+    return Container(
+      constraints: const BoxConstraints(
+        minHeight: DownpeedThemeTokens.controlHeight,
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: colors.surfaceSubtle,
+        border: Border.all(color: safe ? colors.border : colors.danger),
+        borderRadius: BorderRadius.circular(DownpeedThemeTokens.radius),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            safe ? DownpeedIcons.locked : DownpeedIcons.issues,
+            size: 13,
+            color: safe ? colors.textSecondary : colors.danger,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            safe
+                ? L10nKeys.settingsBTLocked.tr
+                : L10nKeys.taskBTUnexpectedEnabled.tr,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+              color: safe ? colors.textSecondary : colors.danger,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1004,6 +1288,23 @@ class _SettingsNavigationDestination {
 
 List<_SettingsNavigationGroup> _settingsNavigationGroups() => [
   _SettingsNavigationGroup(
+    label: L10nKeys.settingsNavigationDownloads.tr,
+    destinations: [
+      _SettingsNavigationDestination(
+        key: const ValueKey('settings-nav-downloads'),
+        icon: DownpeedIcons.folder,
+        label: L10nKeys.settingsDownloads.tr,
+        section: SettingsSection.downloads,
+      ),
+      _SettingsNavigationDestination(
+        key: const ValueKey('settings-nav-bt'),
+        icon: DownpeedIcons.magnet,
+        label: L10nKeys.settingsBT.tr,
+        section: SettingsSection.bitTorrent,
+      ),
+    ],
+  ),
+  _SettingsNavigationGroup(
     label: L10nKeys.settingsNavigationPreferences.tr,
     destinations: [
       _SettingsNavigationDestination(
@@ -1049,6 +1350,8 @@ String _settingsSectionTitle(SettingsSection section) => switch (section) {
   SettingsSection.appearance => L10nKeys.settingsAppearance.tr,
   SettingsSection.workspace => L10nKeys.settingsWorkspace.tr,
   SettingsSection.notifications => L10nKeys.settingsNotifications.tr,
+  SettingsSection.downloads => L10nKeys.settingsDownloads.tr,
+  SettingsSection.bitTorrent => L10nKeys.settingsBT.tr,
   SettingsSection.engine => L10nKeys.settingsEngine.tr,
   SettingsSection.about => L10nKeys.settingsAbout.tr,
 };
@@ -1059,6 +1362,8 @@ String _settingsSectionDescription(SettingsSection section) =>
       SettingsSection.workspace => L10nKeys.settingsWorkspaceDescription.tr,
       SettingsSection.notifications =>
         L10nKeys.settingsNotificationsDescription.tr,
+      SettingsSection.downloads => L10nKeys.settingsDownloadsDescription.tr,
+      SettingsSection.bitTorrent => L10nKeys.settingsBTDescription.tr,
       SettingsSection.engine => L10nKeys.settingsEngineSectionDescription.tr,
       SettingsSection.about => L10nKeys.settingsAboutDescription.tr,
     };
@@ -1067,4 +1372,10 @@ String _engineTitle(EngineConnectionState state) => switch (state) {
   EngineConnectionState.checking => L10nKeys.engineChecking.tr,
   EngineConnectionState.online => L10nKeys.engineOnline.tr,
   EngineConnectionState.offline => L10nKeys.engineOffline.tr,
+};
+
+String _startupFailureMessage(StartupFailure failure) => switch (failure) {
+  StartupFailure.read => L10nKeys.settingsStartupReadError.tr,
+  StartupFailure.update => L10nKeys.settingsStartupUpdateError.tr,
+  StartupFailure.verification => L10nKeys.settingsStartupVerificationError.tr,
 };

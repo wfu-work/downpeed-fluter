@@ -21,6 +21,7 @@ type managerConfig struct {
 	maxRetries         int
 	retryBaseDelay     time.Duration
 	downloadRateLimit  int64
+	btTransfer         BTTransfer
 }
 
 type ManagerOption func(*managerConfig)
@@ -49,6 +50,12 @@ func WithDownloadRateLimit(bytesPerSecond int64) ManagerOption {
 		if bytesPerSecond >= 0 {
 			config.downloadRateLimit = bytesPerSecond
 		}
+	}
+}
+
+func WithBTTransfer(transfer BTTransfer) ManagerOption {
+	return func(config *managerConfig) {
+		config.btTransfer = transfer
 	}
 }
 
@@ -98,7 +105,8 @@ func (m *Manager) fillAvailableSlotsLocked() []Task {
 			continue
 		}
 		request, exists := m.requests[id]
-		if !exists {
+		btRequest, btExists := m.btRequests[id]
+		if !exists && !btExists {
 			continue
 		}
 		now := time.Now().UTC()
@@ -112,7 +120,11 @@ func (m *Manager) fillAvailableSlotsLocked() []Task {
 		m.tasks[id] = task
 		m.requests[id] = request
 		_ = m.persistTaskLocked(task)
-		m.startRunLocked(id, request)
+		if task.Protocol == ProtocolBT {
+			m.startBTRunLocked(id, btRequest)
+		} else {
+			m.startRunLocked(id, request)
+		}
 		updates = append(updates, cloneTask(task))
 	}
 	return updates

@@ -7,9 +7,12 @@ import '../../../configs/localization/l10n_keys.dart';
 import '../../../configs/theme/downpeed_icons.dart';
 import '../../../configs/theme/downpeed_theme_tokens.dart';
 import '../../../data/clients/engine_client.dart';
+import '../../../domains/bt_resolution.dart';
 import '../../../domains/download_resolution.dart';
 import '../../../domains/download_task.dart';
 import '../../../services/directory_picker.dart';
+import '../../../services/engine_settings_service.dart';
+import '../../../services/torrent_file_picker.dart';
 import '../../widgets/transfer_track.dart';
 import 'create_download_controller.dart';
 
@@ -20,6 +23,8 @@ Future<void> showCreateDownloadDialog({String initialUrl = ''}) async {
   final controller = CreateDownloadController(
     client: Get.find<EngineClient>(),
     directoryPicker: Get.find<DirectoryPicker>(),
+    engineSettingsService: Get.find<EngineSettingsService>(),
+    torrentFilePicker: Get.find<TorrentFilePicker>(),
     initialUrl: initialUrl,
   )..onInit();
   final dark = Theme.of(context).brightness == Brightness.dark;
@@ -88,7 +93,7 @@ class CreateDownloadDialog extends StatelessWidget {
           final width = compact
               ? maxWidth
               : math.min(isEntryPhase ? 720.0 : 820.0, maxWidth);
-          final desktopHeight = isEntryPhase ? 450.0 : 760.0;
+          final desktopHeight = isEntryPhase ? 424.0 : 760.0;
           final height = compact
               ? maxHeight
               : math.min(desktopHeight, maxHeight);
@@ -162,7 +167,7 @@ class CreateDownloadDialog extends StatelessWidget {
                                   ).textTheme.titleMedium,
                                 ),
                                 Text(
-                                  'HTTP / HTTPS',
+                                  'HTTP / HTTPS / TORRENT',
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: Theme.of(context).textTheme.labelSmall
@@ -256,14 +261,16 @@ class _CreateDownloadContent extends StatelessWidget {
                   SizedBox(height: compact ? 20 : 22),
                   _URLForm(controller: controller),
                   const SizedBox(height: 12),
-                  const _AdvancedOptions(),
+                  _AdvancedOptions(controller: controller),
                   SizedBox(height: compact ? 16 : 18),
                   Obx(
                     () => switch (controller.phase.value) {
                       CreateDownloadPhase.idle => const _IdleHint(),
                       CreateDownloadPhase.resolving => const _ResolvingPanel(),
                       CreateDownloadPhase.resolved =>
-                        controller.isBatchMode
+                        controller.hasBTResolution
+                            ? _BTResolutionPanel(controller: controller)
+                            : controller.isBatchMode
                             ? _BatchResolutionPanel(controller: controller)
                             : _ResolutionPanel(
                                 resolution: controller.resolution.value!,
@@ -422,6 +429,8 @@ class _CreateHeader extends StatelessWidget {
 class _URLForm extends StatelessWidget {
   const _URLForm({required this.controller});
 
+  static const _collapsedControlHeight = 40.0;
+
   final CreateDownloadController controller;
 
   @override
@@ -438,15 +447,15 @@ class _URLForm extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  L10nKeys.createUrlLabel.tr,
-                  style: Theme.of(context).textTheme.labelLarge,
-                ),
-              ),
-              Container(
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final largeText = MediaQuery.textScalerOf(context).scale(1) > 1.4;
+              final stack = constraints.maxWidth < 460 || largeText;
+              final label = Text(
+                L10nKeys.createUrlLabel.tr,
+                style: Theme.of(context).textTheme.labelLarge,
+              );
+              final protocols = Container(
                 padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                 decoration: BoxDecoration(
                   color: colors.surfaceSubtle,
@@ -455,14 +464,28 @@ class _URLForm extends StatelessWidget {
                   ),
                 ),
                 child: Text(
-                  'HTTP / HTTPS',
+                  'HTTP · HTTPS · MAGNET',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.labelSmall?.copyWith(
                     color: colors.textMuted,
                     fontFeatures: const [FontFeature.tabularFigures()],
                   ),
                 ),
-              ),
-            ],
+              );
+              if (stack) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [label, const SizedBox(height: 7), protocols],
+                );
+              }
+              return Row(
+                children: [
+                  Expanded(child: label),
+                  Flexible(child: protocols),
+                ],
+              );
+            },
           ),
           const SizedBox(height: 10),
           LayoutBuilder(
@@ -478,10 +501,22 @@ class _URLForm extends StatelessWidget {
                 keyboardType: TextInputType.multiline,
                 textInputAction: TextInputAction.newline,
                 maxLines: 6,
-                minLines: 2,
+                minLines: 1,
                 decoration: InputDecoration(
-                  hintText: L10nKeys.createUrlHint.tr,
+                  hint: Text(
+                    L10nKeys.createUrlHint.tr,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                   prefixIcon: const Icon(DownpeedIcons.link),
+                  prefixIconConstraints: const BoxConstraints(
+                    minWidth: _collapsedControlHeight,
+                    minHeight: _collapsedControlHeight,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 11,
+                    vertical: 10,
+                  ),
                   fillColor: colors.workspace,
                 ),
               );
@@ -515,7 +550,7 @@ class _URLForm extends StatelessWidget {
                   children: [
                     input,
                     const SizedBox(height: 10),
-                    SizedBox(height: 40, child: action),
+                    SizedBox(height: _collapsedControlHeight, child: action),
                   ],
                 );
               }
@@ -524,7 +559,11 @@ class _URLForm extends StatelessWidget {
                 children: [
                   Expanded(child: input),
                   const SizedBox(width: 10),
-                  SizedBox(width: 132, height: 64, child: action),
+                  SizedBox(
+                    width: 132,
+                    height: _collapsedControlHeight,
+                    child: action,
+                  ),
                 ],
               );
             },
@@ -536,7 +575,9 @@ class _URLForm extends StatelessWidget {
 }
 
 class _AdvancedOptions extends StatelessWidget {
-  const _AdvancedOptions();
+  const _AdvancedOptions({required this.controller});
+
+  final CreateDownloadController controller;
 
   @override
   Widget build(BuildContext context) {
@@ -573,6 +614,35 @@ class _AdvancedOptions extends StatelessWidget {
               alignment: Alignment.centerLeft,
               child: Text(
                 L10nKeys.createAdvancedBody.tr,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: colors.textMuted),
+              ),
+            ),
+            const SizedBox(height: 12),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final picker = OutlinedButton.icon(
+                  key: const ValueKey('choose-torrent-file-button'),
+                  onPressed: controller.isBusy
+                      ? null
+                      : controller.chooseTorrentFile,
+                  icon: const Icon(DownpeedIcons.torrentFile),
+                  label: Text(L10nKeys.createBTChooseTorrent.tr),
+                );
+                return Align(
+                  alignment: Alignment.centerLeft,
+                  child: constraints.maxWidth < 420
+                      ? SizedBox(width: double.infinity, child: picker)
+                      : picker,
+                );
+              },
+            ),
+            const SizedBox(height: 7),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                L10nKeys.createBTPickerHint.tr,
                 style: Theme.of(
                   context,
                 ).textTheme.bodySmall?.copyWith(color: colors.textMuted),
@@ -847,7 +917,7 @@ class _ResolutionPanel extends StatelessWidget {
                           width: itemWidth,
                           icon: DownpeedIcons.database,
                           label: L10nKeys.createFileSize.tr,
-                          value: _formatBytes(resolution.size),
+                          value: _formatDownloadBytes(resolution.size),
                         ),
                         _MetadataItem(
                           width: itemWidth,
@@ -883,20 +953,525 @@ class _ResolutionPanel extends StatelessWidget {
       ),
     );
   }
+}
 
-  String _formatBytes(int bytes) {
-    if (bytes < 0) return L10nKeys.createUnknown.tr;
-    if (bytes < 1024) return '$bytes B';
-    const units = ['KB', 'MB', 'GB', 'TB'];
-    var value = bytes / 1024;
-    var unit = 0;
-    while (value >= 1024 && unit < units.length - 1) {
-      value /= 1024;
-      unit++;
-    }
-    final digits = value >= 100 || value == value.roundToDouble() ? 0 : 1;
-    return '${value.toStringAsFixed(digits)} ${units[unit]}';
+class _BTResolutionPanel extends StatelessWidget {
+  const _BTResolutionPanel({required this.controller});
+
+  final CreateDownloadController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final resolution = controller.btResolution.value!;
+      final colors = context.downpeedColors;
+      final magnet = resolution.sourceType == BTSourceType.magnet;
+      return Container(
+        key: const ValueKey('bt-resolution-panel'),
+        decoration: BoxDecoration(
+          color: colors.surfaceRaised,
+          border: Border.all(color: colors.border),
+          borderRadius: BorderRadius.circular(DownpeedThemeTokens.radiusLarge),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(18),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 34,
+                    height: 34,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: colors.surfaceSubtle,
+                      borderRadius: BorderRadius.circular(
+                        DownpeedThemeTokens.radius,
+                      ),
+                    ),
+                    child: Icon(
+                      magnet ? DownpeedIcons.magnet : DownpeedIcons.torrentFile,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          magnet
+                              ? L10nKeys.createBTMagnetTitle.tr
+                              : L10nKeys.createBTResolvedTitle.tr,
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          magnet
+                              ? L10nKeys.createBTMagnetBody.tr
+                              : L10nKeys.createBTResolvedBody.tr,
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: colors.textSecondary,
+                                height: 1.42,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Divider(height: 1, color: colors.border),
+            Padding(
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SelectableText(
+                    resolution.name,
+                    key: const ValueKey('bt-resolution-name'),
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const SizedBox(height: 16),
+                  _BTMetadataLine(
+                    icon: DownpeedIcons.database,
+                    label: L10nKeys.createBTInfoHash.tr,
+                    value: _truncateHash(resolution.displayHash),
+                  ),
+                  _BTMetadataLine(
+                    icon: DownpeedIcons.server,
+                    label: L10nKeys.createBTTrackers.tr,
+                    value: resolution.trackers.isEmpty
+                        ? '—'
+                        : resolution.trackers
+                              .map((tracker) => tracker.displayValue)
+                              .join(' · '),
+                  ),
+                  if (!magnet)
+                    _BTMetadataLine(
+                      icon: DownpeedIcons.info,
+                      label: L10nKeys.createBTPrivacy.tr,
+                      value: resolution.isPrivate
+                          ? L10nKeys.createBTPrivate.tr
+                          : L10nKeys.createBTPublic.tr,
+                      last: true,
+                    ),
+                ],
+              ),
+            ),
+            if (resolution.files.isNotEmpty) ...[
+              Divider(height: 1, color: colors.border),
+              _BTFileSelection(controller: controller, resolution: resolution),
+            ],
+            if (!magnet) ...[
+              Divider(height: 1, color: colors.border),
+              _BTTaskCreationControls(
+                controller: controller,
+                resolution: resolution,
+              ),
+            ],
+            Container(
+              padding: const EdgeInsets.fromLTRB(18, 13, 18, 14),
+              color: colors.surfaceSubtle,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(DownpeedIcons.info, color: colors.textMuted),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Text(
+                      (magnet
+                              ? L10nKeys.createBTMagnetParsingOnly
+                              : L10nKeys.createBTRestrictedTransfer)
+                          .tr,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: colors.textSecondary,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    });
   }
+}
+
+class _BTFileSelection extends StatelessWidget {
+  const _BTFileSelection({required this.controller, required this.resolution});
+
+  final CreateDownloadController controller;
+  final BTResolution resolution;
+
+  @override
+  Widget build(BuildContext context) {
+    return Obx(() {
+      final colors = context.downpeedColors;
+      final selected = controller.selectedBTFileIndexes;
+      final selectedCount = controller.selectedBTFileCount;
+      final selectedSize = controller.selectedBTSize;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 14, 8),
+            child: Row(
+              children: [
+                Checkbox(
+                  key: const ValueKey('select-all-bt-files'),
+                  value: controller.allBTFilesSelected
+                      ? true
+                      : selected.isEmpty
+                      ? false
+                      : null,
+                  tristate: true,
+                  onChanged: (_) => controller.toggleAllBTFiles(),
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        L10nKeys.createBTFiles.tr,
+                        style: Theme.of(context).textTheme.labelLarge,
+                      ),
+                      Text(
+                        L10nKeys.createBTSelectedSummary.trParams({
+                          'selected': '$selectedCount',
+                          'total': '${resolution.files.length}',
+                          'size': _formatDownloadBytes(selectedSize),
+                        }),
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                          color: colors.textMuted,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                TextButton(
+                  onPressed: controller.toggleAllBTFiles,
+                  child: Text(L10nKeys.createBTSelectAll.tr),
+                ),
+              ],
+            ),
+          ),
+          Divider(height: 1, color: colors.border),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 292),
+            child: ListView.builder(
+              key: const ValueKey('bt-file-list'),
+              shrinkWrap: true,
+              itemExtent: 48,
+              itemCount: resolution.files.length,
+              itemBuilder: (context, index) {
+                final file = resolution.files[index];
+                return InkWell(
+                  key: ValueKey('bt-file-${file.index}'),
+                  onTap: () => controller.toggleBTFile(file.index),
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 14),
+                    child: Row(
+                      children: [
+                        Checkbox(
+                          key: ValueKey('bt-file-checkbox-${file.index}'),
+                          value: selected.contains(file.index),
+                          onChanged: (_) => controller.toggleBTFile(file.index),
+                        ),
+                        const SizedBox(width: 5),
+                        const Icon(DownpeedIcons.file),
+                        const SizedBox(width: 9),
+                        Expanded(
+                          child: Text(
+                            file.path,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          _formatDownloadBytes(file.size),
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(
+                                color: colors.textMuted,
+                                fontFeatures: const [
+                                  FontFeature.tabularFigures(),
+                                ],
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      );
+    });
+  }
+}
+
+class _BTMetadataLine extends StatelessWidget {
+  const _BTMetadataLine({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.last = false,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+  final bool last;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.downpeedColors;
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      decoration: BoxDecoration(
+        border: last ? null : Border(bottom: BorderSide(color: colors.border)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: colors.textMuted),
+          const SizedBox(width: 9),
+          SizedBox(
+            width: 82,
+            child: Text(
+              label,
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: colors.textSecondary),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: SelectableText(
+              value,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BTTaskCreationControls extends StatelessWidget {
+  const _BTTaskCreationControls({
+    required this.controller,
+    required this.resolution,
+  });
+
+  final CreateDownloadController controller;
+  final BTResolution resolution;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.downpeedColors;
+    return Obx(() {
+      final directory = controller.saveDirectory.value;
+      final hasExplicitPeers = controller.explicitPeersInput.value.isNotEmpty;
+      final peerError = controller.peerInputError.value;
+      final actionError = controller.actionError.value;
+      final canCreateTask = hasExplicitPeers && controller.canCreateBTTask;
+      return Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              L10nKeys.createSaveDirectory.tr,
+              style: Theme.of(context).textTheme.labelLarge,
+            ),
+            const SizedBox(height: 9),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final compact = constraints.maxWidth < 520;
+                final path = Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Icon(
+                        DownpeedIcons.folder,
+                        color: colors.textMuted,
+                      ),
+                    ),
+                    const SizedBox(width: 9),
+                    Expanded(
+                      child: Text(
+                        directory?.isNotEmpty == true
+                            ? directory!
+                            : L10nKeys.createDirectoryRequired.tr,
+                        key: const ValueKey('bt-selected-save-directory'),
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: directory?.isNotEmpty == true
+                              ? colors.text
+                              : colors.textMuted,
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+                final picker = OutlinedButton.icon(
+                  key: const ValueKey('bt-choose-save-directory-button'),
+                  onPressed: controller.isPickingDirectory.value
+                      ? null
+                      : controller.chooseSaveDirectory,
+                  icon: const Icon(DownpeedIcons.folder),
+                  label: Text(
+                    directory?.isNotEmpty == true
+                        ? L10nKeys.createChangeDirectory.tr
+                        : L10nKeys.createChooseDirectory.tr,
+                  ),
+                );
+                if (compact) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [path, const SizedBox(height: 10), picker],
+                  );
+                }
+                return Row(
+                  children: [
+                    Expanded(child: path),
+                    const SizedBox(width: 14),
+                    picker,
+                  ],
+                );
+              },
+            ),
+            const SizedBox(height: 18),
+            Text(
+              L10nKeys.createBTPeers.tr,
+              style: Theme.of(context).textTheme.labelLarge,
+            ),
+            const SizedBox(height: 5),
+            Text(
+              L10nKeys.createBTPeersBody.tr,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: colors.textMuted,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 9),
+            TextField(
+              key: const ValueKey('bt-explicit-peers-field'),
+              controller: controller.explicitPeersController,
+              autocorrect: false,
+              enableSuggestions: false,
+              minLines: 2,
+              maxLines: 4,
+              decoration: InputDecoration(
+                hintText: L10nKeys.createBTPeersHint.tr,
+                prefixIcon: const Icon(DownpeedIcons.connections),
+                alignLabelWithHint: true,
+                errorText: peerError,
+                fillColor: colors.workspace,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+              decoration: BoxDecoration(
+                color: colors.surfaceSubtle,
+                borderRadius: BorderRadius.circular(DownpeedThemeTokens.radius),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(DownpeedIcons.shield, color: colors.textMuted),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Text(
+                      L10nKeys.createBTSecurityNotice.tr,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: colors.textSecondary,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (actionError != null && actionError != peerError) ...[
+              const SizedBox(height: 11),
+              _InlineError(message: actionError),
+            ],
+            const SizedBox(height: 16),
+            Divider(height: 1, color: colors.border),
+            const SizedBox(height: 15),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final compact = constraints.maxWidth < 520;
+                final destination = Text(
+                  directory?.isNotEmpty == true
+                      ? '$directory/${resolution.name}'
+                      : resolution.name,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: colors.textSecondary),
+                );
+                final action = FilledButton.icon(
+                  key: const ValueKey('start-bt-download-button'),
+                  onPressed: canCreateTask ? controller.createBTTask : null,
+                  icon: const Icon(DownpeedIcons.download),
+                  label: Text(L10nKeys.createBTStart.tr),
+                );
+                if (compact) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [destination, const SizedBox(height: 11), action],
+                  );
+                }
+                return Row(
+                  children: [
+                    Expanded(child: destination),
+                    const SizedBox(width: 14),
+                    action,
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
+      );
+    });
+  }
+}
+
+String _truncateHash(String value) {
+  if (value.length <= 24) return value;
+  return '${value.substring(0, 12)}…${value.substring(value.length - 10)}';
+}
+
+String _formatDownloadBytes(int bytes) {
+  if (bytes < 0) return L10nKeys.createUnknown.tr;
+  if (bytes < 1024) return '$bytes B';
+  const units = ['KB', 'MB', 'GB', 'TB'];
+  var value = bytes / 1024;
+  var unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit++;
+  }
+  final digits = value >= 100 || value == value.roundToDouble() ? 0 : 1;
+  return '${value.toStringAsFixed(digits)} ${units[unit]}';
 }
 
 class _BatchResolutionPanel extends StatelessWidget {
@@ -1538,6 +2113,13 @@ class _TaskPanel extends StatelessWidget {
                           value: progressText,
                           valueColor: statusColor,
                         ),
+                        if (task.protocol == DownloadProtocol.bt)
+                          _MetadataItem(
+                            width: width,
+                            icon: DownpeedIcons.connections,
+                            label: L10nKeys.taskConnections.tr,
+                            value: '${task.connections}',
+                          ),
                         _MetadataItem(
                           width: width,
                           icon: DownpeedIcons.download,
@@ -1577,22 +2159,48 @@ class _TaskPanel extends StatelessWidget {
                     child: _InlineError(message: actionError),
                   );
                 }),
-                if (task.canCancel) ...[
+                if (task.canPause || task.canResume || task.canCancel) ...[
                   const SizedBox(height: 20),
                   Align(
                     alignment: Alignment.centerRight,
                     child: Obx(
-                      () => OutlinedButton.icon(
-                        key: const ValueKey('cancel-download-button'),
-                        onPressed: controller.isCanceling.value
-                            ? null
-                            : controller.cancelTask,
-                        icon: const Icon(DownpeedIcons.stop),
-                        label: Text(
-                          controller.isCanceling.value
-                              ? L10nKeys.taskCanceling.tr
-                              : L10nKeys.taskCancel.tr,
-                        ),
+                      () => Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        alignment: WrapAlignment.end,
+                        children: [
+                          if (task.canPause)
+                            OutlinedButton.icon(
+                              key: const ValueKey('pause-download-button'),
+                              onPressed: controller.isUpdatingTask.value
+                                  ? null
+                                  : controller.pauseTask,
+                              icon: const Icon(DownpeedIcons.pause),
+                              label: Text(L10nKeys.taskPause.tr),
+                            ),
+                          if (task.canResume)
+                            FilledButton.tonalIcon(
+                              key: const ValueKey('resume-download-button'),
+                              onPressed: controller.isUpdatingTask.value
+                                  ? null
+                                  : controller.resumeTask,
+                              icon: const Icon(DownpeedIcons.resume),
+                              label: Text(L10nKeys.taskResume.tr),
+                            ),
+                          if (task.canCancel)
+                            OutlinedButton.icon(
+                              key: const ValueKey('cancel-download-button'),
+                              onPressed: controller.isCanceling.value
+                                  ? null
+                                  : controller.cancelTask,
+                              icon: const Icon(DownpeedIcons.stop),
+                              label: Text(
+                                controller.isCanceling.value
+                                    ? L10nKeys.taskCanceling.tr
+                                    : L10nKeys.taskCancel.tr,
+                              ),
+                            ),
+                        ],
                       ),
                     ),
                   ),

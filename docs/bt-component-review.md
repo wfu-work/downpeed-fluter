@@ -65,9 +65,10 @@ govulncheck ./...
 - `go.sum` 中模块内容和 `go.mod` 两个校验和必须匹配审查策略；
 - 主候选必须真正进入 `go list -deps ./...` 的编译闭包，不能只是未使用的声明依赖；
 - 对真实编译闭包逐模块读取根许可证；GPL、AGPL、SSPL、LGPL 和未知许可证会失败并要求人工复核；
+- 依赖闭包使用与三平台发布引擎一致的 `CGO_ENABLED=0`；仅在开发机 CGO 构建中可选、不会进入发布二进制的 SQLite piece-completion 实现不计为分发依赖；
 - 测试工具、示例、FUSE、Telemetry exporter 等未进入 Downpeed 编译闭包的上游模块声明不会被误计为发布依赖。
 
-本次没有声称“零已知漏洞”。审查环境未安装 `govulncheck`，且完整上游模块图下载被执行环境拒绝；因此没有用不完整扫描结果作安全背书。漏洞门禁被设置在组件实际进入 Downpeed 编译闭包的同一提交中，届时扫描真实可达包，并在每次发布前重复执行。若扫描发现可达漏洞，必须升级、规避受影响能力或停止接入。
+2026-08-12 已对真实后端编译图运行 `govulncheck ./...`：Downpeed 当前调用路径中发现 0 个可达漏洞；扫描另报告 imported packages 中 4 个、required modules 中 22 个不可达漏洞。该结果只代表本次固定依赖图和当前调用路径，不等同于组件长期“零已知漏洞”；每次发布仍需重复扫描，若出现可达漏洞必须升级、规避受影响能力或停止接入。
 
 ## 供应链与维护要求
 
@@ -79,6 +80,10 @@ govulncheck ./...
 - 对新的原生库、CGO、FUSE、WebRTC、Telemetry exporter 或替代存储后端单独审查；M3 默认不启用这些能力。
 
 ## 必须覆盖的上游默认配置
+
+实现复核（2026-08-12）：受限传输适配器已进入编译闭包，但只开放 `.torrent + 显式公网 IPv4 Peer`。安全配置集中关闭 Tracker、DHT、PEX、WebSeed、WebTorrent、IPv6、uTP、端口映射、入站连接、上传和做种，并设置 Peer、half-open 与未校验数据上限。`TorrentSpec` 会清除 Tracker、WebSeed、DHT node、PeerAddrs 和 metadata Sources，同时保留初始 Piece 校验。引擎现在持久化并执行 1–80 的 Peer 连接预算，但对 Tracker、DHT、PEX、WebSeed、IPv6、入站、上传和做种仍实施 fail closed，任何尝试开启的设置请求都被拒绝。连接诊断只读取运行中 Torrent 统计，不开放额外网络能力；Peer IPv4 在 Go 内核中脱敏为 `/16` 网络前缀与端口后才进入 API，短期 Peer 列表不持久化。
+
+复核同时确认 `v1.61.0/tracker/http/client.go` 的 HTTPS Tracker transport 使用 `InsecureSkipVerify: true`。因此本次批准不包含公共 Tracker 网络能力；不得通过普通配置项重新启用上游自动 Tracker。公共 Tracker 需要 Downpeed 自有安全 Tracker 适配器，或升级到修复后版本并重新完成许可证、安全与漏洞门禁。
 
 `NewDefaultClientConfig` 的若干默认值不符合 Downpeed 的产品边界。适配器不得直接使用默认配置后只修改下载目录，必须集中构造并测试安全配置：
 
@@ -97,10 +102,10 @@ govulncheck ./...
 
 ## 接入验收条件
 
-下一步可以开始 Torrent/Magnet 的**纯解析与文件树选择**，但网络传输适配器合并前必须同时满足：
+受限 `.torrent + 显式公网 IPv4 Peer` 传输已经满足当前验收门禁。以下条件继续作为公共 Tracker、DHT、PEX、Magnet 元数据获取、上传和做种能力的开放门禁：
 
 1. 发布模式许可证门禁通过并保存输出。
 2. `govulncheck ./...` 对真实后端编译图通过；不可达漏洞需记录模块、符号和判断依据。
 3. 安全配置具有单元测试，证明 UPnP、WebTorrent、WebSeed、IPv6、自动做种和无限上传不会因上游默认值意外开启。
-4. Tracker、Peer、DHT、路径和元数据入口实现威胁模型中的限制。
+4. 新开放的 Tracker、Peer discovery、DHT、PEX、上传入口逐项实现威胁模型中的限制；未实现的能力保持强制关闭。
 5. 发布物提供 MPL-2.0 许可证、版权通知和 Covered Software 源代码获取方式。

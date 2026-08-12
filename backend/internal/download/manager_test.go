@@ -102,6 +102,223 @@ func TestManagerCancelsRunningTask(t *testing.T) {
 	}
 }
 
+func TestManagerCreatesPausesResumesAndCompletesBTTask(t *testing.T) {
+	directory := t.TempDir()
+	started := make(chan struct{}, 2)
+	release := make(chan struct{})
+	transfer := &stubBTTransfer{
+		prepare: func(_ context.Context, input CreateBTTaskRequest) (BTTransferRequest, error) {
+			return BTTransferRequest{
+				Metadata: []byte("metadata"), SaveDirectory: input.SaveDirectory,
+				Name: "archive", Identity: "0123456789abcdef", Total: 8,
+				SelectedFileIndexes: []int{0}, ExplicitPeers: []string{"8.8.8.8:6881"},
+				Files: []BTFile{{Index: 0, Path: "archive/file.bin", Size: 8}},
+			}, nil
+		},
+		download: func(ctx context.Context, request BTTransferRequest, onProgress func(BTTransferProgress)) (BTTransferResult, error) {
+			started <- struct{}{}
+			onProgress(BTTransferProgress{
+				Downloaded: 4, Total: 8, SpeedBPS: 2, Connections: 1,
+				Diagnostics: BTDiagnostics{
+					Live:        true,
+					Connections: BTConnectionDiagnostics{Known: 2, Connected: 1, Pending: 1},
+					Traffic:     BTTrafficDiagnostics{UsefulBytes: 4},
+					Peers:       []BTPeerDiagnostics{{Address: "8.8.x.x:6881", Client: "test-peer", Network: "TCP", ReceivedBytes: 4}},
+					Policy: BTPolicyDiagnostics{
+						MaxPeerConnections: DefaultBTPeerConnections,
+						ExplicitPeersOnly:  true,
+					},
+					UpdatedAt: time.Now().UTC(),
+				},
+			})
+			select {
+			case <-release:
+				return BTTransferResult{Size: 8}, nil
+			case <-ctx.Done():
+				return BTTransferResult{}, ctx.Err()
+			}
+		},
+	}
+	manager := NewManager(context.Background(), nil, WithBTTransfer(transfer))
+	defer manager.Close()
+	task, err := manager.CreateBT(context.Background(), CreateBTTaskRequest{
+		Metadata: []byte("metadata"), SaveDirectory: directory,
+		SelectedFileIndexes: []int{0}, ExplicitPeers: []string{"8.8.8.8:6881"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	<-started
+	downloading := waitForTaskState(t, manager, task.ID, TaskStateDownloading)
+	if downloading.Protocol != ProtocolBT || downloading.Downloaded != 4 || downloading.Connections != 1 {
+		t.Fatalf("BT task = %#v", downloading)
+	}
+	diagnostics, err := manager.GetBTDiagnostics(context.Background(), task.ID)
+	if err != nil || !diagnostics.Live || diagnostics.Connections.Configured != 1 || diagnostics.Connections.Known != 2 || len(diagnostics.Peers) != 1 || diagnostics.Peers[0].Address != "8.8.x.x:6881" || diagnostics.Traffic.UsefulBytes != 4 {
+		t.Fatalf("BT diagnostics = %#v, error = %v", diagnostics, err)
+	}
+	paused, err := manager.Pause(context.Background(), task.ID)
+	if err != nil || paused.State != TaskStatePaused || paused.Connections != 0 {
+		t.Fatalf("Pause() task = %#v, error = %v", paused, err)
+	}
+	diagnostics, err = manager.GetBTDiagnostics(context.Background(), task.ID)
+	if err != nil || diagnostics.Live || diagnostics.Connections.Connected != 0 || len(diagnostics.Peers) != 0 {
+		t.Fatalf("paused BT diagnostics = %#v, error = %v", diagnostics, err)
+	}
+	resumed, err := manager.Resume(context.Background(), task.ID)
+	if err != nil || (resumed.State != TaskStateQueued && resumed.State != TaskStateDownloading) {
+		t.Fatalf("Resume() task = %#v, error = %v", resumed, err)
+	}
+	<-started
+	close(release)
+	completed := waitForTaskState(t, manager, task.ID, TaskStateCompleted)
+	if completed.Downloaded != 8 || completed.Total != 8 {
+		t.Fatalf("completed BT task = %#v", completed)
+	}
+}
+
+func TestManagerRejectsUnsafeBTPolicyFromTransferAdapter(t *testing.T) {
+	unsafe := DefaultBTPolicySettings()
+	unsafe.TrackersEnabled = true
+	transfer := &stubBTTransfer{prepare: func(_ context.Context, input CreateBTTaskRequest) (BTTransferRequest, error) {
+		return BTTransferRequest{
+			Metadata: []byte("metadata"), SaveDirectory: input.SaveDirectory,
+			Name: "archive", Identity: "0123456789abcdef", Total: 8,
+			SelectedFileIndexes: []int{0}, ExplicitPeers: []string{"8.8.8.8:6881"},
+			Files: []BTFile{{Index: 0, Path: "archive/file.bin", Size: 8}}, Policy: unsafe,
+		}, nil
+	}}
+	manager := NewManager(context.Background(), nil, WithBTTransfer(transfer))
+	defer manager.Close()
+	_, err := manager.CreateBT(context.Background(), CreateBTTaskRequest{
+		Metadata: []byte("metadata"), SaveDirectory: t.TempDir(),
+		SelectedFileIndexes: []int{0}, ExplicitPeers: []string{"8.8.8.8:6881"},
+	})
+	if !errors.Is(err, ErrInvalidBTPolicy) {
+		t.Fatalf("error = %v, want ErrInvalidBTPolicy", err)
+	}
+}
+
+func TestPersistentManagerRestoresBTTaskPausedAndResumes(t *testing.T) {
+	directory := t.TempDir()
+	store := newMemoryTaskStore()
+	started := make(chan struct{}, 2)
+	firstTransfer := &stubBTTransfer{
+		prepare: func(_ context.Context, input CreateBTTaskRequest) (BTTransferRequest, error) {
+			return BTTransferRequest{
+				Metadata: []byte("metadata"), SaveDirectory: input.SaveDirectory,
+				Name: "archive", Identity: "0123456789abcdef", Total: 8,
+				SelectedFileIndexes: []int{0}, ExplicitPeers: []string{"8.8.8.8:6881"},
+				Files: []BTFile{{Index: 0, Path: "archive/file.bin", Size: 8}},
+			}, nil
+		},
+		download: func(ctx context.Context, _ BTTransferRequest, onProgress func(BTTransferProgress)) (BTTransferResult, error) {
+			started <- struct{}{}
+			onProgress(BTTransferProgress{Downloaded: 4, Total: 8, Connections: 1})
+			<-ctx.Done()
+			return BTTransferResult{}, ctx.Err()
+		},
+	}
+	manager, err := NewPersistentManager(context.Background(), nil, store, WithBTTransfer(firstTransfer))
+	if err != nil {
+		t.Fatal(err)
+	}
+	task, err := manager.CreateBT(context.Background(), CreateBTTaskRequest{
+		Metadata: []byte("metadata"), SaveDirectory: directory,
+		SelectedFileIndexes: []int{0}, ExplicitPeers: []string{"8.8.8.8:6881"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	<-started
+	if err = manager.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	resumeCalls := 0
+	secondTransfer := &stubBTTransfer{
+		prepare: firstTransfer.prepare,
+		download: func(_ context.Context, request BTTransferRequest, onProgress func(BTTransferProgress)) (BTTransferResult, error) {
+			resumeCalls++
+			if string(request.Metadata) != "metadata" || len(request.SelectedFileIndexes) != 1 || request.ExplicitPeers[0] != "8.8.8.8:6881" || request.Policy != DefaultBTPolicySettings() {
+				t.Fatalf("restored BT request = %#v", request)
+			}
+			onProgress(BTTransferProgress{Downloaded: 8, Total: 8, Connections: 1})
+			return BTTransferResult{Size: 8}, nil
+		},
+	}
+	restoredManager, err := NewPersistentManager(context.Background(), nil, store, WithBTTransfer(secondTransfer))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer restoredManager.Close()
+	restored, err := restoredManager.Get(context.Background(), task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if restored.State != TaskStatePaused || restored.Downloaded != 4 || restored.Connections != 0 || resumeCalls != 0 {
+		t.Fatalf("restored BT task = %#v, resume calls = %d", restored, resumeCalls)
+	}
+	if _, err = restoredManager.Resume(context.Background(), task.ID); err != nil {
+		t.Fatal(err)
+	}
+	completed := waitForTaskState(t, restoredManager, task.ID, TaskStateCompleted)
+	if completed.Downloaded != 8 || completed.Total != 8 || resumeCalls != 1 {
+		t.Fatalf("completed BT task = %#v, resume calls = %d", completed, resumeCalls)
+	}
+}
+
+func TestManagerCancelBTCallsCleanup(t *testing.T) {
+	directory := t.TempDir()
+	started := make(chan struct{})
+	cleaned := make(chan BTTransferRequest, 1)
+	transfer := &stubBTTransfer{
+		prepare: func(_ context.Context, input CreateBTTaskRequest) (BTTransferRequest, error) {
+			return BTTransferRequest{
+				Metadata: []byte("metadata"), SaveDirectory: input.SaveDirectory,
+				Name: "archive", Identity: "0123456789abcdef", Total: 8,
+				SelectedFileIndexes: []int{0}, ExplicitPeers: []string{"8.8.8.8:6881"},
+				Files: []BTFile{{Index: 0, Path: "archive/file.bin", Size: 8}},
+			}, nil
+		},
+		download: func(ctx context.Context, _ BTTransferRequest, onProgress func(BTTransferProgress)) (BTTransferResult, error) {
+			onProgress(BTTransferProgress{Downloaded: 2, Total: 8, Connections: 1})
+			close(started)
+			<-ctx.Done()
+			return BTTransferResult{}, ctx.Err()
+		},
+		cleanup: func(_ context.Context, request BTTransferRequest) error {
+			cleaned <- request
+			return nil
+		},
+	}
+	manager := NewManager(context.Background(), nil, WithBTTransfer(transfer))
+	defer manager.Close()
+	task, err := manager.CreateBT(context.Background(), CreateBTTaskRequest{
+		Metadata: []byte("metadata"), SaveDirectory: directory,
+		SelectedFileIndexes: []int{0}, ExplicitPeers: []string{"8.8.8.8:6881"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	<-started
+	canceled, err := manager.Cancel(context.Background(), task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if canceled.State != TaskStateCanceled || canceled.Connections != 0 {
+		t.Fatalf("canceled BT task = %#v", canceled)
+	}
+	select {
+	case request := <-cleaned:
+		if request.Identity != "0123456789abcdef" {
+			t.Fatalf("cleanup request = %#v", request)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("BT cleanup was not called")
+	}
+}
+
 func TestManagerPausesAndResumesFromVerifiedPartialFile(t *testing.T) {
 	directory := t.TempDir()
 	firstStarted := make(chan struct{})
@@ -871,6 +1088,175 @@ func TestPersistentManagerRestoresQueuedAndRetryingTasksAsPaused(t *testing.T) {
 	}
 }
 
+func TestManagerDeletesTerminalTaskRecordAndPublishesRemoval(t *testing.T) {
+	directory := t.TempDir()
+	filePath := filepath.Join(directory, "completed.bin")
+	if err := os.WriteFile(filePath, []byte("downpeed"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	store := newMemoryTaskStore()
+	store.records["completed"] = storedTerminalTask("completed", filePath, TaskStateCompleted)
+	manager, err := NewPersistentManager(context.Background(), nil, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	subscriptionContext, cancelSubscription := context.WithCancel(context.Background())
+	defer cancelSubscription()
+	events := manager.Subscribe(subscriptionContext)
+
+	result, err := manager.Delete(context.Background(), "completed", false)
+	if err != nil {
+		t.Fatalf("Delete() error = %v", err)
+	}
+	if result.ID != "completed" || result.FileDeleted {
+		t.Fatalf("Delete() result = %#v", result)
+	}
+	if _, err = os.Stat(filePath); err != nil {
+		t.Fatalf("downloaded file was not preserved: %v", err)
+	}
+	if _, err = manager.Get(context.Background(), "completed"); !errors.Is(err, ErrTaskNotFound) {
+		t.Fatalf("Get() after Delete() error = %v, want ErrTaskNotFound", err)
+	}
+	store.mu.Lock()
+	_, persisted := store.records["completed"]
+	store.mu.Unlock()
+	if persisted {
+		t.Fatal("deleted task remains in the task store")
+	}
+	select {
+	case event := <-events:
+		if event.Type != TaskRemovedEvent || event.Task.ID != "completed" {
+			t.Fatalf("removal event = %#v", event)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for task.removed event")
+	}
+	if err = manager.Close(); err != nil {
+		t.Fatal(err)
+	}
+	restored, err := NewPersistentManager(context.Background(), nil, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer restored.Close()
+	if tasks, listErr := restored.List(context.Background()); listErr != nil || len(tasks) != 0 {
+		t.Fatalf("restored tasks = %#v, error = %v", tasks, listErr)
+	}
+}
+
+func TestManagerOptionallyDeletesCompletedRegularFile(t *testing.T) {
+	directory := t.TempDir()
+	filePath := filepath.Join(directory, "completed.bin")
+	if err := os.WriteFile(filePath, []byte("downpeed"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	store := newMemoryTaskStore()
+	store.records["completed"] = storedTerminalTask("completed", filePath, TaskStateCompleted)
+	manager, err := NewPersistentManager(context.Background(), nil, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer manager.Close()
+
+	result, err := manager.Delete(context.Background(), "completed", true)
+	if err != nil {
+		t.Fatalf("Delete() error = %v", err)
+	}
+	if !result.FileDeleted {
+		t.Fatalf("Delete() result = %#v", result)
+	}
+	if _, err = os.Stat(filePath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("downloaded file still exists: %v", err)
+	}
+}
+
+func TestManagerDeletesFailedAndCanceledRecords(t *testing.T) {
+	for _, state := range []TaskState{TaskStateFailed, TaskStateCanceled} {
+		t.Run(string(state), func(t *testing.T) {
+			directory := t.TempDir()
+			store := newMemoryTaskStore()
+			store.records[string(state)] = storedTerminalTask(
+				string(state),
+				filepath.Join(directory, string(state)+".bin"),
+				state,
+			)
+			manager, err := NewPersistentManager(context.Background(), nil, store)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer manager.Close()
+
+			if _, err = manager.Delete(context.Background(), string(state), true); err != nil {
+				t.Fatalf("Delete() error = %v", err)
+			}
+			if _, err = manager.Get(context.Background(), string(state)); !errors.Is(err, ErrTaskNotFound) {
+				t.Fatalf("Get() error = %v, want ErrTaskNotFound", err)
+			}
+		})
+	}
+}
+
+func TestManagerRejectsDeletingNonTerminalTask(t *testing.T) {
+	for _, state := range []TaskState{
+		TaskStateQueued,
+		TaskStateDownloading,
+		TaskStateRetrying,
+		TaskStatePaused,
+	} {
+		t.Run(string(state), func(t *testing.T) {
+			manager := NewManager(context.Background(), nil)
+			defer manager.Close()
+			manager.tasks["active"] = Task{ID: "active", State: state}
+
+			if _, err := manager.Delete(context.Background(), "active", false); !errors.Is(err, ErrTaskInvalidState) {
+				t.Fatalf("Delete() error = %v, want ErrTaskInvalidState", err)
+			}
+			if _, err := manager.Get(context.Background(), "active"); err != nil {
+				t.Fatalf("task was removed after rejected Delete(): %v", err)
+			}
+		})
+	}
+}
+
+func TestManagerRefusesToDeleteNonRegularDestination(t *testing.T) {
+	directory := t.TempDir()
+	store := newMemoryTaskStore()
+	store.records["completed"] = storedTerminalTask("completed", directory, TaskStateCompleted)
+	manager, err := NewPersistentManager(context.Background(), nil, store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer manager.Close()
+
+	if _, err = manager.Delete(context.Background(), "completed", true); !errors.Is(err, ErrTaskFileDelete) {
+		t.Fatalf("Delete() error = %v, want ErrTaskFileDelete", err)
+	}
+	if _, err = manager.Get(context.Background(), "completed"); err != nil {
+		t.Fatalf("task record was removed after file safety failure: %v", err)
+	}
+	if info, err := os.Stat(directory); err != nil || !info.IsDir() {
+		t.Fatalf("destination directory changed: info=%#v error=%v", info, err)
+	}
+}
+
+func storedTerminalTask(id, filePath string, state TaskState) StoredTask {
+	now := time.Date(2026, time.August, 11, 1, 0, 0, 0, time.UTC)
+	completedAt := now
+	return StoredTask{Task: Task{
+		ID:            id,
+		URL:           "https://example.com/" + filepath.Base(filePath),
+		FinalURL:      "https://example.com/" + filepath.Base(filePath),
+		FileName:      filepath.Base(filePath),
+		SaveDirectory: filepath.Dir(filePath),
+		FilePath:      filePath,
+		State:         state,
+		Total:         -1,
+		CreatedAt:     now,
+		UpdatedAt:     now,
+		CompletedAt:   &completedAt,
+	}}
+}
+
 func waitForTaskState(t *testing.T, manager *Manager, id string, state TaskState) Task {
 	t.Helper()
 	deadline := time.Now().Add(time.Second)
@@ -898,6 +1284,27 @@ func (function transferFunc) Download(
 	return function(ctx, request, onProgress)
 }
 
+type stubBTTransfer struct {
+	prepare  func(context.Context, CreateBTTaskRequest) (BTTransferRequest, error)
+	download func(context.Context, BTTransferRequest, func(BTTransferProgress)) (BTTransferResult, error)
+	cleanup  func(context.Context, BTTransferRequest) error
+}
+
+func (stub *stubBTTransfer) Prepare(ctx context.Context, request CreateBTTaskRequest) (BTTransferRequest, error) {
+	return stub.prepare(ctx, request)
+}
+
+func (stub *stubBTTransfer) Download(ctx context.Context, request BTTransferRequest, progress func(BTTransferProgress)) (BTTransferResult, error) {
+	return stub.download(ctx, request, progress)
+}
+
+func (stub *stubBTTransfer) Cleanup(ctx context.Context, request BTTransferRequest) error {
+	if stub.cleanup == nil {
+		return nil
+	}
+	return stub.cleanup(ctx, request)
+}
+
 type memoryTaskStore struct {
 	mu      sync.Mutex
 	records map[string]StoredTask
@@ -915,6 +1322,7 @@ func (store *memoryTaskStore) Load(context.Context) ([]StoredTask, error) {
 		record.Task = cloneTask(record.Task)
 		record.Headers = cloneHeaders(record.Headers)
 		record.Checkpoint = CloneTransferCheckpoint(record.Checkpoint)
+		record.BT = CloneStoredBTTask(record.BT)
 		records = append(records, record)
 	}
 	return records, nil
@@ -926,7 +1334,15 @@ func (store *memoryTaskStore) Save(_ context.Context, record StoredTask) error {
 	record.Task = cloneTask(record.Task)
 	record.Headers = cloneHeaders(record.Headers)
 	record.Checkpoint = CloneTransferCheckpoint(record.Checkpoint)
+	record.BT = CloneStoredBTTask(record.BT)
 	store.records[record.Task.ID] = record
+	return nil
+}
+
+func (store *memoryTaskStore) Delete(_ context.Context, id string) error {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	delete(store.records, id)
 	return nil
 }
 

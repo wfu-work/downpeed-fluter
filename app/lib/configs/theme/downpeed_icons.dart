@@ -23,10 +23,16 @@ class DownpeedIcons {
   static const IconData sort = LucideIcons.arrowDownUp300;
   static const IconData engine = LucideIcons.gauge300;
   static const IconData download = LucideIcons.download300;
+  static const IconData magnet = LucideIcons.magnet300;
+  static const IconData torrentFile = LucideIcons.fileUp300;
   static const IconData back = LucideIcons.arrowLeft300;
   static const IconData link = LucideIcons.link300;
   static const IconData file = LucideIcons.file300;
   static const IconData server = LucideIcons.server300;
+  static const IconData connections = LucideIcons.network300;
+  static const IconData shield = LucideIcons.shieldCheck300;
+  static const IconData locked = LucideIcons.lockKeyhole300;
+  static const IconData upload = LucideIcons.upload300;
   static const IconData database = LucideIcons.database300;
   static const IconData info = LucideIcons.info300;
   static const IconData close = LucideIcons.x300;
@@ -36,11 +42,15 @@ class DownpeedIcons {
   static const IconData stop = LucideIcons.circleStop300;
   static const IconData pause = LucideIcons.pause300;
   static const IconData resume = LucideIcons.play300;
+  static const IconData delete = LucideIcons.trash2300;
   static const IconData clock = LucideIcons.clock3300;
   static const IconData more = LucideIcons.chevronRight300;
+  static const IconData expand = LucideIcons.chevronDown300;
   static const IconData path = LucideIcons.folderTree300;
   static const IconData notifications = LucideIcons.bell300;
   static const IconData keyboard = LucideIcons.keyboard300;
+  static const IconData tray = LucideIcons.panelTop300;
+  static const IconData startup = LucideIcons.logIn300;
   static const IconData about = LucideIcons.badgeInfo300;
   static const IconData licenses = LucideIcons.scrollText300;
 }

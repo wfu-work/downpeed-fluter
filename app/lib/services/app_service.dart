@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
+import 'desktop_integration_service.dart';
 import 'preferences_service.dart';
 
 class AppService extends GetxService {
@@ -34,5 +35,8 @@ class AppService extends GetxService {
     await PreferencesService.to.saveLocaleCode(
       value.languageCode == 'en' ? 'en_US' : 'zh_CN',
     );
+    if (Get.isRegistered<DesktopIntegrationService>()) {
+      await DesktopIntegrationService.to.refreshLocalizedMenu();
+    }
   }
 }

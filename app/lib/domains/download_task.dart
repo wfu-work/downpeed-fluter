@@ -8,6 +8,8 @@ enum DownloadTaskState {
   canceled,
 }
 
+enum DownloadProtocol { http, bt }
+
 class DownloadTaskError {
   const DownloadTaskError({
     required this.code,
@@ -48,6 +50,8 @@ class DownloadTask {
     required this.speedBps,
     required this.createdAt,
     required this.updatedAt,
+    this.protocol = DownloadProtocol.http,
+    this.connections = 0,
     this.retryCount = 0,
     this.nextRetryAt,
     this.error,
@@ -96,9 +100,17 @@ class DownloadTask {
     final speed = requiredInt('speedBps');
     final retryCountValue = json['retryCount'] ?? 0;
     final nextRetryValue = json['nextRetryAt'];
+    final protocol = switch (json['protocol'] ?? 'http') {
+      'http' => DownloadProtocol.http,
+      'bt' => DownloadProtocol.bt,
+      _ => throw const FormatException('Unknown download task protocol.'),
+    };
+    final connectionsValue = json['connections'] ?? 0;
     if (downloaded < 0 ||
         total < -1 ||
         speed < 0 ||
+        connectionsValue is! int ||
+        connectionsValue < 0 ||
         retryCountValue is! int ||
         retryCountValue < 0 ||
         (nextRetryValue != null &&
@@ -118,6 +130,8 @@ class DownloadTask {
       downloaded: downloaded,
       total: total,
       speedBps: speed,
+      protocol: protocol,
+      connections: connectionsValue,
       retryCount: retryCountValue,
       nextRetryAt: nextRetryValue is String
           ? DateTime.parse(nextRetryValue)
@@ -143,6 +157,8 @@ class DownloadTask {
   final int downloaded;
   final int total;
   final int speedBps;
+  final DownloadProtocol protocol;
+  final int connections;
   final int retryCount;
   final DateTime? nextRetryAt;
   final DownloadTaskError? error;

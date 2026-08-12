@@ -15,6 +15,29 @@ func TestDetectLicenseTextDoesNotTreatMPLAsGPL(t *testing.T) {
 	}
 }
 
+func TestDetectLicenseTextHandlesMPLCommaAndISCVariant(t *testing.T) {
+	tests := map[string]struct {
+		text string
+		want []string
+	}{
+		"MPL comma": {
+			text: "Mozilla Public License, version 2.0",
+			want: []string{"MPL-2.0"},
+		},
+		"ISC distribute": {
+			text: "Permission to use, copy, modify, and distribute this software for any purpose with or without fee is hereby granted",
+			want: []string{"ISC"},
+		},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			if got := detectLicenseText([]byte(test.text)); !reflect.DeepEqual(got, test.want) {
+				t.Fatalf("detectLicenseText() = %v, want %v", got, test.want)
+			}
+		})
+	}
+}
+
 func TestDetectLicenseTextHandlesWrappedBSD(t *testing.T) {
 	text := []byte("Redistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are met:\nNeither the name of the owner nor the names of its contributors")
 	want := []string{"BSD-3-Clause"}
@@ -83,7 +106,7 @@ func TestEscapeModuleCachePart(t *testing.T) {
 }
 
 func TestLicenseFilenames(t *testing.T) {
-	for _, name := range []string{"LICENSE", "LICENSE.txt", "LICENSE-APACHE", "LICENSE_MIT", "COPYING", "UNLICENSE"} {
+	for _, name := range []string{"LICENSE", "LICENCE", "LICENSE.txt", "LICENCE.md", "LICENSE-APACHE", "LICENSE_MIT", "COPYING", "UNLICENSE"} {
 		if !isLicenseFilename(name) {
 			t.Errorf("isLicenseFilename(%q) = false", name)
 		}

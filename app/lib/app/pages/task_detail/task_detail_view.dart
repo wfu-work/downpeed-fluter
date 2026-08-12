@@ -5,7 +5,9 @@ import 'package:intl/intl.dart';
 import '../../../configs/localization/l10n_keys.dart';
 import '../../../configs/theme/downpeed_icons.dart';
 import '../../../configs/theme/downpeed_theme_tokens.dart';
+import '../../../domains/bt_diagnostics.dart';
 import '../../../domains/download_task.dart';
+import '../../../services/bt_diagnostics_service.dart';
 import '../../widgets/downpeed_app_shell.dart';
 import '../../widgets/task_display.dart';
 import '../../widgets/transfer_track.dart';
@@ -37,9 +39,14 @@ class TaskDetailView extends GetView<TaskDetailController> {
                       controller.desktopActions.isSupported,
                   fileActionActing: controller.desktopActions.isActing(task.id),
                   fileActionError: controller.desktopActions.errorFor(task.id),
+                  actionError: controller.deleteErrorMessage.value,
+                  diagnosticsService: controller.btDiagnostics,
+                  diagnosticsExpanded: controller.diagnosticsExpanded.value,
+                  onToggleDiagnostics: controller.toggleDiagnostics,
                   onPause: controller.pause,
                   onResume: controller.resume,
                   onCancel: controller.cancel,
+                  onDelete: controller.delete,
                   onOpenFile: controller.openFile,
                   onRevealFile: controller.revealFile,
                 );
@@ -94,9 +101,14 @@ class TaskDetailPanel extends StatelessWidget {
     required this.desktopActionsSupported,
     required this.fileActionActing,
     required this.fileActionError,
+    this.actionError,
+    this.diagnosticsService,
+    this.diagnosticsExpanded = false,
+    this.onToggleDiagnostics,
     required this.onPause,
     required this.onResume,
     required this.onCancel,
+    required this.onDelete,
     required this.onOpenFile,
     required this.onRevealFile,
   });
@@ -106,9 +118,14 @@ class TaskDetailPanel extends StatelessWidget {
   final bool desktopActionsSupported;
   final bool fileActionActing;
   final String? fileActionError;
+  final String? actionError;
+  final BTDiagnosticsService? diagnosticsService;
+  final bool diagnosticsExpanded;
+  final VoidCallback? onToggleDiagnostics;
   final VoidCallback onPause;
   final VoidCallback onResume;
   final VoidCallback onCancel;
+  final VoidCallback onDelete;
   final VoidCallback onOpenFile;
   final VoidCallback onRevealFile;
 
@@ -199,6 +216,7 @@ class TaskDetailPanel extends StatelessWidget {
             onPause: onPause,
             onResume: onResume,
             onCancel: onCancel,
+            onDelete: onDelete,
             onOpenFile: onOpenFile,
             onRevealFile: onRevealFile,
           ),
@@ -210,6 +228,21 @@ class TaskDetailPanel extends StatelessWidget {
               color: colors.danger.withValues(alpha: 0.07),
               child: Text(
                 fileActionError!,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: colors.danger,
+                  height: 1.4,
+                ),
+              ),
+            ),
+          ],
+          if (actionError != null) ...[
+            const SizedBox(height: 12),
+            Container(
+              key: ValueKey('task-action-error-${task.id}'),
+              padding: const EdgeInsets.all(12),
+              color: colors.danger.withValues(alpha: 0.07),
+              child: Text(
+                actionError!,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: colors.danger,
                   height: 1.4,
@@ -242,6 +275,25 @@ class TaskDetailPanel extends StatelessWidget {
             value: task.finalUrl,
             icon: DownpeedIcons.link,
           ),
+          if (task.protocol == DownloadProtocol.bt) ...[
+            _DetailRow(
+              label: L10nKeys.taskProtocol.tr,
+              value: L10nKeys.taskProtocolBT.tr,
+              icon: DownpeedIcons.torrentFile,
+            ),
+            _DetailRow(
+              label: L10nKeys.taskConnections.tr,
+              value: '${task.connections}',
+              icon: DownpeedIcons.connections,
+            ),
+            const SizedBox(height: 14),
+            _BTDiagnosticsSection(
+              task: task,
+              service: diagnosticsService,
+              expanded: diagnosticsExpanded,
+              onToggle: onToggleDiagnostics,
+            ),
+          ],
           _DetailRow(
             label: L10nKeys.taskCreated.tr,
             value: DateFormat(
@@ -249,6 +301,341 @@ class TaskDetailPanel extends StatelessWidget {
             ).format(task.createdAt.toLocal()),
             icon: DownpeedIcons.clock,
             last: true,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BTDiagnosticsSection extends StatelessWidget {
+  const _BTDiagnosticsSection({
+    required this.task,
+    required this.service,
+    required this.expanded,
+    required this.onToggle,
+  });
+
+  final DownloadTask task;
+  final BTDiagnosticsService? service;
+  final bool expanded;
+  final VoidCallback? onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.downpeedColors;
+    final diagnostics = service?.forTask(task.id);
+    final loading = service?.isLoading(task.id) ?? false;
+    final error = service?.errorFor(task.id);
+    return Container(
+      key: ValueKey('bt-diagnostics-${task.id}'),
+      decoration: BoxDecoration(
+        border: Border.all(color: colors.border),
+        borderRadius: BorderRadius.circular(DownpeedThemeTokens.radiusLarge),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          InkWell(
+            key: ValueKey('toggle-bt-diagnostics-${task.id}'),
+            onTap: onToggle,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(13, 11, 9, 11),
+              child: Row(
+                children: [
+                  Icon(DownpeedIcons.connections, color: colors.textMuted),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          L10nKeys.taskBTDiagnostics.tr,
+                          style: Theme.of(context).textTheme.labelLarge,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          L10nKeys.taskBTDiagnosticsBody.tr,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: colors.textMuted, height: 1.35),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (loading)
+                    const SizedBox.square(
+                      dimension: 16,
+                      child: CircularProgressIndicator(strokeWidth: 1.5),
+                    )
+                  else
+                    AnimatedRotation(
+                      turns: expanded ? 0.5 : 0,
+                      duration: MediaQuery.disableAnimationsOf(context)
+                          ? Duration.zero
+                          : const Duration(milliseconds: 160),
+                      child: const Icon(DownpeedIcons.expand),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          if (expanded) ...[
+            Divider(height: 1, color: colors.border),
+            if (error != null && diagnostics == null)
+              _BTDiagnosticsError(
+                taskId: task.id,
+                onRetry: () => service?.refresh(task.id),
+              )
+            else if (diagnostics == null)
+              const SizedBox(height: 72)
+            else
+              _BTDiagnosticsBody(diagnostics: diagnostics),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _BTDiagnosticsError extends StatelessWidget {
+  const _BTDiagnosticsError({required this.taskId, required this.onRetry});
+
+  final String taskId;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(13),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              L10nKeys.taskBTDiagnosticsError.tr,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: context.downpeedColors.danger,
+              ),
+            ),
+          ),
+          TextButton(
+            key: ValueKey('retry-bt-diagnostics-$taskId'),
+            onPressed: onRetry,
+            child: Text(L10nKeys.taskBTRefresh.tr),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BTDiagnosticsBody extends StatelessWidget {
+  const _BTDiagnosticsBody({required this.diagnostics});
+
+  final BTDiagnostics diagnostics;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.downpeedColors;
+    final connections = diagnostics.connections;
+    final traffic = diagnostics.traffic;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(13, 12, 13, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 7,
+                height: 7,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: diagnostics.live ? colors.success : colors.textMuted,
+                ),
+              ),
+              const SizedBox(width: 7),
+              Text(
+                diagnostics.live
+                    ? L10nKeys.taskBTLive.tr
+                    : L10nKeys.taskBTStopped.tr,
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: diagnostics.live ? colors.success : colors.textMuted,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 18,
+            runSpacing: 10,
+            children: [
+              _BTMetric(
+                label: L10nKeys.taskBTConfigured.tr,
+                value: '${connections.configured}',
+              ),
+              _BTMetric(
+                label: L10nKeys.taskBTPeerLimit.tr,
+                value: '${diagnostics.policy.maxPeerConnections}',
+              ),
+              _BTMetric(
+                label: L10nKeys.taskBTConnected.tr,
+                value: '${connections.connected}',
+              ),
+              _BTMetric(
+                label: L10nKeys.taskBTPending.tr,
+                value: '${connections.pending}',
+              ),
+              _BTMetric(
+                label: L10nKeys.taskBTHalfOpen.tr,
+                value: '${connections.halfOpen}',
+              ),
+              _BTMetric(
+                label: L10nKeys.taskBTUsefulTraffic.tr,
+                value: formatBytes(traffic.usefulBytes),
+              ),
+              _BTMetric(
+                label: L10nKeys.taskBTUploadTraffic.tr,
+                value: formatBytes(traffic.uploadedBytes),
+              ),
+            ],
+          ),
+          const SizedBox(height: 15),
+          Divider(height: 1, color: colors.border),
+          const SizedBox(height: 12),
+          Text(
+            L10nKeys.taskBTPeers.tr,
+            style: Theme.of(context).textTheme.labelLarge,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            L10nKeys.taskBTPeerPrivacy.tr,
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: colors.textMuted),
+          ),
+          const SizedBox(height: 9),
+          if (diagnostics.peers.isEmpty)
+            Text(
+              L10nKeys.taskBTNoPeers.tr,
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: colors.textSecondary),
+            )
+          else
+            ...diagnostics.peers.map((peer) => _BTPeerRow(peer: peer)),
+          const SizedBox(height: 14),
+          Divider(height: 1, color: colors.border),
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(DownpeedIcons.shield, color: colors.textMuted),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      L10nKeys.taskBTPolicy.tr,
+                      style: Theme.of(context).textTheme.labelLarge,
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      L10nKeys.taskBTExplicitOnly.tr,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      '${L10nKeys.taskBTPolicyRestricted.tr} · '
+                      '${diagnostics.policy.restrictedCapabilitiesDisabled ? L10nKeys.taskBTDisabled.tr : L10nKeys.taskBTUnexpectedEnabled.tr}',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: diagnostics.policy.restrictedCapabilitiesDisabled
+                            ? colors.textMuted
+                            : colors.danger,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BTMetric extends StatelessWidget {
+  const _BTMetric({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 92,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: context.downpeedColors.textMuted,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BTPeerRow extends StatelessWidget {
+  const _BTPeerRow({required this.peer});
+
+  final BTPeerDiagnostics peer;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  peer.address,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '${peer.client} · ${peer.network}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: context.downpeedColors.textMuted,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            '${formatBytes(peer.downloadRateBps)}/s',
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
           ),
         ],
       ),
@@ -265,6 +652,7 @@ class _TaskActions extends StatelessWidget {
     required this.onPause,
     required this.onResume,
     required this.onCancel,
+    required this.onDelete,
     required this.onOpenFile,
     required this.onRevealFile,
   });
@@ -276,6 +664,7 @@ class _TaskActions extends StatelessWidget {
   final VoidCallback onPause;
   final VoidCallback onResume;
   final VoidCallback onCancel;
+  final VoidCallback onDelete;
   final VoidCallback onOpenFile;
   final VoidCallback onRevealFile;
 
@@ -320,6 +709,21 @@ class _TaskActions extends StatelessWidget {
             onPressed: acting ? null : onCancel,
             icon: const Icon(DownpeedIcons.stop),
             label: Text(L10nKeys.taskCancel.tr),
+          ),
+        if (task.isTerminal)
+          TextButton.icon(
+            key: ValueKey('detail-delete-${task.id}'),
+            onPressed: acting ? null : onDelete,
+            icon: Icon(
+              DownpeedIcons.delete,
+              color: acting ? null : context.downpeedColors.danger,
+            ),
+            label: Text(
+              L10nKeys.taskDelete.tr,
+              style: TextStyle(
+                color: acting ? null : context.downpeedColors.danger,
+              ),
+            ),
           ),
       ],
     );

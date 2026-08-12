@@ -162,9 +162,12 @@ func VerifyPinnedModule(policy Policy, goModPath, goSumPath string) error {
 }
 
 func ListBuildModules(ctx context.Context, backendDir string) ([]BuildModule, error) {
-	command := exec.CommandContext(ctx, "go", "list", "-deps", "-json", "./...")
+	command := exec.CommandContext(ctx, "go", "list", "-tags", "nosqlite", "-deps", "-json", "./cmd/downpeedlib")
 	command.Dir = backendDir
-	command.Env = append(os.Environ(), "GOWORK=off")
+	// The desktop product ships a c-shared engine library, which requires CGO.
+	// Keep this closure aligned with that real release target; each platform's
+	// release job repeats the check for platform-specific imports.
+	command.Env = append(os.Environ(), "GOWORK=off", "CGO_ENABLED=1")
 	output, err := command.Output()
 	if err != nil {
 		var exitErr *exec.ExitError
@@ -305,7 +308,7 @@ func detectLicenseText(data []byte) []string {
 
 	var licenses []string
 	switch {
-	case strings.Contains(header, "MOZILLA PUBLIC LICENSE VERSION 2.0"):
+	case strings.Contains(header, "MOZILLA PUBLIC LICENSE VERSION 2.0") || strings.Contains(header, "MOZILLA PUBLIC LICENSE, VERSION 2.0"):
 		licenses = append(licenses, "MPL-2.0")
 	case strings.Contains(header, "GNU AFFERO GENERAL PUBLIC LICENSE"):
 		licenses = append(licenses, gnuVersion(header, "AGPL"))
@@ -327,7 +330,8 @@ func detectLicenseText(data []byte) []string {
 			licenses = append(licenses, "BSD-2-Clause")
 		}
 	}
-	if strings.Contains(normalized, "PERMISSION TO USE, COPY, MODIFY, AND/OR DISTRIBUTE THIS SOFTWARE FOR ANY PURPOSE WITH OR WITHOUT FEE") {
+	if strings.Contains(normalized, "PERMISSION TO USE, COPY, MODIFY, AND/OR DISTRIBUTE THIS SOFTWARE FOR ANY PURPOSE WITH OR WITHOUT FEE") ||
+		strings.Contains(normalized, "PERMISSION TO USE, COPY, MODIFY, AND DISTRIBUTE THIS SOFTWARE FOR ANY PURPOSE WITH OR WITHOUT FEE") {
 		licenses = append(licenses, "ISC")
 	}
 	if strings.Contains(normalized, "CC0 1.0 UNIVERSAL") || strings.Contains(normalized, "CREATIVE COMMONS ZERO V1.0 UNIVERSAL") {
@@ -424,6 +428,7 @@ func lineSet(data []byte) map[string]bool {
 func isLicenseFilename(name string) bool {
 	upper := strings.ToUpper(name)
 	return upper == "LICENSE" || strings.HasPrefix(upper, "LICENSE.") || strings.HasPrefix(upper, "LICENSE-") || strings.HasPrefix(upper, "LICENSE_") ||
+		upper == "LICENCE" || strings.HasPrefix(upper, "LICENCE.") || strings.HasPrefix(upper, "LICENCE-") || strings.HasPrefix(upper, "LICENCE_") ||
 		upper == "COPYING" || strings.HasPrefix(upper, "COPYING.") || upper == "UNLICENSE"
 }
 

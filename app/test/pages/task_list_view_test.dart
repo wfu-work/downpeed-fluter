@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:downpeed_flutter/configs/theme/downpeed_theme_tokens.dart';
 import 'package:downpeed_flutter/data/clients/engine_client.dart';
 import 'package:downpeed_flutter/domains/batch_task_result.dart';
+import 'package:downpeed_flutter/domains/bt_diagnostics.dart';
+import 'package:downpeed_flutter/domains/delete_task_result.dart';
 import 'package:downpeed_flutter/domains/download_resolution.dart';
 import 'package:downpeed_flutter/domains/download_task.dart';
 import 'package:downpeed_flutter/domains/engine_info.dart';
@@ -80,7 +82,7 @@ void main() {
       find.byKey(const ValueKey('create-download-dialog')),
     );
     expect(dialogSize.width, 720);
-    expect(dialogSize.height, 450);
+    expect(dialogSize.height, 424);
     expect(find.byKey(const ValueKey('create-download-intro')), findsOneWidget);
     expect(find.byKey(const ValueKey('download-url-card')), findsOneWidget);
     expect(
@@ -88,6 +90,14 @@ void main() {
       findsOneWidget,
     );
     expect(find.byKey(const ValueKey('download-url-field')), findsOneWidget);
+    final urlFieldSize = tester.getSize(
+      find.byKey(const ValueKey('download-url-field')),
+    );
+    final resolveButtonSize = tester.getSize(
+      find.byKey(const ValueKey('resolve-download-button')),
+    );
+    expect(urlFieldSize.height, 40);
+    expect(resolveButtonSize.height, urlFieldSize.height);
     expect(find.byKey(const ValueKey('task-search-field')), findsOneWidget);
     expect(Get.currentRoute, tasksRoute);
 
@@ -271,6 +281,43 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('resume-task-active-1')), findsOneWidget);
     expect(client.pauseCalls, 1);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('expands sanitized BT diagnostics at 200 percent text scale', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(980, 900));
+    tester.platformDispatcher.textScaleFactorTestValue = 2;
+    addTearDown(() {
+      tester.binding.setSurfaceSize(null);
+      tester.platformDispatcher.clearTextScaleFactorTestValue();
+    });
+    final client = _TaskListEngineClient([
+      _task(
+        'bt-1',
+        DownloadTaskState.downloading,
+        protocol: DownloadProtocol.bt,
+      ),
+    ]);
+    addTearDown(client.close);
+    await _registerOnlineEngine(client);
+
+    await tester.pumpWidget(const DownpeedApp());
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('task-row-bt-1')));
+    await tester.pumpAndSettle();
+
+    final toggle = find.byKey(const ValueKey('toggle-bt-diagnostics-bt-1'));
+    await tester.ensureVisible(toggle);
+    await tester.tap(toggle);
+    await tester.pumpAndSettle();
+
+    expect(client.diagnosticsCalls, 1);
+    expect(find.text('连接诊断'), findsOneWidget);
+    expect(find.text('8.8.x.x:6881'), findsOneWidget);
+    expect(find.textContaining('全部关闭'), findsOneWidget);
+    expect(find.text('0 B'), findsWidgets);
     expect(tester.takeException(), isNull);
   });
 
@@ -474,6 +521,140 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('deletes a completed record while keeping its file by default', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1280, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final client = _TaskListEngineClient([
+      _task('completed-1', DownloadTaskState.completed),
+    ]);
+    addTearDown(client.close);
+    await _registerOnlineEngine(client);
+
+    await tester.pumpWidget(const DownpeedApp());
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('task-row-completed-1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('detail-delete-completed-1')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('delete-task-dialog')), findsOneWidget);
+    final checkbox = tester.widget<Checkbox>(
+      find.byKey(const ValueKey('delete-files-checkbox')),
+    );
+    expect(checkbox.value, isFalse);
+    await tester.tap(find.byKey(const ValueKey('confirm-delete-task')));
+    await tester.pumpAndSettle();
+
+    expect(client.deleteCalls, 1);
+    expect(client.lastDeleteFile, isFalse);
+    expect(find.byKey(const ValueKey('task-row-completed-1')), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('delete confirmation stays usable in a narrow scaled window', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 820));
+    tester.platformDispatcher.textScaleFactorTestValue = 2;
+    addTearDown(() {
+      tester.binding.setSurfaceSize(null);
+      tester.platformDispatcher.clearTextScaleFactorTestValue();
+    });
+    final client = _TaskListEngineClient([
+      _task('completed-1', DownloadTaskState.completed),
+    ]);
+    addTearDown(client.close);
+    await _registerOnlineEngine(client);
+
+    await tester.pumpWidget(const DownpeedApp());
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('task-row-completed-1')));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('detail-delete-completed-1')),
+    );
+    await tester.tap(find.byKey(const ValueKey('detail-delete-completed-1')));
+    await tester.pumpAndSettle();
+
+    final dialog = tester.getRect(
+      find.byKey(const ValueKey('delete-task-dialog')),
+    );
+    expect(dialog.left, greaterThanOrEqualTo(12));
+    expect(dialog.right, lessThanOrEqualTo(378));
+    expect(find.byKey(const ValueKey('confirm-delete-task')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('cancel-delete-task')));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('batch deletes selected terminal task records', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1280, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final client = _TaskListEngineClient([
+      _task('completed-1', DownloadTaskState.completed),
+      _task('failed-1', DownloadTaskState.failed),
+      _task('active-1', DownloadTaskState.downloading),
+    ]);
+    addTearDown(client.close);
+    await _registerOnlineEngine(client);
+
+    await tester.pumpWidget(const DownpeedApp());
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('select-task-completed-1')));
+    await tester.tap(find.byKey(const ValueKey('select-task-failed-1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('batch-delete-button')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('delete-files-checkbox')));
+    await tester.tap(find.byKey(const ValueKey('confirm-delete-task')));
+    await tester.pumpAndSettle();
+
+    expect(client.batchDeleteCalls, 1);
+    expect(client.lastDeleteIds.toSet(), <String>{'completed-1', 'failed-1'});
+    expect(client.lastDeleteFiles, isTrue);
+    expect(find.byKey(const ValueKey('task-row-completed-1')), findsNothing);
+    expect(find.byKey(const ValueKey('task-row-failed-1')), findsNothing);
+    expect(find.byKey(const ValueKey('task-row-active-1')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'clear completed removes records but never asks to delete files',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1280, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final client = _TaskListEngineClient([
+        _task('completed-1', DownloadTaskState.completed),
+        _task('active-1', DownloadTaskState.downloading),
+      ]);
+      addTearDown(client.close);
+      await _registerOnlineEngine(client);
+
+      await tester.pumpWidget(const DownpeedApp());
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('已完成').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('clear-completed-button')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey('delete-downloaded-files-option')),
+        findsNothing,
+      );
+      await tester.tap(find.byKey(const ValueKey('confirm-delete-task')));
+      await tester.pumpAndSettle();
+      expect(client.clearCompletedCalls, 1);
+      expect(find.byKey(const ValueKey('task-row-completed-1')), findsNothing);
+
+      await tester.tap(find.text('全部任务').first);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('task-row-active-1')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('explains when a completed file was moved or deleted', (
     tester,
   ) async {
@@ -554,6 +735,13 @@ class _TaskListEngineClient extends StubEngineClient {
   int batchCalls = 0;
   int resolveCalls = 0;
   int createCalls = 0;
+  int deleteCalls = 0;
+  int batchDeleteCalls = 0;
+  int clearCompletedCalls = 0;
+  int diagnosticsCalls = 0;
+  bool? lastDeleteFile;
+  bool? lastDeleteFiles;
+  List<String> lastDeleteIds = const <String>[];
   BatchTaskAction? lastBatchAction;
   List<String> lastBatchIds = const <String>[];
 
@@ -595,6 +783,12 @@ class _TaskListEngineClient extends StubEngineClient {
       initialTasks.firstWhere((task) => task.id == id);
 
   @override
+  Future<BTDiagnostics> fetchBTDiagnostics(String taskId) async {
+    diagnosticsCalls++;
+    return _btDiagnostics(taskId);
+  }
+
+  @override
   Future<DownloadTask> pauseTask(String id) async {
     pauseCalls++;
     return _task(id, DownloadTaskState.paused);
@@ -609,6 +803,59 @@ class _TaskListEngineClient extends StubEngineClient {
   @override
   Future<DownloadTask> cancelTask(String id) async =>
       _task(id, DownloadTaskState.canceled);
+
+  @override
+  Future<DeleteTaskResult> deleteTask(
+    String id, {
+    bool deleteFile = false,
+  }) async {
+    deleteCalls++;
+    lastDeleteFile = deleteFile;
+    return DeleteTaskResult(id: id, fileDeleted: deleteFile);
+  }
+
+  @override
+  Future<BatchDeleteTaskResult> deleteTasks(
+    List<String> ids, {
+    bool deleteFiles = false,
+  }) async {
+    batchDeleteCalls++;
+    lastDeleteIds = ids;
+    lastDeleteFiles = deleteFiles;
+    return BatchDeleteTaskResult(
+      items: <BatchDeleteTaskItemResult>[
+        for (var index = 0; index < ids.length; index++)
+          BatchDeleteTaskItemResult(
+            index: index,
+            id: ids[index],
+            fileDeleted: deleteFiles,
+          ),
+      ],
+      succeeded: ids.length,
+      failed: 0,
+    );
+  }
+
+  @override
+  Future<BatchDeleteTaskResult> clearCompletedTasks() async {
+    clearCompletedCalls++;
+    final ids = initialTasks
+        .where((task) => task.state == DownloadTaskState.completed)
+        .map((task) => task.id)
+        .toList(growable: false);
+    return BatchDeleteTaskResult(
+      items: <BatchDeleteTaskItemResult>[
+        for (var index = 0; index < ids.length; index++)
+          BatchDeleteTaskItemResult(
+            index: index,
+            id: ids[index],
+            fileDeleted: false,
+          ),
+      ],
+      succeeded: ids.length,
+      failed: 0,
+    );
+  }
 
   @override
   Future<BatchTaskResult> actOnTasks(
@@ -658,6 +905,7 @@ DownloadTask _task(
   DownloadTaskState state, {
   String fileName = 'archive.zip',
   String errorCode = 'download_failed',
+  DownloadProtocol protocol = DownloadProtocol.http,
 }) {
   final now = DateTime.utc(2026, 8, 11, 1);
   return DownloadTask(
@@ -671,6 +919,8 @@ DownloadTask _task(
     downloaded: state == DownloadTaskState.completed ? 1024 : 512,
     total: 1024,
     speedBps: state == DownloadTaskState.downloading ? 128 : 0,
+    protocol: protocol,
+    connections: protocol == DownloadProtocol.bt ? 1 : 0,
     error: state == DownloadTaskState.failed
         ? DownloadTaskError(
             code: errorCode,
@@ -683,3 +933,49 @@ DownloadTask _task(
     completedAt: state == DownloadTaskState.completed ? now : null,
   );
 }
+
+BTDiagnostics _btDiagnostics(String taskId) => BTDiagnostics(
+  taskId: taskId,
+  state: 'downloading',
+  live: true,
+  connections: const BTConnectionDiagnostics(
+    configured: 2,
+    known: 2,
+    connected: 1,
+    pending: 1,
+    halfOpen: 0,
+    seeders: 1,
+  ),
+  traffic: const BTTrafficDiagnostics(
+    receivedBytes: 1200,
+    usefulBytes: 1024,
+    uploadedBytes: 0,
+    wastedChunks: 0,
+    verifiedPieces: 1,
+    failedPieces: 0,
+  ),
+  peers: const <BTPeerDiagnostics>[
+    BTPeerDiagnostics(
+      address: '8.8.x.x:6881',
+      client: 'test-peer',
+      network: 'TCP',
+      receivedBytes: 1024,
+      downloadRateBps: 256,
+      verifiedPieces: 1,
+      failedPieces: 0,
+    ),
+  ],
+  policy: const BTPolicyDiagnostics(
+    maxPeerConnections: 80,
+    explicitPeersOnly: true,
+    trackersEnabled: false,
+    dhtEnabled: false,
+    pexEnabled: false,
+    webSeedsEnabled: false,
+    inboundEnabled: false,
+    ipv6Enabled: false,
+    uploadEnabled: false,
+    seedingEnabled: false,
+  ),
+  updatedAt: DateTime.utc(2026, 8, 12, 3),
+);

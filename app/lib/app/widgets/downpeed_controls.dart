@@ -116,52 +116,59 @@ class DownpeedSwitch extends StatelessWidget {
   });
 
   final bool value;
-  final ValueChanged<bool> onChanged;
+  final ValueChanged<bool>? onChanged;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.downpeedColors;
+    final enabled = onChanged != null;
     return Semantics(
       button: true,
+      enabled: enabled,
       toggled: value,
-      onTap: () => onChanged(!value),
+      onTap: enabled ? () => onChanged?.call(!value) : null,
       child: ExcludeSemantics(
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: () => onChanged(!value),
-            borderRadius: BorderRadius.circular(DownpeedThemeTokens.radiusPill),
-            hoverColor: colors.sidebarSelection,
-            focusColor: colors.sidebarSelection,
-            child: Padding(
-              padding: const EdgeInsets.all(3),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 120),
-                curve: Curves.easeOut,
-                width: 30,
-                height: 18,
-                padding: const EdgeInsets.all(2),
-                decoration: BoxDecoration(
-                  color: value ? colors.accent : colors.surfaceSubtle,
-                  border: Border.all(
-                    color: value ? colors.accent : colors.borderStrong,
-                  ),
-                  borderRadius: BorderRadius.circular(
-                    DownpeedThemeTokens.radiusPill,
-                  ),
-                ),
-                child: AnimatedAlign(
+        child: Opacity(
+          opacity: enabled ? 1 : 0.46,
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: enabled ? () => onChanged?.call(!value) : null,
+              borderRadius: BorderRadius.circular(
+                DownpeedThemeTokens.radiusPill,
+              ),
+              hoverColor: colors.sidebarSelection,
+              focusColor: colors.sidebarSelection,
+              child: Padding(
+                padding: const EdgeInsets.all(3),
+                child: AnimatedContainer(
                   duration: const Duration(milliseconds: 120),
                   curve: Curves.easeOut,
-                  alignment: value
-                      ? Alignment.centerRight
-                      : Alignment.centerLeft,
-                  child: Container(
-                    width: 12,
-                    height: 12,
-                    decoration: BoxDecoration(
-                      color: value ? colors.onAccent : colors.textMuted,
-                      shape: BoxShape.circle,
+                  width: 30,
+                  height: 18,
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    color: value ? colors.accent : colors.surfaceSubtle,
+                    border: Border.all(
+                      color: value ? colors.accent : colors.borderStrong,
+                    ),
+                    borderRadius: BorderRadius.circular(
+                      DownpeedThemeTokens.radiusPill,
+                    ),
+                  ),
+                  child: AnimatedAlign(
+                    duration: const Duration(milliseconds: 120),
+                    curve: Curves.easeOut,
+                    alignment: value
+                        ? Alignment.centerRight
+                        : Alignment.centerLeft,
+                    child: Container(
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: value ? colors.onAccent : colors.textMuted,
+                        shape: BoxShape.circle,
+                      ),
                     ),
                   ),
                 ),

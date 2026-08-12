@@ -1,10 +1,12 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/wfu-work/downpeed-fluter/backend/internal/download"
@@ -20,6 +22,11 @@ type batchTaskActionRequest struct {
 	Action string   `json:"action"`
 }
 
+type batchDeleteTasksRequest struct {
+	IDs         []string `json:"ids"`
+	DeleteFiles bool     `json:"deleteFiles"`
+}
+
 type batchTaskItemResult struct {
 	Index int            `json:"index"`
 	ID    string         `json:"id,omitempty"`
@@ -31,6 +38,19 @@ type batchTaskResult struct {
 	Items     []batchTaskItemResult `json:"items"`
 	Succeeded int                   `json:"succeeded"`
 	Failed    int                   `json:"failed"`
+}
+
+type batchDeleteTaskItemResult struct {
+	Index       int        `json:"index"`
+	ID          string     `json:"id"`
+	FileDeleted bool       `json:"fileDeleted,omitempty"`
+	Error       *api.Error `json:"error,omitempty"`
+}
+
+type batchDeleteTaskResult struct {
+	Items     []batchDeleteTaskItemResult `json:"items"`
+	Succeeded int                         `json:"succeeded"`
+	Failed    int                         `json:"failed"`
 }
 
 func (s *Server) createTask(w http.ResponseWriter, r *http.Request) {
@@ -131,6 +151,56 @@ func (s *Server) actOnTasksBatch(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (s *Server) deleteTasksBatch(w http.ResponseWriter, r *http.Request) {
+	var input batchDeleteTasksRequest
+	if !decodeBatchRequest(w, r, &input) {
+		return
+	}
+	if len(input.IDs) == 0 || len(input.IDs) > maxBatchTasks {
+		writeAPIError(w, r, http.StatusBadRequest, "invalid_batch_size", "A batch must contain between 1 and 100 task IDs.", false)
+		return
+	}
+	writeJSON(w, http.StatusOK, api.Envelope[batchDeleteTaskResult]{
+		Data:      s.deleteTaskIDs(r.Context(), input.IDs, input.DeleteFiles),
+		RequestID: requestIDFrom(r),
+	})
+}
+
+func (s *Server) deleteCompletedTasks(w http.ResponseWriter, r *http.Request) {
+	tasks, err := s.tasks.List(r.Context())
+	if err != nil {
+		writeTaskServiceError(w, r, err)
+		return
+	}
+	ids := make([]string, 0, len(tasks))
+	for _, task := range tasks {
+		if task.State == download.TaskStateCompleted {
+			ids = append(ids, task.ID)
+		}
+	}
+	writeJSON(w, http.StatusOK, api.Envelope[batchDeleteTaskResult]{
+		Data:      s.deleteTaskIDs(r.Context(), ids, false),
+		RequestID: requestIDFrom(r),
+	})
+}
+
+func (s *Server) deleteTaskIDs(ctx context.Context, ids []string, deleteFiles bool) batchDeleteTaskResult {
+	result := batchDeleteTaskResult{Items: make([]batchDeleteTaskItemResult, 0, len(ids))}
+	for index, id := range ids {
+		item := batchDeleteTaskItemResult{Index: index, ID: id}
+		deleted, err := s.tasks.Delete(ctx, id, deleteFiles)
+		if err != nil {
+			_, item.Error = taskServiceAPIError(err)
+			result.Failed++
+		} else {
+			item.FileDeleted = deleted.FileDeleted
+			result.Succeeded++
+		}
+		result.Items = append(result.Items, item)
+	}
+	return result
+}
+
 func decodeBatchRequest(w http.ResponseWriter, r *http.Request, destination any) bool {
 	r.Body = http.MaxBytesReader(w, r.Body, maxBatchRequestBytes)
 	decoder := json.NewDecoder(r.Body)
@@ -180,6 +250,35 @@ func (s *Server) cancelTask(w http.ResponseWriter, r *http.Request) {
 		Data:      task,
 		RequestID: requestIDFrom(r),
 	})
+}
+
+func (s *Server) deleteTask(w http.ResponseWriter, r *http.Request) {
+	deleteFile, ok := readDeleteFilesQuery(w, r)
+	if !ok {
+		return
+	}
+	result, err := s.tasks.Delete(r.Context(), r.PathValue("id"), deleteFile)
+	if err != nil {
+		writeTaskServiceError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, api.Envelope[download.DeleteTaskResult]{
+		Data:      result,
+		RequestID: requestIDFrom(r),
+	})
+}
+
+func readDeleteFilesQuery(w http.ResponseWriter, r *http.Request) (bool, bool) {
+	value := r.URL.Query().Get("deleteFiles")
+	if value == "" {
+		return false, true
+	}
+	parsed, err := strconv.ParseBool(value)
+	if err != nil {
+		writeAPIError(w, r, http.StatusBadRequest, "invalid_request", "deleteFiles must be true or false.", false)
+		return false, false
+	}
+	return parsed, true
 }
 
 func (s *Server) pauseTask(w http.ResponseWriter, r *http.Request) {
@@ -286,6 +385,18 @@ func taskServiceAPIError(err error) (int, *api.Error) {
 		return http.StatusConflict, &api.Error{Code: "resume_not_supported", Message: "The task cannot be resumed safely because the remote resource has no usable validator.", Retryable: false}
 	case errors.Is(err, download.ErrPartialFileChanged):
 		return http.StatusConflict, &api.Error{Code: "partial_file_changed", Message: "The partial download file changed outside Downpeed.", Retryable: false}
+	case errors.Is(err, download.ErrTaskFileDelete):
+		return http.StatusConflict, &api.Error{Code: "task_file_delete_failed", Message: "The downloaded file could not be deleted safely.", Retryable: false}
+	case errors.Is(err, download.ErrUnsupportedProtocol):
+		return http.StatusNotImplemented, &api.Error{Code: "bt_transfer_unavailable", Message: "BT transfer is not enabled in this engine.", Retryable: false}
+	case errors.Is(err, download.ErrBTPeerRequired):
+		return http.StatusBadRequest, &api.Error{Code: "bt_peer_required", Message: "Add at least one allowed explicit Peer because Tracker and DHT discovery are disabled.", Retryable: false}
+	case errors.Is(err, download.ErrBTPeerInvalid):
+		return http.StatusBadRequest, &api.Error{Code: "bt_peer_invalid", Message: "Explicit Peers must use allowed public IPv4 addresses and valid ports.", Retryable: false}
+	case errors.Is(err, download.ErrBTFileSelection):
+		return http.StatusBadRequest, &api.Error{Code: "bt_file_selection_invalid", Message: "Select at least one valid Torrent file without duplicates.", Retryable: false}
+	case errors.Is(err, download.ErrBTMetadataInvalid), errors.Is(err, download.ErrBTMetadataTooLarge), errors.Is(err, download.ErrBTPathUnsafe):
+		return http.StatusBadRequest, &api.Error{Code: "bt_metadata_invalid", Message: "The Torrent metadata is malformed or unsupported.", Retryable: false}
 	default:
 		return http.StatusInternalServerError, &api.Error{Code: "task_operation_failed", Message: "The engine could not update the download task.", Retryable: true}
 	}

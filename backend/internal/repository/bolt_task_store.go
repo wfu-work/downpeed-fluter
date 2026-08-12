@@ -19,6 +19,7 @@ var (
 	tasksBucket = []byte("tasks")
 	metaBucket  = []byte("meta")
 	schemaKey   = []byte("schema_version")
+	settingsKey = []byte("engine_settings")
 )
 
 const schemaVersion = "1"
@@ -123,6 +124,73 @@ func (s *BoltTaskStore) Save(ctx context.Context, record download.StoredTask) er
 	return nil
 }
 
+func (s *BoltTaskStore) Delete(ctx context.Context, id string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if id == "" {
+		return fmt.Errorf("%w: task ID is required", download.ErrTaskPersistence)
+	}
+	if err := s.db.Update(func(tx *bbolt.Tx) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		bucket := tx.Bucket(tasksBucket)
+		if bucket == nil {
+			return errors.New("tasks bucket is missing")
+		}
+		return bucket.Delete([]byte(id))
+	}); err != nil {
+		return fmt.Errorf("%w: delete task", download.ErrTaskPersistence)
+	}
+	return nil
+}
+
+func (s *BoltTaskStore) LoadSettings(ctx context.Context) (download.EngineSettings, error) {
+	if err := ctx.Err(); err != nil {
+		return download.EngineSettings{}, err
+	}
+	var settings download.EngineSettings
+	err := s.db.View(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket(metaBucket)
+		if bucket == nil {
+			return errors.New("meta bucket is missing")
+		}
+		value := bucket.Get(settingsKey)
+		if value == nil {
+			return nil
+		}
+		return json.Unmarshal(value, &settings)
+	})
+	if err != nil {
+		return download.EngineSettings{}, fmt.Errorf("%w: load settings", download.ErrSettingsPersistence)
+	}
+	return settings, nil
+}
+
+func (s *BoltTaskStore) SaveSettings(ctx context.Context, settings download.EngineSettings) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	value, err := json.Marshal(settings)
+	if err != nil {
+		return fmt.Errorf("%w: encode settings", download.ErrSettingsPersistence)
+	}
+	if err = s.db.Update(func(tx *bbolt.Tx) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		bucket := tx.Bucket(metaBucket)
+		if bucket == nil {
+			return errors.New("meta bucket is missing")
+		}
+		return bucket.Put(settingsKey, value)
+	}); err != nil {
+		return fmt.Errorf("%w: save settings", download.ErrSettingsPersistence)
+	}
+	return nil
+}
+
 func (s *BoltTaskStore) Close() error {
 	s.closeOnce.Do(func() {
 		s.closeErr = s.db.Close()
@@ -131,3 +199,4 @@ func (s *BoltTaskStore) Close() error {
 }
 
 var _ download.TaskStore = (*BoltTaskStore)(nil)
+var _ download.SettingsStore = (*BoltTaskStore)(nil)

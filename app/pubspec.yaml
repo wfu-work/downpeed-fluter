@@ -9,12 +9,17 @@ environment:
 dependencies:
   dio: ^5.9.1
   file_selector: ^1.1.0
+  ffi: ^2.2.0
   flutter:
     sdk: flutter
   get: ^4.7.3
   get_storage: ^2.1.1
   intl: ^0.20.2
+  launch_at_startup: ^0.5.1
   lucide_icons_flutter: ^3.1.15
+  path_provider: ^2.1.6
+  tray_manager: ^0.5.3
+  window_manager: ^0.5.2
 
 dev_dependencies:
   flutter_lints: ^6.0.0
@@ -23,3 +28,8 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/tray/downpeed_tray.svg
+    - linux/runner/resources/app_icon.png
+    - macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_32.png
+    - windows/runner/resources/app_icon.ico

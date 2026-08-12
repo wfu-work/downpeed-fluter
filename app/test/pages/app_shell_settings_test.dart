@@ -1,16 +1,22 @@
 import 'package:downpeed_flutter/domains/download_task.dart';
 import 'package:downpeed_flutter/domains/engine_info.dart';
+import 'package:downpeed_flutter/domains/engine_settings.dart';
 import 'package:downpeed_flutter/main.dart';
 import 'package:downpeed_flutter/configs/theme/downpeed_icons.dart';
 import 'package:downpeed_flutter/configs/theme/downpeed_theme_tokens.dart';
+import 'package:downpeed_flutter/app/widgets/downpeed_controls.dart';
 import 'package:downpeed_flutter/services/app_service.dart';
 import 'package:downpeed_flutter/services/engine_service.dart';
+import 'package:downpeed_flutter/services/directory_picker.dart';
+import 'package:downpeed_flutter/services/engine_settings_service.dart';
 import 'package:downpeed_flutter/services/preferences_service.dart';
+import 'package:downpeed_flutter/services/startup_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:get/get.dart';
 
 import '../support/stub_engine_client.dart';
+import '../support/stub_directory_picker.dart';
 
 void main() {
   setUp(() {
@@ -73,6 +79,20 @@ void main() {
       findsOneWidget,
     );
     expect(find.byTooltip('切换到深色模式'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('task-toolbar-heading')),
+        matching: find.byKey(const ValueKey('engine-status-badge')),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('sidebar-pane')),
+        matching: find.byKey(const ValueKey('engine-status-badge')),
+      ),
+      findsNothing,
+    );
     final initialWidth = tester
         .getSize(find.byKey(const ValueKey('sidebar-pane')))
         .width;
@@ -156,7 +176,45 @@ void main() {
       find.byKey(const ValueKey('settings-nav-notifications')),
       findsOneWidget,
     );
+    expect(find.byKey(const ValueKey('settings-nav-bt')), findsOneWidget);
     expect(find.byKey(const ValueKey('settings-nav-about')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('settings-nav-downloads')));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('settings-default-download-directory')),
+      findsOneWidget,
+    );
+    expect(find.text('/tmp/Downloads'), findsOneWidget);
+    await tester.tap(
+      find.byKey(const ValueKey('settings-choose-download-directory')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('/tmp/downpeed-selected'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('settings-downloads-note')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('settings-nav-bt')));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('settings-bt-peer-budget')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('settings-bt-discovery-locked')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('settings-bt-upload-locked')),
+      findsOneWidget,
+    );
+    expect(find.text('安全锁定'), findsNWidgets(2));
+    expect(find.byKey(const ValueKey('settings-bt-note')), findsOneWidget);
+    await tester.tap(find.text('24'));
+    await tester.pumpAndSettle();
+    expect(EngineSettingsService.to.bitTorrent?.maxPeerConnections, 24);
 
     await tester.tap(find.byKey(const ValueKey('settings-nav-workspace')));
     await tester.pumpAndSettle();
@@ -186,6 +244,18 @@ void main() {
       findsOneWidget,
     );
     expect(
+      find.byKey(const ValueKey('settings-close-to-tray')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('settings-launch-at-login')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('settings-start-hidden-on-login')),
+      findsOneWidget,
+    );
+    expect(
       find.byKey(const ValueKey('settings-notifications-note')),
       findsOneWidget,
     );
@@ -194,6 +264,18 @@ void main() {
     );
     await tester.pump();
     expect(PreferencesService.to.completionNotificationsEnabled.value, isFalse);
+    await tester.tap(find.byKey(const ValueKey('settings-close-to-tray')));
+    await tester.pump();
+    expect(PreferencesService.to.closeToTrayEnabled.value, isFalse);
+    await tester.tap(find.byKey(const ValueKey('settings-launch-at-login')));
+    await tester.pumpAndSettle();
+    expect(StartupService.to.enabled.value, isTrue);
+    expect(_ShellStartupHost.enabled, isTrue);
+    await tester.tap(
+      find.byKey(const ValueKey('settings-start-hidden-on-login')),
+    );
+    await tester.pump();
+    expect(PreferencesService.to.startHiddenOnLogin.value, isTrue);
 
     await tester.tap(find.byKey(const ValueKey('settings-nav-engine')));
     await tester.pumpAndSettle();
@@ -296,9 +378,31 @@ void main() {
       findsOneWidget,
     );
     expect(
+      find.byKey(const ValueKey('settings-close-to-tray')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('settings-launch-at-login')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('settings-start-hidden-on-login')),
+      findsOneWidget,
+    );
+    expect(
       find.byKey(const ValueKey('settings-notifications-note')),
       findsOneWidget,
     );
+
+    await tester.tap(find.byKey(const ValueKey('settings-compact-back')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('settings-nav-bt')));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('settings-bt-peer-budget')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('settings-bt-note')), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('settings-compact-back')));
     await tester.pumpAndSettle();
@@ -325,6 +429,58 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('settings-compact-back')));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('settings-page')), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('login settings disable safely while unavailable or loading', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1280, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await _registerOnlineEngine();
+
+    await tester.pumpWidget(const DownpeedApp());
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('sidebar-settings')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('settings-nav-notifications')));
+    await tester.pumpAndSettle();
+
+    final startup = StartupService.to;
+    startup.isLoading.value = true;
+    await tester.pump();
+    expect(
+      tester
+          .widget<DownpeedSwitch>(
+            find.byKey(const ValueKey('settings-launch-at-login')),
+          )
+          .onChanged,
+      isNull,
+    );
+
+    startup.isLoading.value = false;
+    startup.supported.value = false;
+    await tester.pump();
+    expect(
+      tester
+          .widget<DownpeedSwitch>(
+            find.byKey(const ValueKey('settings-launch-at-login')),
+          )
+          .onChanged,
+      isNull,
+    );
+    expect(
+      tester
+          .widget<DownpeedSwitch>(
+            find.byKey(const ValueKey('settings-start-hidden-on-login')),
+          )
+          .onChanged,
+      isNull,
+    );
+    expect(
+      find.byKey(const ValueKey('settings-startup-unavailable')),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
   });
 
@@ -361,6 +517,47 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('settings-compact-back')));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('settings-nav-downloads')),
+      100,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.tap(find.byKey(const ValueKey('settings-nav-downloads')));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('settings-downloads-note')),
+      120,
+      scrollable: find.byType(Scrollable).last,
+    );
+    expect(
+      find.byKey(const ValueKey('settings-default-download-directory')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('settings-downloads-note')),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const ValueKey('settings-compact-back')));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('settings-nav-bt')),
+      100,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.tap(find.byKey(const ValueKey('settings-nav-bt')));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('settings-bt-note')),
+      120,
+      scrollable: find.byType(Scrollable).last,
+    );
+    expect(
+      find.byKey(const ValueKey('settings-bt-discovery-locked')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('settings-bt-note')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('settings-compact-back')));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
       find.byKey(const ValueKey('settings-nav-notifications')),
       100,
       scrollable: find.byType(Scrollable).last,
@@ -375,6 +572,10 @@ void main() {
 
     expect(
       find.byKey(const ValueKey('settings-completion-notifications')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('settings-start-hidden-on-login')),
       findsOneWidget,
     );
     expect(
@@ -393,13 +594,48 @@ Color _brandMarkColor(WidgetTester tester, Key key) {
 }
 
 Future<void> _registerOnlineEngine() async {
-  final engine = EngineService(client: const _ShellEngineClient());
+  _ShellEngineClient._directory = '/tmp/Downloads';
+  _ShellEngineClient._btPolicy = _restrictedBTPolicy;
+  const client = _ShellEngineClient();
+  final engine = EngineService(client: client);
   Get.put<EngineService>(engine, permanent: true);
+  final settings = EngineSettingsService(client: client);
+  Get.put<EngineSettingsService>(settings, permanent: true);
+  Get.put<DirectoryPicker>(
+    const StubDirectoryPicker(result: '/tmp/downpeed-selected'),
+    permanent: true,
+  );
+  _ShellStartupHost.enabled = false;
+  final startup = StartupService(host: const _ShellStartupHost());
+  Get.put<StartupService>(startup, permanent: true);
+  await startup.initialize();
   await engine.refresh();
+  await settings.load();
+}
+
+class _ShellStartupHost implements StartupHost {
+  const _ShellStartupHost();
+
+  static bool enabled = false;
+
+  @override
+  Future<bool> isSupported() async => true;
+
+  @override
+  Future<bool> isEnabled() async => enabled;
+
+  @override
+  Future<bool> setEnabled(bool value) async {
+    enabled = value;
+    return true;
+  }
 }
 
 class _ShellEngineClient extends StubEngineClient {
   const _ShellEngineClient();
+
+  static String _directory = '/tmp/Downloads';
+  static BTPolicySettings _btPolicy = _restrictedBTPolicy;
 
   @override
   Future<EngineInfo> fetchInfo() async => const EngineInfo(
@@ -416,5 +652,37 @@ class _ShellEngineClient extends StubEngineClient {
   Future<List<DownloadTask>> fetchTasks() async => const [];
 
   @override
+  Future<EngineSettings> fetchSettings() async => EngineSettings(
+    defaultDownloadDirectory: _directory,
+    bitTorrent: _btPolicy,
+  );
+
+  @override
+  Future<EngineSettings> updateSettings({
+    required String defaultDownloadDirectory,
+    required BTPolicySettings bitTorrent,
+  }) async {
+    _directory = defaultDownloadDirectory;
+    _btPolicy = bitTorrent;
+    return EngineSettings(
+      defaultDownloadDirectory: _directory,
+      bitTorrent: _btPolicy,
+    );
+  }
+
+  @override
   Stream<DownloadTaskEvent> watchTaskEvents() => const Stream.empty();
 }
+
+const _restrictedBTPolicy = BTPolicySettings(
+  maxPeerConnections: 80,
+  explicitPeersOnly: true,
+  trackersEnabled: false,
+  dhtEnabled: false,
+  pexEnabled: false,
+  webSeedsEnabled: false,
+  inboundEnabled: false,
+  ipv6Enabled: false,
+  uploadEnabled: false,
+  seedingEnabled: false,
+);
