@@ -141,6 +141,7 @@ func New(startedAt time.Time, options ...Option) *Server {
 	mux.HandleFunc("GET /api/v1/tasks/{id}", server.getTask)
 	mux.HandleFunc("PUT /api/v1/tasks/{id}/pause", server.pauseTask)
 	mux.HandleFunc("PUT /api/v1/tasks/{id}/resume", server.resumeTask)
+	mux.HandleFunc("POST /api/v1/tasks/{id}/retry", server.retryTask)
 	mux.HandleFunc("PUT /api/v1/tasks/{id}/cancel", server.cancelTask)
 	mux.HandleFunc("DELETE /api/v1/tasks/completed", server.deleteCompletedTasks)
 	mux.HandleFunc("DELETE /api/v1/tasks/{id}/record", server.deleteTask)

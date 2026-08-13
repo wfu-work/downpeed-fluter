@@ -62,6 +62,8 @@ abstract interface class EngineClient {
 
   Future<DownloadTask> resumeTask(String id);
 
+  Future<DownloadTask> retryTask(String id);
+
   Future<DownloadTask> cancelTask(String id);
 
   Future<DeleteTaskResult> deleteTask(String id, {bool deleteFile = false});
@@ -545,10 +547,19 @@ class DioEngineClient implements EngineClient {
   @override
   Future<DownloadTask> resumeTask(String id) => _updateTask(id, 'resume');
 
-  Future<DownloadTask> _updateTask(String id, String action) async {
+  @override
+  Future<DownloadTask> retryTask(String id) =>
+      _updateTask(id, 'retry', method: 'POST');
+
+  Future<DownloadTask> _updateTask(
+    String id,
+    String action, {
+    String method = 'PUT',
+  }) async {
     try {
-      final response = await _dio.put<Map<String, dynamic>>(
+      final response = await _dio.request<Map<String, dynamic>>(
         '/api/v1/tasks/${Uri.encodeComponent(id)}/$action',
+        options: Options(method: method),
       );
       return DownloadTask.fromJson(_readData(response.data));
     } on EngineClientException {

@@ -12,6 +12,7 @@ import 'package:downpeed_flutter/main.dart';
 import 'package:downpeed_flutter/services/directory_picker.dart';
 import 'package:downpeed_flutter/services/engine_service.dart';
 import 'package:downpeed_flutter/services/desktop_actions_service.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -270,17 +271,209 @@ void main() {
     );
     expect(
       tester.getSize(find.byKey(const ValueKey('task-row-active-1'))).height,
-      lessThan(90),
+      inInclusiveRange(56, 76),
     );
-    expect(find.text('选择一个任务'), findsOneWidget);
+    final identityRect = tester.getRect(
+      find.byKey(const ValueKey('task-identity-active-1')),
+    );
+    final transferRect = tester.getRect(
+      find.byKey(const ValueKey('task-transfer-active-1')),
+    );
+    expect(transferRect.top, greaterThan(identityRect.top));
+    expect(transferRect.width, greaterThan(420));
+    expect(
+      tester.getSize(find.byKey(const ValueKey('task-state-icon-active-1'))),
+      const Size.square(DownpeedThemeTokens.iconSize),
+    );
+    expect(find.byKey(const ValueKey('task-inspector')), findsNothing);
+    final fullListWidth = tester
+        .getSize(find.byKey(const ValueKey('task-list')))
+        .width;
     await tester.tap(find.byKey(const ValueKey('task-row-active-1')));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('task-detail-active-1')), findsOneWidget);
+    expect(find.byKey(const ValueKey('close-task-inspector')), findsOneWidget);
+    final inspectorRect = tester.getRect(
+      find.byKey(const ValueKey('task-inspector')),
+    );
+    expect(inspectorRect.width, inInclusiveRange(360, 420));
+    expect(
+      tester.getTopLeft(find.byKey(const ValueKey('task-detail-file-name'))).dy,
+      lessThan(inspectorRect.top + 80),
+    );
 
     await tester.tap(find.byKey(const ValueKey('pause-task-active-1')));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('resume-task-active-1')), findsOneWidget);
     expect(client.pauseCalls, 1);
+
+    await tester.tap(find.byKey(const ValueKey('close-task-inspector')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('task-inspector')), findsNothing);
+    expect(find.byKey(const ValueKey('task-detail-active-1')), findsNothing);
+    expect(
+      tester.getSize(find.byKey(const ValueKey('task-list'))).width,
+      fullListWidth,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('task context menu exposes state-aware actions', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1280, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final client = _TaskListEngineClient([
+      _task('active-1', DownloadTaskState.downloading),
+    ]);
+    addTearDown(client.close);
+    await _registerOnlineEngine(client);
+
+    await tester.pumpWidget(const DownpeedApp());
+    await tester.pumpAndSettle();
+    final row = find.byKey(const ValueKey('task-row-active-1'));
+
+    await tester.tap(
+      row,
+      buttons: kSecondaryMouseButton,
+      kind: PointerDeviceKind.mouse,
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('task-inspector')), findsNothing);
+    expect(
+      find.byKey(const ValueKey('context-details-active-1')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('context-pause-active-1')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('context-cancel-active-1')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('context-resume-active-1')), findsNothing);
+    expect(find.byKey(const ValueKey('context-delete-active-1')), findsNothing);
+
+    await tester.tap(find.byKey(const ValueKey('context-pause-active-1')));
+    await tester.pumpAndSettle();
+    expect(client.pauseCalls, 1);
+
+    await tester.tap(
+      row,
+      buttons: kSecondaryMouseButton,
+      kind: PointerDeviceKind.mouse,
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('context-resume-active-1')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('context-pause-active-1')), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('context-details-active-1')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('task-inspector')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('retryable failed task exposes retry in every task surface', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1280, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final client = _TaskListEngineClient([
+      _task('failed-row', DownloadTaskState.failed),
+      _task('failed-1', DownloadTaskState.failed),
+    ]);
+    addTearDown(client.close);
+    await _registerOnlineEngine(client);
+
+    await tester.pumpWidget(const DownpeedApp());
+    await tester.pumpAndSettle();
+    final row = find.byKey(const ValueKey('task-row-failed-1'));
+
+    await tester.tap(find.byKey(const ValueKey('retry-task-failed-row')));
+    await tester.pumpAndSettle();
+    expect(client.retryCalls, 1);
+    expect(find.byKey(const ValueKey('pause-task-failed-row')), findsOneWidget);
+    expect(find.byKey(const ValueKey('retry-task-failed-1')), findsOneWidget);
+    await tester.tap(
+      row,
+      buttons: kSecondaryMouseButton,
+      kind: PointerDeviceKind.mouse,
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('context-retry-failed-1')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('context-details-failed-1')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('detail-retry-failed-1')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('detail-retry-failed-1')));
+    await tester.pumpAndSettle();
+
+    expect(client.retryCalls, 2);
+    expect(find.byKey(const ValueKey('detail-pause-failed-1')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('completed task context menu opens file actions and delete', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1280, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final client = _TaskListEngineClient([
+      _task('completed-1', DownloadTaskState.completed),
+    ]);
+    addTearDown(client.close);
+    final platform = _WidgetDesktopActions();
+    await _registerOnlineEngine(client, desktopPlatform: platform);
+
+    await tester.pumpWidget(const DownpeedApp());
+    await tester.pumpAndSettle();
+    final row = find.byKey(const ValueKey('task-row-completed-1'));
+
+    await tester.tap(
+      row,
+      buttons: kSecondaryMouseButton,
+      kind: PointerDeviceKind.mouse,
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('context-open-file-completed-1')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('context-reveal-file-completed-1')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('context-delete-completed-1')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('context-cancel-completed-1')),
+      findsNothing,
+    );
+
+    await tester.tap(
+      find.byKey(const ValueKey('context-reveal-file-completed-1')),
+    );
+    await tester.pumpAndSettle();
+    expect(platform.revealedPaths, <String>['/tmp/downloads/archive.zip']);
+
+    await tester.tap(
+      row,
+      buttons: kSecondaryMouseButton,
+      kind: PointerDeviceKind.mouse,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('context-delete-completed-1')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('delete-task-dialog')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('cancel-delete-task')));
+    await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
   });
 
@@ -481,6 +674,8 @@ void main() {
       find.text('远端文件已更新。为避免拼接新旧内容，Downpeed 已停止续传，请重新创建任务。'),
       findsOneWidget,
     );
+    expect(find.byKey(const ValueKey('retry-task-changed-1')), findsNothing);
+    expect(find.byKey(const ValueKey('detail-retry-changed-1')), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -732,6 +927,7 @@ class _TaskListEngineClient extends StubEngineClient {
   final _events = StreamController<DownloadTaskEvent>.broadcast();
   int pauseCalls = 0;
   int resumeCalls = 0;
+  int retryCalls = 0;
   int batchCalls = 0;
   int resolveCalls = 0;
   int createCalls = 0;
@@ -797,6 +993,12 @@ class _TaskListEngineClient extends StubEngineClient {
   @override
   Future<DownloadTask> resumeTask(String id) async {
     resumeCalls++;
+    return _task(id, DownloadTaskState.downloading);
+  }
+
+  @override
+  Future<DownloadTask> retryTask(String id) async {
+    retryCalls++;
     return _task(id, DownloadTaskState.downloading);
   }
 

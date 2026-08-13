@@ -29,24 +29,33 @@ void main() {
     expect(service.tasks.single.downloaded, 512);
   });
 
-  test('pause and resume actions apply only engine-returned state', () async {
-    final client = _TaskEngineClient([_task(DownloadTaskState.downloading)]);
-    addTearDown(client.close);
-    final service = TaskService(
-      client: client,
-      desktopActions: _desktopActions(),
-    );
-    addTearDown(service.onClose);
-    await service.start();
+  test(
+    'pause, resume and retry actions apply only engine-returned state',
+    () async {
+      final client = _TaskEngineClient([_task(DownloadTaskState.downloading)]);
+      addTearDown(client.close);
+      final service = TaskService(
+        client: client,
+        desktopActions: _desktopActions(),
+      );
+      addTearDown(service.onClose);
+      await service.start();
 
-    await service.pause('task-1');
-    expect(service.tasks.single.state, DownloadTaskState.paused);
-    expect(client.pauseCalls, 1);
+      await service.pause('task-1');
+      expect(service.tasks.single.state, DownloadTaskState.paused);
+      expect(client.pauseCalls, 1);
 
-    await service.resume('task-1');
-    expect(service.tasks.single.state, DownloadTaskState.downloading);
-    expect(client.resumeCalls, 1);
-  });
+      await service.resume('task-1');
+      expect(service.tasks.single.state, DownloadTaskState.downloading);
+      expect(client.resumeCalls, 1);
+
+      client.initialTasks[0] = _task(DownloadTaskState.failed);
+      await service.refresh();
+      await service.retry('task-1');
+      expect(service.tasks.single.state, DownloadTaskState.downloading);
+      expect(client.retryCalls, 1);
+    },
+  );
 
   test(
     'batch actions reconcile successes and preserve item failures',
@@ -184,6 +193,7 @@ class _TaskEngineClient extends StubEngineClient {
   final _events = StreamController<DownloadTaskEvent>.broadcast();
   int pauseCalls = 0;
   int resumeCalls = 0;
+  int retryCalls = 0;
   int batchCalls = 0;
   int deleteCalls = 0;
   bool? lastDeleteFile;
@@ -201,6 +211,12 @@ class _TaskEngineClient extends StubEngineClient {
   Future<DownloadTask> resumeTask(String id) async {
     resumeCalls++;
     return _task(DownloadTaskState.downloading, downloaded: 512);
+  }
+
+  @override
+  Future<DownloadTask> retryTask(String id) async {
+    retryCalls++;
+    return _task(DownloadTaskState.downloading);
   }
 
   @override

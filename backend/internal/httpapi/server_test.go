@@ -798,6 +798,48 @@ func TestPauseAndResumeTaskUseStableRESTContract(t *testing.T) {
 	}
 }
 
+func TestRetryTaskUsesStableRESTContract(t *testing.T) {
+	server := New(time.Now(), WithTaskService(&stubTaskService{
+		retry: func(_ context.Context, id string) (download.Task, error) {
+			if id != "task-1" {
+				t.Fatalf("retry id = %q", id)
+			}
+			return download.Task{ID: id, State: download.TaskStateDownloading}, nil
+		},
+	}))
+	defer server.Close()
+	response := httptest.NewRecorder()
+	server.Handler().ServeHTTP(
+		response,
+		httptest.NewRequest(http.MethodPost, "/api/v1/tasks/task-1/retry", nil),
+	)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
+	var envelope api.Envelope[download.Task]
+	if err := json.NewDecoder(response.Body).Decode(&envelope); err != nil {
+		t.Fatal(err)
+	}
+	if envelope.Data.ID != "task-1" || envelope.Data.State != download.TaskStateDownloading {
+		t.Fatalf("task = %#v", envelope.Data)
+	}
+}
+
+func TestRetryTaskMapsUnsafeRetryToStableConflict(t *testing.T) {
+	server := New(time.Now(), WithTaskService(&stubTaskService{
+		retry: func(context.Context, string) (download.Task, error) {
+			return download.Task{}, download.ErrTaskRetryNotAllowed
+		},
+	}))
+	defer server.Close()
+	response := httptest.NewRecorder()
+	server.Handler().ServeHTTP(
+		response,
+		httptest.NewRequest(http.MethodPost, "/api/v1/tasks/task-1/retry", nil),
+	)
+	assertAPIError(t, response, http.StatusConflict, "task_not_retryable", false)
+}
+
 func TestResumeTaskMapsUnsafeResumeToStableConflict(t *testing.T) {
 	server := New(time.Now(), WithTaskService(&stubTaskService{
 		resume: func(context.Context, string) (download.Task, error) {
@@ -1511,6 +1553,7 @@ type stubTaskService struct {
 	get         func(context.Context, string) (download.Task, error)
 	pause       func(context.Context, string) (download.Task, error)
 	resume      func(context.Context, string) (download.Task, error)
+	retry       func(context.Context, string) (download.Task, error)
 	cancel      func(context.Context, string) (download.Task, error)
 	delete      func(context.Context, string, bool) (download.DeleteTaskResult, error)
 	diagnostics func(context.Context, string) (download.BTDiagnostics, error)
@@ -1543,6 +1586,13 @@ func (service *stubTaskService) Resume(ctx context.Context, id string) (download
 		return download.Task{}, errors.New("unexpected Resume call")
 	}
 	return service.resume(ctx, id)
+}
+
+func (service *stubTaskService) Retry(ctx context.Context, id string) (download.Task, error) {
+	if service.retry == nil {
+		return download.Task{}, errors.New("unexpected Retry call")
+	}
+	return service.retry(ctx, id)
 }
 
 func (service *stubTaskService) Create(ctx context.Context, input download.CreateTaskRequest) (download.Task, error) {

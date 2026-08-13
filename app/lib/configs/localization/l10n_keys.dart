@@ -337,6 +337,7 @@ class L10nKeys {
   static const taskCanceling = 'task.canceling';
   static const taskPause = 'task.pause';
   static const taskResume = 'task.resume';
+  static const taskRetry = 'task.retry';
   static const taskOpenFile = 'task.openFile';
   static const taskRevealFile = 'task.revealFile';
   static const taskDetails = 'task.details';

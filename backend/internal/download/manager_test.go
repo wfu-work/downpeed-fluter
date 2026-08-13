@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -1052,6 +1053,68 @@ func TestManagerStopsAfterConfiguredRetryBudget(t *testing.T) {
 	failed := waitForTaskState(t, manager, task.ID, TaskStateFailed)
 	if attempts != 3 || failed.RetryCount != 2 || failed.NextRetryAt != nil || failed.Error == nil || !failed.Error.Retryable {
 		t.Fatalf("failed task = %#v, attempts = %d", failed, attempts)
+	}
+}
+
+func TestManagerRetriesFailedTaskOnDemand(t *testing.T) {
+	var attempts atomic.Int32
+	manager := NewManager(context.Background(), transferFunc(func(
+		context.Context,
+		TransferRequest,
+		func(TransferProgress),
+	) (TransferResult, error) {
+		if attempts.Add(1) == 1 {
+			return TransferResult{}, ErrRemoteTemporary
+		}
+		return TransferResult{FinalURL: "https://cdn.example.com/retry.bin", Size: 8}, nil
+	}), WithRetryPolicy(0, time.Millisecond))
+	defer manager.Close()
+	task, err := manager.Create(context.Background(), CreateTaskRequest{
+		URL: "https://example.com/retry.bin", FileName: "retry.bin", SaveDirectory: t.TempDir(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	failed := waitForTaskState(t, manager, task.ID, TaskStateFailed)
+	if failed.Error == nil || !failed.Error.Retryable {
+		t.Fatalf("failed task = %#v", failed)
+	}
+
+	retrying, err := manager.Retry(context.Background(), task.ID)
+	if err != nil {
+		t.Fatalf("Retry() error = %v", err)
+	}
+	if retrying.Error != nil || retrying.CompletedAt != nil || retrying.RetryCount != 0 ||
+		(retrying.State != TaskStateQueued && retrying.State != TaskStateDownloading) {
+		t.Fatalf("retrying task = %#v", retrying)
+	}
+	completed := waitForTaskState(t, manager, task.ID, TaskStateCompleted)
+	if attempts.Load() != 2 || completed.Downloaded != 8 || completed.Error != nil {
+		t.Fatalf("completed task = %#v, attempts = %d", completed, attempts.Load())
+	}
+}
+
+func TestManagerRejectsUnsafeFailedTaskRetry(t *testing.T) {
+	manager := NewManager(context.Background(), transferFunc(func(
+		context.Context,
+		TransferRequest,
+		func(TransferProgress),
+	) (TransferResult, error) {
+		return TransferResult{}, ErrRemoteChanged
+	}), WithRetryPolicy(0, time.Millisecond))
+	defer manager.Close()
+	task, err := manager.Create(context.Background(), CreateTaskRequest{
+		URL: "https://example.com/changed.bin", FileName: "changed.bin", SaveDirectory: t.TempDir(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	failed := waitForTaskState(t, manager, task.ID, TaskStateFailed)
+	if failed.Error == nil || failed.Error.Retryable {
+		t.Fatalf("failed task = %#v", failed)
+	}
+	if _, err = manager.Retry(context.Background(), task.ID); !errors.Is(err, ErrTaskRetryNotAllowed) {
+		t.Fatalf("Retry() error = %v", err)
 	}
 }
 

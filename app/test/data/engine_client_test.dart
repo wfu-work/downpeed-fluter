@@ -369,13 +369,16 @@ void main() {
     expect(event.task.downloaded, 512);
   });
 
-  test('uses the pause and resume task REST actions', () async {
+  test('uses the pause, resume and retry task REST actions', () async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(() => server.close(force: true));
     final paths = <String>[];
     server.listen((request) async {
       paths.add(request.uri.path);
-      expect(request.method, 'PUT');
+      expect(
+        request.method,
+        request.uri.path.endsWith('/retry') ? 'POST' : 'PUT',
+      );
       final state = request.uri.path.endsWith('/pause')
           ? 'paused'
           : 'downloading';
@@ -400,12 +403,15 @@ void main() {
 
     final paused = await client.pauseTask('task-sse');
     final resumed = await client.resumeTask('task-sse');
+    final retried = await client.retryTask('task-sse');
 
     expect(paused.state, DownloadTaskState.paused);
     expect(resumed.state, DownloadTaskState.downloading);
+    expect(retried.state, DownloadTaskState.downloading);
     expect(paths, <String>[
       '/api/v1/tasks/task-sse/pause',
       '/api/v1/tasks/task-sse/resume',
+      '/api/v1/tasks/task-sse/retry',
     ]);
   });
 

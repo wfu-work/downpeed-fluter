@@ -86,6 +86,9 @@ class StubEngineClient implements EngineClient {
   Future<DownloadTask> resumeTask(String id) => throw UnimplementedError();
 
   @override
+  Future<DownloadTask> retryTask(String id) => throw UnimplementedError();
+
+  @override
   Future<DownloadResolution> resolveDownload(String url) =>
       throw UnimplementedError();
 

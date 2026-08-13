@@ -72,6 +72,8 @@ class TaskService extends GetxService {
 
   Future<void> resume(String id) => _perform(id, client.resumeTask);
 
+  Future<void> retry(String id) => _perform(id, client.retryTask);
+
   Future<void> cancel(String id) => _perform(id, client.cancelTask);
 
   Future<DeleteTaskResult?> deleteTask(
@@ -216,7 +218,7 @@ class TaskService extends GetxService {
 
   void _replaceTasks(Iterable<DownloadTask> values) {
     final sorted = values.toList()..sort(_newestFirst);
-    tasks.assignAll(sorted);
+    tasks.value = sorted;
   }
 
   void _upsert(DownloadTask value) {

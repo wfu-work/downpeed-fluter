@@ -183,6 +183,8 @@ class DownloadTask {
       state == DownloadTaskState.downloading ||
       state == DownloadTaskState.retrying;
   bool get canResume => state == DownloadTaskState.paused;
+  bool get canRetry =>
+      state == DownloadTaskState.failed && (error?.retryable ?? false);
   bool get canCancel => !isTerminal;
 }
 

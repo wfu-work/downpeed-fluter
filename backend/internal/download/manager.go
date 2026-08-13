@@ -487,6 +487,126 @@ func (m *Manager) Resume(_ context.Context, id string) (Task, error) {
 	return cloneTask(task), nil
 }
 
+func (m *Manager) Retry(ctx context.Context, id string) (Task, error) {
+	m.operationMu.Lock()
+	defer m.operationMu.Unlock()
+	if m.closed {
+		return Task{}, ErrTaskInvalidState
+	}
+
+	m.mu.RLock()
+	task, ok := m.tasks[id]
+	request, hasRequest := m.requests[id]
+	btRequest, hasBTRequest := m.btRequests[id]
+	m.mu.RUnlock()
+	if !ok {
+		return Task{}, ErrTaskNotFound
+	}
+	if task.State != TaskStateFailed {
+		return Task{}, ErrTaskInvalidState
+	}
+	if task.Error == nil || !task.Error.Retryable {
+		return Task{}, ErrTaskRetryNotAllowed
+	}
+	if _, err := os.Lstat(task.FilePath); err == nil {
+		return Task{}, ErrDestinationExists
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return Task{}, fmt.Errorf("%w: destination cannot be checked", ErrInvalidDestination)
+	}
+
+	downloaded := int64(0)
+	if task.Protocol == ProtocolBT {
+		if !hasBTRequest || m.btTransfer == nil {
+			return Task{}, ErrTaskInvalidState
+		}
+		if err := m.btTransfer.Cleanup(ctx, btRequest); err != nil {
+			return Task{}, err
+		}
+	} else {
+		if !hasRequest {
+			return Task{}, ErrTaskInvalidState
+		}
+		var err error
+		request, downloaded, err = m.prepareHTTPRetry(request, task.Total)
+		if err != nil {
+			return Task{}, err
+		}
+	}
+
+	m.mu.Lock()
+	task = m.tasks[id]
+	if task.State != TaskStateFailed || task.Error == nil || !task.Error.Retryable {
+		m.mu.Unlock()
+		return Task{}, ErrTaskInvalidState
+	}
+	previousTask := cloneTask(task)
+	previousRequest := m.requests[id]
+	task.State = TaskStateQueued
+	task.Downloaded = downloaded
+	task.SpeedBPS = 0
+	task.Connections = 0
+	task.Error = nil
+	task.RetryCount = 0
+	task.NextRetryAt = nil
+	task.CompletedAt = nil
+	task.UpdatedAt = time.Now().UTC()
+	m.tasks[id] = task
+	if task.Protocol == ProtocolBT {
+		m.btDiagnostics[id] = newBTDiagnostics(task, btRequest)
+	} else {
+		request.Offset = downloaded
+		request.ExpectedSize = task.Total
+		request.Limiter = m.limiter
+		m.requests[id] = request
+	}
+	if err := m.persistTaskLocked(task); err != nil {
+		m.tasks[id] = previousTask
+		if task.Protocol != ProtocolBT {
+			m.requests[id] = previousRequest
+		}
+		m.markBTDiagnosticsStoppedLocked(previousTask)
+		m.mu.Unlock()
+		return Task{}, err
+	}
+	m.enqueueLocked(id)
+	updates := m.fillAvailableSlotsLocked()
+	task = m.tasks[id]
+	if !containsTask(updates, id) {
+		updates = append(updates, cloneTask(task))
+	}
+	m.mu.Unlock()
+	for _, update := range updates {
+		m.publish(update)
+	}
+	return cloneTask(task), nil
+}
+
+func (m *Manager) prepareHTTPRetry(request TransferRequest, total int64) (TransferRequest, int64, error) {
+	if request.Checkpoint != nil || request.AllowSegments {
+		if err := os.Remove(request.WorkPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return TransferRequest{}, 0, fmt.Errorf("%w: partial file cannot be replaced", ErrInvalidDestination)
+		}
+		request.Checkpoint = nil
+		return request, 0, nil
+	}
+
+	downloaded, err := partialFileSize(request.WorkPath)
+	if err != nil {
+		return TransferRequest{}, 0, err
+	}
+	if total > 0 && downloaded > total {
+		return TransferRequest{}, 0, ErrPartialFileChanged
+	}
+	if downloaded > 0 && request.Validator.IfRangeValue() == "" {
+		if err = os.Remove(request.WorkPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return TransferRequest{}, 0, fmt.Errorf("%w: partial file cannot be replaced", ErrInvalidDestination)
+		}
+		downloaded = 0
+	}
+	request.Checkpoint = nil
+	return request, downloaded, nil
+}
+
 func (m *Manager) Cancel(_ context.Context, id string) (Task, error) {
 	m.operationMu.Lock()
 	defer m.operationMu.Unlock()

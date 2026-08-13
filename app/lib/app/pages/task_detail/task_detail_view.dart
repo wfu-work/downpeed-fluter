@@ -45,6 +45,7 @@ class TaskDetailView extends GetView<TaskDetailController> {
                   onToggleDiagnostics: controller.toggleDiagnostics,
                   onPause: controller.pause,
                   onResume: controller.resume,
+                  onRetry: controller.retry,
                   onCancel: controller.cancel,
                   onDelete: controller.delete,
                   onOpenFile: controller.openFile,
@@ -105,8 +106,10 @@ class TaskDetailPanel extends StatelessWidget {
     this.diagnosticsService,
     this.diagnosticsExpanded = false,
     this.onToggleDiagnostics,
+    this.onClose,
     required this.onPause,
     required this.onResume,
+    required this.onRetry,
     required this.onCancel,
     required this.onDelete,
     required this.onOpenFile,
@@ -122,8 +125,10 @@ class TaskDetailPanel extends StatelessWidget {
   final BTDiagnosticsService? diagnosticsService;
   final bool diagnosticsExpanded;
   final VoidCallback? onToggleDiagnostics;
+  final VoidCallback? onClose;
   final VoidCallback onPause;
   final VoidCallback onResume;
+  final VoidCallback onRetry;
   final VoidCallback onCancel;
   final VoidCallback onDelete;
   final VoidCallback onOpenFile;
@@ -133,9 +138,17 @@ class TaskDetailPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.downpeedColors;
     final statusColor = taskStateColor(context, task.state);
+    final progressPercent = task.total > 0
+        ? '${(task.progress * 100).round()}%'
+        : '—';
+    final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
     return SingleChildScrollView(
       key: ValueKey('task-detail-${task.id}'),
-      padding: const EdgeInsets.all(DownpeedThemeTokens.pagePadding),
+      padding: EdgeInsets.all(
+        textScale >= 1.6
+            ? DownpeedThemeTokens.compactPagePadding
+            : DownpeedThemeTokens.pagePadding,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -143,11 +156,11 @@ class TaskDetailPanel extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
-                width: 34,
-                height: 34,
+                width: 32,
+                height: 32,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.1),
+                  color: statusColor.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(
                     DownpeedThemeTokens.radius,
                   ),
@@ -166,48 +179,103 @@ class TaskDetailPanel extends StatelessWidget {
                     SelectableText(
                       task.fileName,
                       key: const ValueKey('task-detail-file-name'),
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w600,
-                        height: 1.2,
+                        height: 1.25,
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      taskStateLabel(task.state),
-                      style: Theme.of(
-                        context,
-                      ).textTheme.labelMedium?.copyWith(color: statusColor),
+                    const SizedBox(height: 5),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 6,
+                          height: 6,
+                          decoration: BoxDecoration(
+                            color: statusColor,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 7),
+                        Flexible(
+                          child: Text(
+                            taskStateLabel(task.state),
+                            style: Theme.of(context).textTheme.labelMedium
+                                ?.copyWith(color: statusColor),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
+              if (onClose != null) ...[
+                const SizedBox(width: 8),
+                IconButton(
+                  key: const ValueKey('close-task-inspector'),
+                  tooltip: MaterialLocalizations.of(context).closeButtonTooltip,
+                  onPressed: onClose,
+                  icon: const Icon(DownpeedIcons.close),
+                ),
+              ],
             ],
           ),
-          const SizedBox(height: 24),
-          TransferTrack(progress: task.progress, color: statusColor),
-          const SizedBox(height: 10),
+          const SizedBox(height: 20),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Expanded(
-                child: Text(
-                  taskProgressText(task),
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      L10nKeys.taskProgress.tr,
+                      style: Theme.of(
+                        context,
+                      ).textTheme.labelSmall?.copyWith(color: colors.textMuted),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      taskProgressText(task),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              if (task.state == DownloadTaskState.downloading)
-                Text(
-                  '${formatBytes(task.speedBps)}/s',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: colors.accent,
-                    fontWeight: FontWeight.w500,
-                    fontFeatures: const [FontFeature.tabularFigures()],
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    progressPercent,
+                    key: ValueKey('task-detail-progress-${task.id}'),
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
                   ),
-                ),
+                  if (task.state == DownloadTaskState.downloading) ...[
+                    const SizedBox(height: 3),
+                    Text(
+                      '${formatBytes(task.speedBps)}/s',
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: colors.textSecondary,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ],
           ),
-          const SizedBox(height: 22),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 10,
+            child: TransferTrack(progress: task.progress, color: statusColor),
+          ),
+          const SizedBox(height: 18),
           _TaskActions(
             task: task,
             acting: acting,
@@ -215,56 +283,32 @@ class TaskDetailPanel extends StatelessWidget {
             fileActionActing: fileActionActing,
             onPause: onPause,
             onResume: onResume,
+            onRetry: onRetry,
             onCancel: onCancel,
-            onDelete: onDelete,
             onOpenFile: onOpenFile,
             onRevealFile: onRevealFile,
           ),
           if (fileActionError != null) ...[
-            const SizedBox(height: 12),
-            Container(
+            const SizedBox(height: 16),
+            _TaskErrorNotice(
               key: ValueKey('file-action-error-${task.id}'),
-              padding: const EdgeInsets.all(12),
-              color: colors.danger.withValues(alpha: 0.07),
-              child: Text(
-                fileActionError!,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: colors.danger,
-                  height: 1.4,
-                ),
-              ),
+              message: fileActionError!,
             ),
           ],
           if (actionError != null) ...[
-            const SizedBox(height: 12),
-            Container(
+            const SizedBox(height: 16),
+            _TaskErrorNotice(
               key: ValueKey('task-action-error-${task.id}'),
-              padding: const EdgeInsets.all(12),
-              color: colors.danger.withValues(alpha: 0.07),
-              child: Text(
-                actionError!,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: colors.danger,
-                  height: 1.4,
-                ),
-              ),
+              message: actionError!,
             ),
           ],
           if (task.error != null) ...[
-            const SizedBox(height: 22),
-            Container(
-              padding: const EdgeInsets.all(14),
-              color: colors.danger.withValues(alpha: 0.07),
-              child: Text(
-                taskErrorMessage(task),
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: colors.danger,
-                  height: 1.45,
-                ),
-              ),
-            ),
+            const SizedBox(height: 16),
+            _TaskErrorNotice(message: taskErrorMessage(task)),
           ],
-          const SizedBox(height: 28),
+          const SizedBox(height: 24),
+          _DetailSectionLabel(label: L10nKeys.taskDetails.tr),
+          const SizedBox(height: 6),
           _DetailRow(
             label: L10nKeys.taskDestination.tr,
             value: task.filePath,
@@ -301,6 +345,78 @@ class TaskDetailPanel extends StatelessWidget {
             ).format(task.createdAt.toLocal()),
             icon: DownpeedIcons.clock,
             last: true,
+          ),
+          if (task.isTerminal) ...[
+            const SizedBox(height: 22),
+            Divider(height: 1, color: colors.border),
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                key: ValueKey('detail-delete-${task.id}'),
+                onPressed: acting ? null : onDelete,
+                icon: Icon(
+                  DownpeedIcons.delete,
+                  color: acting ? null : colors.danger,
+                ),
+                label: Text(
+                  L10nKeys.taskDelete.tr,
+                  style: TextStyle(color: acting ? null : colors.danger),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _DetailSectionLabel extends StatelessWidget {
+  const _DetailSectionLabel({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      label,
+      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+        color: context.downpeedColors.textMuted,
+        fontWeight: FontWeight.w500,
+      ),
+    );
+  }
+}
+
+class _TaskErrorNotice extends StatelessWidget {
+  const _TaskErrorNotice({super.key, required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.downpeedColors;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colors.danger.withValues(alpha: 0.06),
+        border: Border.all(color: colors.danger.withValues(alpha: 0.18)),
+        borderRadius: BorderRadius.circular(DownpeedThemeTokens.radius),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(DownpeedIcons.issues, size: 15, color: colors.danger),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Text(
+              message,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: colors.danger,
+                height: 1.4,
+              ),
+            ),
           ),
         ],
       ),
@@ -651,8 +767,8 @@ class _TaskActions extends StatelessWidget {
     required this.fileActionActing,
     required this.onPause,
     required this.onResume,
+    required this.onRetry,
     required this.onCancel,
-    required this.onDelete,
     required this.onOpenFile,
     required this.onRevealFile,
   });
@@ -663,8 +779,8 @@ class _TaskActions extends StatelessWidget {
   final bool fileActionActing;
   final VoidCallback onPause;
   final VoidCallback onResume;
+  final VoidCallback onRetry;
   final VoidCallback onCancel;
-  final VoidCallback onDelete;
   final VoidCallback onOpenFile;
   final VoidCallback onRevealFile;
 
@@ -703,27 +819,19 @@ class _TaskActions extends StatelessWidget {
             icon: const Icon(DownpeedIcons.resume),
             label: Text(L10nKeys.taskResume.tr),
           ),
+        if (task.canRetry)
+          FilledButton.icon(
+            key: ValueKey('detail-retry-${task.id}'),
+            onPressed: acting ? null : onRetry,
+            icon: const Icon(DownpeedIcons.retry),
+            label: Text(L10nKeys.taskRetry.tr),
+          ),
         if (task.canCancel)
           OutlinedButton.icon(
             key: ValueKey('detail-cancel-${task.id}'),
             onPressed: acting ? null : onCancel,
             icon: const Icon(DownpeedIcons.stop),
             label: Text(L10nKeys.taskCancel.tr),
-          ),
-        if (task.isTerminal)
-          TextButton.icon(
-            key: ValueKey('detail-delete-${task.id}'),
-            onPressed: acting ? null : onDelete,
-            icon: Icon(
-              DownpeedIcons.delete,
-              color: acting ? null : context.downpeedColors.danger,
-            ),
-            label: Text(
-              L10nKeys.taskDelete.tr,
-              style: TextStyle(
-                color: acting ? null : context.downpeedColors.danger,
-              ),
-            ),
           ),
       ],
     );

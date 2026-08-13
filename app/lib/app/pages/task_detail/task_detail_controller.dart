@@ -35,6 +35,8 @@ class TaskDetailController extends GetxController {
 
   Future<void> resume() => taskService.resume(taskId);
 
+  Future<void> retry() => taskService.retry(taskId);
+
   Future<void> cancel() => taskService.cancel(taskId);
 
   Future<void> toggleDiagnostics() async {

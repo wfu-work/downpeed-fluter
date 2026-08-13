@@ -9,6 +9,7 @@ import (
 var (
 	ErrTaskNotFound        = errors.New("download task not found")
 	ErrTaskInvalidState    = errors.New("download task state does not allow this operation")
+	ErrTaskRetryNotAllowed = errors.New("download task cannot be retried safely")
 	ErrInvalidDestination  = errors.New("invalid download destination")
 	ErrDestinationExists   = errors.New("download destination already exists")
 	ErrRemoteRejected      = errors.New("remote server rejected download")
@@ -148,6 +149,7 @@ type TaskService interface {
 	Get(context.Context, string) (Task, error)
 	Pause(context.Context, string) (Task, error)
 	Resume(context.Context, string) (Task, error)
+	Retry(context.Context, string) (Task, error)
 	Cancel(context.Context, string) (Task, error)
 	Delete(context.Context, string, bool) (DeleteTaskResult, error)
 	Subscribe(context.Context) <-chan TaskEvent

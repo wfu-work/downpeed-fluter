@@ -305,6 +305,18 @@ func (s *Server) resumeTask(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (s *Server) retryTask(w http.ResponseWriter, r *http.Request) {
+	task, err := s.tasks.Retry(r.Context(), r.PathValue("id"))
+	if err != nil {
+		writeTaskServiceError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, api.Envelope[download.Task]{
+		Data:      task,
+		RequestID: requestIDFrom(r),
+	})
+}
+
 func (s *Server) events(w http.ResponseWriter, r *http.Request) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
@@ -381,6 +393,8 @@ func taskServiceAPIError(err error) (int, *api.Error) {
 		return http.StatusNotFound, &api.Error{Code: "task_not_found", Message: "The download task does not exist.", Retryable: false}
 	case errors.Is(err, download.ErrTaskInvalidState):
 		return http.StatusConflict, &api.Error{Code: "invalid_task_state", Message: "The task state does not allow this operation.", Retryable: false}
+	case errors.Is(err, download.ErrTaskRetryNotAllowed):
+		return http.StatusConflict, &api.Error{Code: "task_not_retryable", Message: "This failed task cannot be retried safely. Create a new task instead.", Retryable: false}
 	case errors.Is(err, download.ErrResumeNotSupported):
 		return http.StatusConflict, &api.Error{Code: "resume_not_supported", Message: "The task cannot be resumed safely because the remote resource has no usable validator.", Retryable: false}
 	case errors.Is(err, download.ErrPartialFileChanged):

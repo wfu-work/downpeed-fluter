@@ -156,6 +156,14 @@ class TaskListController extends GetxController {
     }
   }
 
+  void closeInspector() {
+    final taskId = selectedTaskId.value;
+    if (taskId == null) return;
+    selectedTaskId.value = null;
+    diagnosticsExpandedTaskIds.remove(taskId);
+    btDiagnostics.setExpanded(taskId, false);
+  }
+
   Future<void> toggleDiagnostics(String taskId) async {
     final expanded = !diagnosticsExpandedTaskIds.remove(taskId);
     if (expanded) diagnosticsExpandedTaskIds.add(taskId);
@@ -211,6 +219,8 @@ class TaskListController extends GetxController {
   Future<void> pauseTask(DownloadTask task) => taskService.pause(task.id);
 
   Future<void> resumeTask(DownloadTask task) => taskService.resume(task.id);
+
+  Future<void> retryTask(DownloadTask task) => taskService.retry(task.id);
 
   Future<void> cancelTask(DownloadTask task) => taskService.cancel(task.id);
 

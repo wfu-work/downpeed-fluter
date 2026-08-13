@@ -41,23 +41,37 @@ class _TransferTrackPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     const gap = 4.0;
-    const segments = 11;
     const trackHeight = 4.0;
+    final segments = (size.width / 40).round().clamp(6, 16);
     final segmentWidth = (size.width - gap * (segments - 1)) / segments;
-    final completed = progress * segments;
+    final completedWidth = progress * size.width;
     for (var index = 0; index < segments; index++) {
+      final left = index * (segmentWidth + gap);
       final rect = RRect.fromRectAndRadius(
         Rect.fromLTWH(
-          index * (segmentWidth + gap),
+          left,
           (size.height - trackHeight) / 2,
           segmentWidth,
           trackHeight,
         ),
         const Radius.circular(2),
       );
-      final paint = Paint()
-        ..color = index < completed ? color ?? colors.accent : colors.track;
-      canvas.drawRRect(rect, paint);
+      canvas.drawRRect(rect, Paint()..color = colors.track);
+
+      final filledWidth = (completedWidth - left).clamp(0.0, segmentWidth);
+      if (filledWidth <= 0) continue;
+      canvas.save();
+      canvas.clipRRect(rect);
+      canvas.drawRect(
+        Rect.fromLTWH(
+          left,
+          (size.height - trackHeight) / 2,
+          filledWidth,
+          trackHeight,
+        ),
+        Paint()..color = color ?? colors.accent,
+      );
+      canvas.restore();
     }
   }
 
