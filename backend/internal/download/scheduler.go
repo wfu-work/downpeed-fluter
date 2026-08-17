@@ -125,11 +125,18 @@ func (m *Manager) fillAvailableSlotsLocked() []Task {
 		return nil
 	}
 	updates := make([]Task, 0)
-	for len(m.runs) < m.maxConcurrentTasks && len(m.queue) > 0 {
+	now := time.Now().UTC()
+	queuedCount := len(m.queue)
+	for len(m.runs) < m.maxConcurrentTasks && len(m.queue) > 0 && queuedCount > 0 {
 		id := m.queue[0]
 		m.queue = m.queue[1:]
+		queuedCount--
 		task, exists := m.tasks[id]
 		if !exists || task.State != TaskStateQueued {
+			continue
+		}
+		if task.ScheduledAt != nil && task.ScheduledAt.After(now) {
+			m.queue = append(m.queue, id)
 			continue
 		}
 		request, exists := m.requests[id]
@@ -155,7 +162,57 @@ func (m *Manager) fillAvailableSlotsLocked() []Task {
 		}
 		updates = append(updates, cloneTask(task))
 	}
+	m.refreshScheduleTimerLocked()
 	return updates
+}
+
+// refreshScheduleTimerLocked keeps one wake-up for the earliest future task.
+// The callback is generation-checked so a stopped timer racing with a newly
+// scheduled one cannot consume the new timer's queue work.
+func (m *Manager) refreshScheduleTimerLocked() {
+	m.scheduleGeneration++
+	generation := m.scheduleGeneration
+	if m.scheduleTimer != nil {
+		m.scheduleTimer.Stop()
+		m.scheduleTimer = nil
+		m.scheduleAt = time.Time{}
+	}
+	if m.closed {
+		return
+	}
+	now := time.Now().UTC()
+	var earliest time.Time
+	for _, id := range m.queue {
+		task, ok := m.tasks[id]
+		if !ok || task.State != TaskStateQueued || task.ScheduledAt == nil || !task.ScheduledAt.After(now) {
+			continue
+		}
+		if earliest.IsZero() || task.ScheduledAt.Before(earliest) {
+			earliest = *task.ScheduledAt
+		}
+	}
+	if earliest.IsZero() {
+		return
+	}
+	m.scheduleAt = earliest
+	m.scheduleTimer = time.AfterFunc(time.Until(earliest), func() {
+		m.wakeScheduledTasks(generation)
+	})
+}
+
+func (m *Manager) wakeScheduledTasks(generation uint64) {
+	m.mu.Lock()
+	if m.closed || generation != m.scheduleGeneration {
+		m.mu.Unlock()
+		return
+	}
+	m.scheduleTimer = nil
+	m.scheduleAt = time.Time{}
+	updates := m.fillAvailableSlotsLocked()
+	m.mu.Unlock()
+	for _, update := range updates {
+		m.publish(update)
+	}
 }
 
 func (m *Manager) scheduleRetryLocked(id string, task Task, transferErr error) (Task, bool) {

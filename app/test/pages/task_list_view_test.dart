@@ -260,7 +260,7 @@ void main() {
 
     expect(
       tester.getSize(find.byKey(const ValueKey('task-search-field'))),
-      const Size(280, 40),
+      const Size(240, DownpeedThemeTokens.controlHeight),
     );
     expect(find.byKey(const ValueKey('task-row-active-1')), findsOneWidget);
     expect(find.byKey(const ValueKey('task-speed-active-1')), findsOneWidget);
@@ -269,10 +269,7 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('50%'), findsOneWidget);
-    expect(
-      tester.getTopLeft(find.byKey(const ValueKey('select-all-visible'))).dx,
-      tester.getTopLeft(find.byKey(const ValueKey('select-task-active-1'))).dx,
-    );
+    expect(find.byKey(const ValueKey('select-all-visible')), findsNothing);
     expect(
       tester.getSize(find.byKey(const ValueKey('task-row-active-1'))).height,
       inInclusiveRange(56, 76),
@@ -313,6 +310,20 @@ void main() {
       tester.getTopLeft(find.byKey(const ValueKey('task-detail-file-name'))).dy,
       lessThan(inspectorRect.top + 80),
     );
+    final narrowedTransferRect = tester.getRect(
+      find.byKey(const ValueKey('task-transfer-active-1')),
+    );
+    final narrowedTrackRect = tester.getRect(
+      find.byKey(const ValueKey('task-track-active-1')),
+    );
+    expect(narrowedTrackRect.width, greaterThan(0));
+    expect(
+      tester
+          .getRect(find.byKey(const ValueKey('task-progress-active-1')))
+          .right,
+      lessThanOrEqualTo(narrowedTransferRect.right),
+    );
+    expect(tester.takeException(), isNull);
 
     await tester.tap(find.byKey(const ValueKey('pause-task-active-1')));
     await tester.pumpAndSettle();
@@ -604,6 +615,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('select-task-active-1')));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('batch-command-strip')), findsOneWidget);
+    expect(find.byKey(const ValueKey('select-all-visible')), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('batch-pause-button')));
     await tester.pumpAndSettle();
@@ -981,6 +993,7 @@ class _TaskListEngineClient extends StubEngineClient {
     bool acceptRanges = false,
     String etag = '',
     String lastModified = '',
+    DateTime? scheduledAt,
   }) async {
     createCalls++;
     return _task('modal-1', DownloadTaskState.downloading, fileName: fileName);

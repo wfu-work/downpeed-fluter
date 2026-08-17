@@ -50,7 +50,13 @@ func (m *Manager) restore(ctx context.Context) error {
 		}); err != nil {
 			return err
 		}
+		if task.State == TaskStateQueued && task.ScheduledAt != nil && task.ScheduledAt.After(time.Now().UTC()) {
+			m.enqueueLocked(task.ID)
+		}
 	}
+	m.mu.Lock()
+	m.refreshScheduleTimerLocked()
+	m.mu.Unlock()
 	return nil
 }
 
@@ -79,8 +85,12 @@ func reconcileStoredTask(record StoredTask) (Task, TransferRequest, error) {
 	}
 
 	switch task.State {
-	case TaskStateDownloading, TaskStateQueued, TaskStateRetrying, TaskStatePaused:
+	case TaskStateDownloading, TaskStateRetrying, TaskStatePaused:
 		reconcileInterruptedTask(&task, &request)
+	case TaskStateQueued:
+		if !reconcileScheduledTask(&task, &request) {
+			reconcileInterruptedTask(&task, &request)
+		}
 	case TaskStateCompleted:
 		task.SpeedBPS = 0
 		task.NextRetryAt = nil
@@ -115,10 +125,36 @@ func validateStoredTask(task Task) error {
 	if !filepath.IsAbs(directory) || task.FilePath != filepath.Join(directory, task.FileName) {
 		return fmt.Errorf("%w: stored task destination is invalid", ErrTaskPersistence)
 	}
-	if task.Downloaded < 0 || task.Total < -1 || task.SpeedBPS < 0 || task.RetryCount < 0 || task.CreatedAt.IsZero() || task.UpdatedAt.IsZero() {
+	if task.Downloaded < 0 || task.Total < -1 || task.SpeedBPS < 0 || task.RetryCount < 0 || task.CreatedAt.IsZero() || task.UpdatedAt.IsZero() || (task.ScheduledAt != nil && task.ScheduledAt.IsZero()) {
 		return fmt.Errorf("%w: stored task progress is invalid", ErrTaskPersistence)
 	}
 	return nil
+}
+
+// reconcileScheduledTask returns true only when the queued task has not
+// started and can safely remain scheduled across an engine restart.
+func reconcileScheduledTask(task *Task, request *TransferRequest) bool {
+	if task.ScheduledAt == nil || !task.ScheduledAt.After(time.Now().UTC()) || task.Downloaded != 0 || request.Checkpoint != nil {
+		return false
+	}
+	if _, err := os.Lstat(task.FilePath); err == nil {
+		markRecoveredTaskFailed(task, "destination_exists", "A file already exists at the selected destination.")
+		return true
+	} else if !errors.Is(err, os.ErrNotExist) {
+		markRecoveredTaskFailed(task, "invalid_destination", "The selected download destination is unavailable.")
+		return true
+	}
+	if _, err := os.Lstat(request.WorkPath); err == nil {
+		return false
+	} else if !errors.Is(err, os.ErrNotExist) {
+		markRecoveredTaskFailed(task, "partial_file_changed", "The partial download file changed outside Downpeed.")
+		return true
+	}
+	task.SpeedBPS = 0
+	task.NextRetryAt = nil
+	task.CompletedAt = nil
+	task.Error = nil
+	return true
 }
 
 func reconcileInterruptedTask(task *Task, request *TransferRequest) {

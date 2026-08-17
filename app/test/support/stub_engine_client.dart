@@ -44,6 +44,7 @@ class StubEngineClient implements EngineClient {
     bool acceptRanges = false,
     String etag = '',
     String lastModified = '',
+    DateTime? scheduledAt,
   }) => throw UnimplementedError();
 
   @override

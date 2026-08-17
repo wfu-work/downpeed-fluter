@@ -21,6 +21,8 @@ const _settingsWideBreakpoint = 700.0;
 const _settingsNavigationWidth = 214.0;
 const _settingsContentMaxWidth = 760.0;
 const _macOSTitleBarHeight = 38.0;
+const _settingsCardBorderAlpha = 0.56;
+const _settingsDividerAlpha = 0.34;
 
 class SettingsView extends GetView<SettingsController> {
   const SettingsView({super.key});
@@ -1420,10 +1422,13 @@ class _SettingsPreferenceNote extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: colors.surfaceSubtle,
-        border: Border.all(color: colors.border),
+        color: colors.surfaceRaised,
+        border: Border.all(
+          color: colors.border.withValues(alpha: _settingsCardBorderAlpha),
+        ),
         borderRadius: BorderRadius.circular(DownpeedThemeTokens.radiusLarge),
       ),
+      clipBehavior: Clip.antiAlias,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1475,9 +1480,12 @@ class _BrandMarkPreviews extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: colors.surfaceRaised,
-        border: Border.all(color: colors.border),
+        border: Border.all(
+          color: colors.border.withValues(alpha: _settingsCardBorderAlpha),
+        ),
         borderRadius: BorderRadius.circular(DownpeedThemeTokens.radiusLarge),
       ),
+      clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -1736,10 +1744,13 @@ class _SettingsGroup extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.downpeedColors;
-    return DecoratedBox(
+    return Container(
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: colors.surfaceRaised,
-        border: Border.all(color: colors.border),
+        border: Border.all(
+          color: colors.border.withValues(alpha: _settingsCardBorderAlpha),
+        ),
         borderRadius: BorderRadius.circular(DownpeedThemeTokens.radiusLarge),
       ),
       child: Column(
@@ -1747,7 +1758,12 @@ class _SettingsGroup extends StatelessWidget {
           for (var index = 0; index < children.length; index++) ...[
             children[index],
             if (index != children.length - 1)
-              Divider(height: 1, indent: 14, endIndent: 14),
+              Divider(
+                height: 1,
+                indent: 14,
+                endIndent: 14,
+                color: colors.border.withValues(alpha: _settingsDividerAlpha),
+              ),
           ],
         ],
       ),

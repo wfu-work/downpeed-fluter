@@ -32,13 +32,16 @@ type Manager struct {
 	limiter            *bandwidthLimiter
 	retryWG            sync.WaitGroup
 
-	mu            sync.RWMutex
-	tasks         map[string]Task
-	requests      map[string]TransferRequest
-	btRequests    map[string]BTTransferRequest
-	btDiagnostics map[string]BTDiagnostics
-	runs          map[string]*taskRun
-	queue         []string
+	mu                 sync.RWMutex
+	tasks              map[string]Task
+	requests           map[string]TransferRequest
+	btRequests         map[string]BTTransferRequest
+	btDiagnostics      map[string]BTDiagnostics
+	runs               map[string]*taskRun
+	queue              []string
+	scheduleTimer      *time.Timer
+	scheduleAt         time.Time
+	scheduleGeneration uint64
 
 	subscriberMu sync.RWMutex
 	subscribers  map[uint64]chan TaskEvent
@@ -186,6 +189,14 @@ func (m *Manager) Create(_ context.Context, input CreateTaskRequest) (Task, erro
 	if input.ExpectedSize < -1 {
 		return Task{}, fmt.Errorf("%w: expected size cannot be less than -1", ErrInvalidRequest)
 	}
+	var scheduledAt *time.Time
+	if input.ScheduledAt != nil {
+		scheduled := input.ScheduledAt.UTC()
+		if scheduled.IsZero() || !scheduled.After(time.Now().UTC()) {
+			return Task{}, fmt.Errorf("%w: scheduled time must be in the future", ErrInvalidSchedule)
+		}
+		scheduledAt = &scheduled
+	}
 	validator, err := NormalizeResourceValidator(input.ETag, input.LastModified)
 	if err != nil {
 		return Task{}, err
@@ -219,6 +230,7 @@ func (m *Manager) Create(_ context.Context, input CreateTaskRequest) (Task, erro
 		SaveDirectory: directory,
 		FilePath:      destination,
 		State:         TaskStateQueued,
+		ScheduledAt:   scheduledAt,
 		Total:         input.ExpectedSize,
 		CreatedAt:     now,
 		UpdatedAt:     now,
@@ -339,6 +351,7 @@ func (m *Manager) Pause(_ context.Context, id string) (Task, error) {
 		return Task{}, ErrTaskInvalidState
 	}
 	m.removeFromQueueLocked(id)
+	m.refreshScheduleTimerLocked()
 	task.State = TaskStatePaused
 	task.SpeedBPS = 0
 	task.Connections = 0
@@ -448,6 +461,7 @@ func (m *Manager) Resume(_ context.Context, id string) (Task, error) {
 	task.Error = nil
 	task.RetryCount = 0
 	task.NextRetryAt = nil
+	task.ScheduledAt = nil
 	task.CompletedAt = nil
 	task.UpdatedAt = time.Now().UTC()
 	m.tasks[id] = task
@@ -532,6 +546,7 @@ func (m *Manager) Retry(ctx context.Context, id string) (Task, error) {
 	task.Error = nil
 	task.RetryCount = 0
 	task.NextRetryAt = nil
+	task.ScheduledAt = nil
 	task.CompletedAt = nil
 	task.UpdatedAt = time.Now().UTC()
 	m.tasks[id] = task
@@ -612,6 +627,7 @@ func (m *Manager) Cancel(_ context.Context, id string) (Task, error) {
 	request := m.requests[id]
 	btRequest := m.btRequests[id]
 	m.removeFromQueueLocked(id)
+	m.refreshScheduleTimerLocked()
 	request.Checkpoint = nil
 	m.requests[id] = request
 	now := time.Now().UTC()
@@ -729,10 +745,22 @@ func (m *Manager) Close() error {
 
 		m.mu.Lock()
 		m.closed = true
+		m.scheduleGeneration++
+		if m.scheduleTimer != nil {
+			m.scheduleTimer.Stop()
+			m.scheduleTimer = nil
+			m.scheduleAt = time.Time{}
+		}
 		runs := make([]*taskRun, 0, len(m.runs))
 		for id, task := range m.tasks {
 			if run := m.runs[id]; run != nil {
 				runs = append(runs, run)
+			}
+			if task.State == TaskStateQueued && task.ScheduledAt != nil && task.ScheduledAt.After(time.Now().UTC()) && task.Downloaded == 0 {
+				// A task that has never started keeps its future plan across a
+				// clean engine shutdown.
+				_ = m.persistTaskLocked(task)
+				continue
 			}
 			if task.State == TaskStateDownloading || task.State == TaskStateQueued || task.State == TaskStateRetrying {
 				task.State = TaskStatePaused
@@ -1085,6 +1113,10 @@ func cloneTask(task Task) Task {
 	if task.NextRetryAt != nil {
 		retryCopy := *task.NextRetryAt
 		task.NextRetryAt = &retryCopy
+	}
+	if task.ScheduledAt != nil {
+		scheduledCopy := *task.ScheduledAt
+		task.ScheduledAt = &scheduledCopy
 	}
 	return task
 }

@@ -305,6 +305,29 @@ void main() {
     expect(controller.task.value?.downloaded, 1024);
   });
 
+  test('passes an HTTP schedule to the engine', () async {
+    final client = _FakeEngineClient(
+      result: _resolution,
+      createdTask: _task(DownloadTaskState.queued),
+    );
+    addTearDown(client.close);
+    final controller = CreateDownloadController(
+      client: client,
+      directoryPicker: const StubDirectoryPicker(result: '/tmp/downloads'),
+    );
+    controller.onInit();
+    addTearDown(controller.onClose);
+    controller.urlController.text = _resolution.url;
+    await controller.resolve();
+    await controller.chooseSaveDirectory();
+    final scheduledAt = DateTime.now().add(const Duration(hours: 2));
+    expect(controller.setScheduledAt(scheduledAt), isTrue);
+
+    await controller.createTask();
+
+    expect(client.createdScheduledAt, scheduledAt.toUtc());
+  });
+
   test(
     'uses the engine default directory without opening the picker',
     () async {
@@ -534,6 +557,7 @@ class _FakeEngineClient extends StubEngineClient {
   bool? createdAcceptRanges;
   String? createdETag;
   String? createdLastModified;
+  DateTime? createdScheduledAt;
   List<int>? createdBTMetadata;
   List<int>? createdBTFileIndexes;
   List<String>? createdBTPeers;
@@ -569,12 +593,14 @@ class _FakeEngineClient extends StubEngineClient {
     bool acceptRanges = false,
     String etag = '',
     String lastModified = '',
+    DateTime? scheduledAt,
   }) async {
     createdDirectory = saveDirectory;
     createdExpectedSize = expectedSize;
     createdAcceptRanges = acceptRanges;
     createdETag = etag;
     createdLastModified = lastModified;
+    createdScheduledAt = scheduledAt;
     return createdTask!;
   }
 

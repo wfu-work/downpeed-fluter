@@ -25,6 +25,7 @@ var (
 	ErrTransferCanceled    = errors.New("download transfer canceled")
 	ErrTransferShutdown    = errors.New("download engine shutting down")
 	ErrUnsupportedProtocol = errors.New("download protocol is not supported by this task manager")
+	ErrInvalidSchedule     = errors.New("invalid download schedule")
 )
 
 type Protocol string
@@ -50,6 +51,7 @@ type CreateTaskRequest struct {
 	URL           string            `json:"url"`
 	FileName      string            `json:"fileName"`
 	SaveDirectory string            `json:"saveDirectory"`
+	ScheduledAt   *time.Time        `json:"scheduledAt,omitempty"`
 	Headers       map[string]string `json:"headers,omitempty"`
 	ExpectedSize  int64             `json:"expectedSize,omitempty"`
 	AcceptRanges  bool              `json:"acceptRanges,omitempty"`
@@ -72,6 +74,7 @@ type Task struct {
 	SaveDirectory string     `json:"saveDirectory"`
 	FilePath      string     `json:"filePath"`
 	State         TaskState  `json:"state"`
+	ScheduledAt   *time.Time `json:"scheduledAt,omitempty"`
 	Downloaded    int64      `json:"downloaded"`
 	Total         int64      `json:"total"`
 	SpeedBPS      int64      `json:"speedBps"`

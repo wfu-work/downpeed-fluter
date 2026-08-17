@@ -9,9 +9,12 @@ import '../../../configs/theme/downpeed_theme_tokens.dart';
 import '../../../domains/engine_info.dart';
 import '../../../domains/engine_settings.dart';
 import '../../widgets/downpeed_app_shell.dart';
-import '../../widgets/engine_status_badge.dart';
 import '../../widgets/task_display.dart';
 import 'network_controller.dart';
+
+const _networkPageMaxWidth = 1440.0;
+const _networkCardBorderAlpha = 0.56;
+const _networkDividerAlpha = 0.34;
 
 class NetworkView extends GetView<NetworkController> {
   const NetworkView({super.key});
@@ -41,85 +44,84 @@ class _NetworkHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final horizontalPadding = MediaQuery.sizeOf(context).width < 720
+        ? DownpeedThemeTokens.compactPagePadding
+        : DownpeedThemeTokens.spaceXl;
     final colors = context.downpeedColors;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(
-        DownpeedThemeTokens.pagePadding,
-        14,
-        DownpeedThemeTokens.pagePadding,
-        13,
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        horizontalPadding,
+        22,
+        horizontalPadding,
+        18,
       ),
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: colors.border)),
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final compact = constraints.maxWidth < 700;
-          final heading = Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: _networkPageMaxWidth),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 700;
+              final heading = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Flexible(
-                    child: Text(
-                      L10nKeys.networkTitle.tr,
-                      key: const ValueKey('network-title'),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleLarge,
+                  Text(
+                    L10nKeys.networkTitle.tr,
+                    key: const ValueKey('network-title'),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      fontSize: DownpeedThemeTokens.textHeading,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(width: DownpeedThemeTokens.spaceSm),
-                  const EngineStatusBadge(dense: true),
+                  const SizedBox(height: 4),
+                  Text(
+                    L10nKeys.networkSubtitle.tr,
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.copyWith(color: colors.textMuted),
+                  ),
                 ],
-              ),
-              const SizedBox(height: 1),
-              Text(
-                L10nKeys.networkSubtitle.tr,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: colors.textMuted),
-              ),
-            ],
-          );
-          final actions = Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            alignment: WrapAlignment.end,
-            children: [
-              IconButton(
-                key: const ValueKey('network-refresh'),
-                tooltip: L10nKeys.networkRefresh.tr,
-                onPressed: () => unawaited(controller.refresh()),
-                icon: const Icon(DownpeedIcons.retry),
-              ),
-              OutlinedButton.icon(
-                key: const ValueKey('network-open-settings'),
-                onPressed: controller.openSettings,
-                icon: const Icon(DownpeedIcons.settings),
-                label: Text(L10nKeys.networkOpenSettings.tr),
-              ),
-            ],
-          );
-          if (compact) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                heading,
-                const SizedBox(height: 12),
-                Align(alignment: Alignment.centerRight, child: actions),
-              ],
-            );
-          }
-          return Row(
-            children: [
-              Expanded(child: heading),
-              const SizedBox(width: 16),
-              actions,
-            ],
-          );
-        },
+              );
+              final actions = Wrap(
+                spacing: 4,
+                runSpacing: 4,
+                alignment: WrapAlignment.end,
+                children: [
+                  IconButton(
+                    key: const ValueKey('network-refresh'),
+                    tooltip: L10nKeys.networkRefresh.tr,
+                    onPressed: () => unawaited(controller.refresh()),
+                    icon: const Icon(DownpeedIcons.retry),
+                  ),
+                  IconButton(
+                    key: const ValueKey('network-open-settings'),
+                    tooltip: L10nKeys.networkOpenSettings.tr,
+                    onPressed: controller.openSettings,
+                    icon: const Icon(DownpeedIcons.settings),
+                  ),
+                ],
+              );
+              if (compact) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    heading,
+                    const SizedBox(height: 10),
+                    Align(alignment: Alignment.centerRight, child: actions),
+                  ],
+                );
+              }
+              return Row(
+                children: [
+                  Expanded(child: heading),
+                  const SizedBox(width: 16),
+                  actions,
+                ],
+              );
+            },
+          ),
+        ),
       ),
     );
   }
@@ -154,43 +156,63 @@ class _NetworkBody extends StatelessWidget {
           36,
         ),
         children: [
-          if (engineState == EngineConnectionState.checking && info == null)
-            const _NetworkMessage(
-              key: ValueKey('network-loading'),
-              loading: true,
-              titleKey: L10nKeys.networkLoading,
-              bodyKey: L10nKeys.networkEngineSubtitle,
-            )
-          else if (engineState == EngineConnectionState.offline && info == null)
-            _NetworkMessage(
-              key: const ValueKey('network-offline'),
-              titleKey: L10nKeys.engineOfflineTitle,
-              bodyKey: L10nKeys.networkUnavailable,
-              onRetry: controller.refresh,
-            )
-          else ...[
-            if (info != null) _EngineSection(info: info),
-            if (info != null) const SizedBox(height: 28),
-            if (settings != null) ...[
-              _SchedulerSection(settings: settings.scheduler),
-              const SizedBox(height: 28),
-              _DownloadBoundarySection(settings: settings),
-            ] else if (loading)
-              const _InlineStatus(
-                key: ValueKey('network-settings-loading'),
-                loading: true,
-                textKey: L10nKeys.networkLoading,
-              )
-            else
-              _InlineStatus(
-                key: const ValueKey('network-settings-unavailable'),
-                text: error ?? L10nKeys.networkUnavailable.tr,
-              ),
-            if (settings != null) ...[
-              const SizedBox(height: 28),
-              _NetworkPolicySection(policy: settings.bitTorrent),
-            ],
-          ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final width = constraints.maxWidth > _networkPageMaxWidth
+                  ? _networkPageMaxWidth
+                  : constraints.maxWidth;
+              return Align(
+                alignment: Alignment.topCenter,
+                child: SizedBox(
+                  width: width,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (engineState == EngineConnectionState.checking &&
+                          info == null)
+                        const _NetworkMessage(
+                          key: ValueKey('network-loading'),
+                          loading: true,
+                          titleKey: L10nKeys.networkLoading,
+                          bodyKey: L10nKeys.networkEngineSubtitle,
+                        )
+                      else if (engineState == EngineConnectionState.offline &&
+                          info == null)
+                        _NetworkMessage(
+                          key: const ValueKey('network-offline'),
+                          titleKey: L10nKeys.engineOfflineTitle,
+                          bodyKey: L10nKeys.networkUnavailable,
+                          onRetry: controller.refresh,
+                        )
+                      else ...[
+                        if (info != null) _EngineSection(info: info),
+                        if (info != null) const SizedBox(height: 18),
+                        if (settings != null) ...[
+                          _SchedulerSection(settings: settings.scheduler),
+                          const SizedBox(height: 18),
+                          _DownloadBoundarySection(settings: settings),
+                        ] else if (loading)
+                          const _InlineStatus(
+                            key: ValueKey('network-settings-loading'),
+                            loading: true,
+                            textKey: L10nKeys.networkLoading,
+                          )
+                        else
+                          _InlineStatus(
+                            key: const ValueKey('network-settings-unavailable'),
+                            text: error ?? L10nKeys.networkUnavailable.tr,
+                          ),
+                        if (settings != null) ...[
+                          const SizedBox(height: 18),
+                          _NetworkPolicySection(policy: settings.bitTorrent),
+                        ],
+                      ],
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
         ],
       ),
     );
@@ -317,7 +339,13 @@ class _DownloadBoundarySection extends StatelessWidget {
             label: L10nKeys.networkDefaultDirectory.tr,
             value: settings.defaultDownloadDirectory,
           ),
-          Divider(height: 1, indent: 48, color: context.downpeedColors.border),
+          Divider(
+            height: 1,
+            indent: 48,
+            color: context.downpeedColors.border.withValues(
+              alpha: _networkDividerAlpha,
+            ),
+          ),
           _NetworkDetailRow(
             icon: DownpeedIcons.connections,
             label: L10nKeys.networkPeerBudget.tr,
@@ -434,35 +462,52 @@ class _NetworkSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
+            final compact = constraints.maxWidth < 620 || textScale >= 1.6;
+            final heading = Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 3),
+                Text(
+                  subtitle,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: colors.textMuted),
+                ),
+              ],
+            );
+            if (compact && trailing != null) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(title, style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 3),
-                  Text(
-                    subtitle,
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodySmall?.copyWith(color: colors.textMuted),
-                  ),
+                  heading,
+                  const SizedBox(height: 8),
+                  Align(alignment: Alignment.centerLeft, child: trailing!),
                 ],
-              ),
-            ),
-            if (trailing != null) ...[
-              const SizedBox(width: 12),
-              Flexible(child: trailing!),
-            ],
-          ],
+              );
+            }
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Expanded(child: heading),
+                if (trailing != null) ...[
+                  const SizedBox(width: 12),
+                  Flexible(child: trailing!),
+                ],
+              ],
+            );
+          },
         ),
         const SizedBox(height: 11),
         Container(
           decoration: BoxDecoration(
             color: colors.surfaceRaised,
-            border: Border.all(color: colors.border),
+            border: Border.all(
+              color: colors.border.withValues(alpha: _networkCardBorderAlpha),
+            ),
             borderRadius: BorderRadius.circular(
               DownpeedThemeTokens.radiusLarge,
             ),
@@ -495,10 +540,14 @@ class _InfoCell extends StatelessWidget {
       decoration: BoxDecoration(
         border: Border(
           right: rightBorder
-              ? BorderSide(color: colors.border)
+              ? BorderSide(
+                  color: colors.border.withValues(alpha: _networkDividerAlpha),
+                )
               : BorderSide.none,
           bottom: bottomBorder
-              ? BorderSide(color: colors.border)
+              ? BorderSide(
+                  color: colors.border.withValues(alpha: _networkDividerAlpha),
+                )
               : BorderSide.none,
         ),
       ),
@@ -544,35 +593,59 @@ class _NetworkDetailRow extends StatelessWidget {
     final colors = context.downpeedColors;
     return Padding(
       padding: const EdgeInsets.fromLTRB(15, 14, 16, 14),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
+          final compact = constraints.maxWidth < 520 || textScale >= 1.6;
+          final iconWidget = Padding(
             padding: const EdgeInsets.only(top: 2),
             child: Icon(icon, size: 16, color: colors.textSecondary),
-          ),
-          const SizedBox(width: 16),
-          SizedBox(
-            width: 170,
-            child: Text(
-              label,
-              style: Theme.of(
-                context,
-              ).textTheme.bodyMedium?.copyWith(color: colors.textSecondary),
+          );
+          final labelWidget = Text(
+            label,
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: colors.textSecondary),
+          );
+          final valueWidget = SelectableText(
+            value,
+            textAlign: compact ? TextAlign.left : TextAlign.right,
+            maxLines: compact ? 3 : 2,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: colors.text,
+              fontWeight: FontWeight.w500,
             ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: SelectableText(
-              value,
-              textAlign: TextAlign.right,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: colors.text,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ),
-        ],
+          );
+          if (compact) {
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                iconWidget,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      labelWidget,
+                      const SizedBox(height: 4),
+                      valueWidget,
+                    ],
+                  ),
+                ),
+              ],
+            );
+          }
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              iconWidget,
+              const SizedBox(width: 16),
+              SizedBox(width: 170, child: labelWidget),
+              const SizedBox(width: 12),
+              Expanded(child: valueWidget),
+            ],
+          );
+        },
       ),
     );
   }
@@ -600,10 +673,14 @@ class _CapabilityRow extends StatelessWidget {
       decoration: BoxDecoration(
         border: Border(
           right: rightBorder
-              ? BorderSide(color: colors.border)
+              ? BorderSide(
+                  color: colors.border.withValues(alpha: _networkDividerAlpha),
+                )
               : BorderSide.none,
           bottom: bottomBorder
-              ? BorderSide(color: colors.border)
+              ? BorderSide(
+                  color: colors.border.withValues(alpha: _networkDividerAlpha),
+                )
               : BorderSide.none,
         ),
       ),
@@ -655,35 +732,45 @@ class _NetworkMessage extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.downpeedColors;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 72),
-      child: Column(
-        children: [
-          if (loading)
-            const SizedBox.square(
-              dimension: 22,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-          else
-            Icon(DownpeedIcons.server, size: 24, color: colors.textMuted),
-          const SizedBox(height: 12),
-          Text(titleKey.tr, style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 5),
-          Text(
-            bodyKey.tr,
-            textAlign: TextAlign.center,
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(color: colors.textSecondary),
+      padding: const EdgeInsets.symmetric(vertical: 54, horizontal: 20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
+        decoration: BoxDecoration(
+          color: colors.surfaceRaised.withValues(alpha: 0.72),
+          border: Border.all(
+            color: colors.border.withValues(alpha: _networkCardBorderAlpha),
           ),
-          if (onRetry != null) ...[
-            const SizedBox(height: 16),
-            OutlinedButton.icon(
-              onPressed: () => unawaited(onRetry!()),
-              icon: const Icon(DownpeedIcons.retry),
-              label: Text(L10nKeys.engineRetry.tr),
+          borderRadius: BorderRadius.circular(DownpeedThemeTokens.radiusLarge),
+        ),
+        child: Column(
+          children: [
+            if (loading)
+              const SizedBox.square(
+                dimension: 22,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            else
+              Icon(DownpeedIcons.server, size: 24, color: colors.textMuted),
+            const SizedBox(height: 12),
+            Text(titleKey.tr, style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 5),
+            Text(
+              bodyKey.tr,
+              textAlign: TextAlign.center,
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: colors.textSecondary),
             ),
+            if (onRetry != null) ...[
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: () => unawaited(onRetry!()),
+                icon: const Icon(DownpeedIcons.retry),
+                label: Text(L10nKeys.engineRetry.tr),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -707,8 +794,10 @@ class _InlineStatus extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: colors.surfaceRaised,
-        border: Border.all(color: colors.border),
+        color: colors.surfaceRaised.withValues(alpha: 0.72),
+        border: Border.all(
+          color: colors.border.withValues(alpha: _networkCardBorderAlpha),
+        ),
         borderRadius: BorderRadius.circular(DownpeedThemeTokens.radiusLarge),
       ),
       child: Row(

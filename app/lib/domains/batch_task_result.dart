@@ -21,6 +21,7 @@ class CreateTaskInput {
     this.acceptRanges = false,
     this.etag = '',
     this.lastModified = '',
+    this.scheduledAt,
   });
 
   final String url;
@@ -30,6 +31,7 @@ class CreateTaskInput {
   final bool acceptRanges;
   final String etag;
   final String lastModified;
+  final DateTime? scheduledAt;
 
   Map<String, dynamic> toJson() => <String, dynamic>{
     'url': url,
@@ -39,6 +41,8 @@ class CreateTaskInput {
     'acceptRanges': acceptRanges,
     if (etag.isNotEmpty) 'etag': etag,
     if (lastModified.isNotEmpty) 'lastModified': lastModified,
+    if (scheduledAt != null)
+      'scheduledAt': scheduledAt!.toUtc().toIso8601String(),
   };
 }
 

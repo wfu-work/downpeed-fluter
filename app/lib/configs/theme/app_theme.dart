@@ -340,14 +340,14 @@ class AppTheme {
       ),
       headlineSmall: TextStyle(
         color: color,
-        fontSize: DownpeedThemeTokens.textHeading,
+        fontSize: DownpeedThemeTokens.textSectionHeading,
         height: 1.28,
         fontWeight: FontWeight.w600,
         letterSpacing: 0,
       ),
       titleLarge: TextStyle(
         color: color,
-        fontSize: DownpeedThemeTokens.textHeading,
+        fontSize: DownpeedThemeTokens.textSectionHeading,
         height: 1.28,
         fontWeight: FontWeight.w600,
         letterSpacing: 0,

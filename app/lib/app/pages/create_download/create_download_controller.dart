@@ -74,6 +74,7 @@ class CreateDownloadController extends GetxController {
   final errorMessage = RxnString();
   final actionError = RxnString();
   final saveDirectory = RxnString();
+  final scheduledAt = Rxn<DateTime>();
   final hasInput = false.obs;
   final isPickingDirectory = false.obs;
   final isPickingTorrent = false.obs;
@@ -308,6 +309,17 @@ class CreateDownloadController extends GetxController {
     resolveFailures.clear();
     batchResult.value = null;
     createdTasks.clear();
+    scheduledAt.value = null;
+  }
+
+  bool setScheduledAt(DateTime? value) {
+    if (value != null && !value.isAfter(DateTime.now())) {
+      actionError.value = L10nKeys.createScheduleInvalid.tr;
+      return false;
+    }
+    scheduledAt.value = value?.toUtc();
+    actionError.value = null;
+    return true;
   }
 
   void toggleBTFile(int index) {
@@ -377,6 +389,7 @@ class CreateDownloadController extends GetxController {
                   acceptRanges: item.acceptRanges,
                   etag: item.etag,
                   lastModified: item.lastModified,
+                  scheduledAt: scheduledAt.value,
                 ),
               )
               .toList(growable: false),
@@ -394,6 +407,7 @@ class CreateDownloadController extends GetxController {
           acceptRanges: item.acceptRanges,
           etag: item.etag,
           lastModified: item.lastModified,
+          scheduledAt: scheduledAt.value,
         );
         _applyTask(created);
         _subscribeToTaskEvents();
@@ -544,6 +558,7 @@ class CreateDownloadController extends GetxController {
         'destination_exists' => L10nKeys.createDestinationExists.tr,
         'engine_unreachable' => L10nKeys.createEngineOffline.tr,
         'invalid_task_state' => L10nKeys.createCancelError.tr,
+        'invalid_schedule' => L10nKeys.createScheduleInvalid.tr,
         'bt_transfer_unavailable' => L10nKeys.createBTUnavailable.tr,
         'bt_peer_required' => L10nKeys.createBTPeerRequired.tr,
         'bt_peer_invalid' => L10nKeys.createBTPeerInvalid.tr,

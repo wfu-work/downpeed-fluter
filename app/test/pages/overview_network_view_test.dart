@@ -33,6 +33,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('overview-title')), findsOneWidget);
+    expect(find.byKey(const ValueKey('overview-subtitle')), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('sidebar-destination-network')));
     await tester.pumpAndSettle();
@@ -58,6 +59,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const ValueKey('overview-summary')), findsOneWidget);
+    expect(find.byKey(const ValueKey('overview-subtitle')), findsOneWidget);
+    expect(find.byKey(const ValueKey('overview-tools')), findsOneWidget);
+    expect(find.byKey(const ValueKey('overview-activity')), findsOneWidget);
     expect(
       tester
           .widget<Text>(find.byKey(const ValueKey('overview-current-speed')))

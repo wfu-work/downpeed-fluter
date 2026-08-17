@@ -462,6 +462,7 @@ class _TransferEngineClient extends StubEngineClient {
     bool acceptRanges = false,
     String etag = '',
     String lastModified = '',
+    DateTime? scheduledAt,
   }) async => _task(DownloadTaskState.downloading);
 
   @override

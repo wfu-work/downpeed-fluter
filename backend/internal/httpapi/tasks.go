@@ -387,6 +387,8 @@ func taskServiceAPIError(err error) (int, *api.Error) {
 		return http.StatusBadRequest, &api.Error{Code: "unsupported_scheme", Message: "Only HTTP and HTTPS download URLs are supported.", Retryable: false}
 	case errors.Is(err, download.ErrInvalidDestination):
 		return http.StatusBadRequest, &api.Error{Code: "invalid_destination", Message: "Select an existing absolute download directory and a valid file name.", Retryable: false}
+	case errors.Is(err, download.ErrInvalidSchedule):
+		return http.StatusBadRequest, &api.Error{Code: "invalid_schedule", Message: "Choose a future time for the download to start.", Retryable: false}
 	case errors.Is(err, download.ErrDestinationExists):
 		return http.StatusConflict, &api.Error{Code: "destination_exists", Message: "A file already exists at the selected destination.", Retryable: false}
 	case errors.Is(err, download.ErrTaskNotFound):

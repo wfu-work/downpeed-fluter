@@ -156,7 +156,6 @@ class _SidebarPane extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.downpeedColors;
     final collapsedWidth = defaultTargetPlatform == TargetPlatform.macOS
         ? _macOSCollapsedSidebarWidth
         : DownpeedThemeTokens.sidebarCollapsedWidth;
@@ -164,9 +163,7 @@ class _SidebarPane extends StatelessWidget {
       key: const ValueKey('sidebar-pane'),
       width: expanded ? expandedWidth : collapsedWidth,
       child: DecoratedBox(
-        decoration: context.downpeedSidebarDecoration.copyWith(
-          border: Border(right: BorderSide(color: colors.border)),
-        ),
+        decoration: context.downpeedSidebarDecoration,
         child: Stack(
           fit: StackFit.expand,
           children: [
@@ -247,8 +244,7 @@ class _ExpandedSidebar extends StatelessWidget {
               onTap: () => onSelected(item.destination),
             ),
           const Spacer(),
-          Divider(color: context.downpeedColors.border.withValues(alpha: 0.72)),
-          const SizedBox(height: 7),
+          const SizedBox(height: DownpeedThemeTokens.space),
           Row(
             children: [
               Expanded(
@@ -344,8 +340,7 @@ class _CollapsedSidebar extends StatelessWidget {
             icon: const Icon(DownpeedIcons.sidebarOpen),
           ),
         ],
-        const SizedBox(height: DownpeedThemeTokens.spaceSm),
-        const Divider(indent: 12, endIndent: 12),
+        const SizedBox(height: DownpeedThemeTokens.space),
         for (final item in _navigationItems)
           _CollapsedDestination(
             key: ValueKey(
@@ -551,15 +546,11 @@ class _CompactHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.downpeedColors;
     return SafeArea(
       bottom: false,
       child: Container(
         height: 54,
         padding: const EdgeInsets.symmetric(horizontal: 16),
-        decoration: BoxDecoration(
-          border: Border(bottom: BorderSide(color: colors.border)),
-        ),
         child: const Row(
           children: [
             DownpeedBrandMark(size: 24),

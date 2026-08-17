@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:intl/intl.dart';
 
 import '../../../configs/localization/l10n_keys.dart';
 import '../../../configs/theme/downpeed_icons.dart';
@@ -1758,6 +1759,8 @@ class _TaskCreationControls extends StatelessWidget {
                 );
               },
             ),
+            const SizedBox(height: 18),
+            _ScheduleControls(controller: controller),
             if (actionError != null) ...[
               const SizedBox(height: 11),
               _InlineError(message: actionError),
@@ -1814,6 +1817,129 @@ class _TaskCreationControls extends StatelessWidget {
           ],
         );
       }),
+    );
+  }
+}
+
+class _ScheduleControls extends StatelessWidget {
+  const _ScheduleControls({required this.controller});
+
+  final CreateDownloadController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.downpeedColors;
+    return Obx(() {
+      final selected = controller.scheduledAt.value?.toLocal();
+      final value = selected == null
+          ? L10nKeys.createScheduleNow.tr
+          : DateFormat('yyyy-MM-dd HH:mm').format(selected);
+      return Container(
+        key: const ValueKey('download-schedule-controls'),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+        decoration: BoxDecoration(
+          color: colors.surfaceRaised.withValues(alpha: 0.52),
+          borderRadius: BorderRadius.circular(DownpeedThemeTokens.radius),
+        ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final actions = Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  key: const ValueKey('choose-schedule-button'),
+                  onPressed: () => _chooseSchedule(context),
+                  icon: const Icon(DownpeedIcons.clock),
+                  label: Text(L10nKeys.createScheduleChoose.tr),
+                ),
+                if (selected != null)
+                  TextButton.icon(
+                    key: const ValueKey('clear-schedule-button'),
+                    onPressed: () => controller.setScheduledAt(null),
+                    icon: const Icon(DownpeedIcons.close),
+                    label: Text(L10nKeys.createScheduleClear.tr),
+                  ),
+              ],
+            );
+            final summary = Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(DownpeedIcons.clock, color: colors.textMuted),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        L10nKeys.createSchedule.tr,
+                        style: Theme.of(context).textTheme.labelLarge,
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        value,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: selected == null
+                              ? colors.textSecondary
+                              : colors.accent,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        L10nKeys.createScheduleBody.tr,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: colors.textMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+            if (constraints.maxWidth < 560) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [summary, const SizedBox(height: 10), actions],
+              );
+            }
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: summary),
+                const SizedBox(width: 14),
+                actions,
+              ],
+            );
+          },
+        ),
+      );
+    });
+  }
+
+  Future<void> _chooseSchedule(BuildContext context) async {
+    final now = DateTime.now();
+    final selected = controller.scheduledAt.value?.toLocal();
+    final today = DateTime(now.year, now.month, now.day);
+    final selectedDay = selected == null
+        ? today
+        : DateTime(selected.year, selected.month, selected.day);
+    final date = await showDatePicker(
+      context: context,
+      initialDate: selectedDay.isBefore(today) ? today : selectedDay,
+      firstDate: today,
+      lastDate: today.add(const Duration(days: 3650)),
+    );
+    if (date == null || !context.mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: selected == null
+          ? TimeOfDay.fromDateTime(now.add(const Duration(minutes: 5)))
+          : TimeOfDay.fromDateTime(selected),
+    );
+    if (time == null) return;
+    controller.setScheduledAt(
+      DateTime(date.year, date.month, date.day, time.hour, time.minute),
     );
   }
 }
@@ -2029,6 +2155,13 @@ class _TaskPanel extends StatelessWidget {
         DownpeedIcons.issues,
       ),
     };
+    final statusBody = task.hasFutureSchedule
+        ? L10nKeys.taskScheduledBody.trParams({
+            'time': DateFormat(
+              'yyyy-MM-dd HH:mm',
+            ).format(task.scheduledAt!.toLocal()),
+          })
+        : body;
     final progress = task.total > 0
         ? task.progress
         : task.state == DownloadTaskState.completed
@@ -2068,7 +2201,7 @@ class _TaskPanel extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        body,
+                        statusBody,
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: colors.textSecondary,
                         ),

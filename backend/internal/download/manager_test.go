@@ -62,6 +62,150 @@ func TestManagerCreatesAndCompletesTaskFromTransferProgress(t *testing.T) {
 	}
 }
 
+func TestManagerDelaysScheduledTaskWithoutBlockingImmediateQueueWork(t *testing.T) {
+	directory := t.TempDir()
+	started := make(chan string, 2)
+	manager := NewManager(
+		context.Background(),
+		transferFunc(func(_ context.Context, request TransferRequest, _ func(TransferProgress)) (TransferResult, error) {
+			started <- filepath.Base(request.Destination)
+			return TransferResult{FinalURL: request.URL, Size: 1}, nil
+		}),
+		WithMaxConcurrentTasks(1),
+	)
+	defer manager.Close()
+
+	scheduledAt := time.Now().UTC().Add(80 * time.Millisecond)
+	scheduled, err := manager.Create(context.Background(), CreateTaskRequest{
+		URL: "https://example.com/later.bin", FileName: "later.bin", SaveDirectory: directory,
+		ScheduledAt: &scheduledAt,
+	})
+	if err != nil {
+		t.Fatalf("scheduled Create() error = %v", err)
+	}
+	if scheduled.State != TaskStateQueued || scheduled.ScheduledAt == nil {
+		t.Fatalf("scheduled task = %#v", scheduled)
+	}
+	select {
+	case name := <-started:
+		t.Fatalf("scheduled task started early: %q", name)
+	case <-time.After(25 * time.Millisecond):
+	}
+
+	immediate, err := manager.Create(context.Background(), CreateTaskRequest{
+		URL: "https://example.com/now.bin", FileName: "now.bin", SaveDirectory: directory,
+	})
+	if err != nil {
+		t.Fatalf("immediate Create() error = %v", err)
+	}
+	if name := <-started; name != "now.bin" {
+		t.Fatalf("first started task = %q", name)
+	}
+	waitForTaskState(t, manager, immediate.ID, TaskStateCompleted)
+	if name := <-started; name != "later.bin" {
+		t.Fatalf("scheduled task after wake = %q", name)
+	}
+	waitForTaskState(t, manager, scheduled.ID, TaskStateCompleted)
+}
+
+func TestManagerRejectsPastScheduledTime(t *testing.T) {
+	scheduledAt := time.Now().UTC().Add(-time.Second)
+	manager := NewManager(context.Background(), transferFunc(func(
+		context.Context, TransferRequest, func(TransferProgress),
+	) (TransferResult, error) {
+		return TransferResult{}, nil
+	}))
+	defer manager.Close()
+	_, err := manager.Create(context.Background(), CreateTaskRequest{
+		URL: "https://example.com/file.bin", FileName: "file.bin", SaveDirectory: t.TempDir(),
+		ScheduledAt: &scheduledAt,
+	})
+	if !errors.Is(err, ErrInvalidSchedule) {
+		t.Fatalf("Create() error = %v, want ErrInvalidSchedule", err)
+	}
+}
+
+func TestPersistentManagerKeepsFutureScheduleAcrossRestart(t *testing.T) {
+	directory := t.TempDir()
+	store := newMemoryTaskStore()
+	scheduledAt := time.Now().UTC().Add(300 * time.Millisecond)
+	first, err := NewPersistentManager(context.Background(), transferFunc(func(
+		context.Context, TransferRequest, func(TransferProgress),
+	) (TransferResult, error) {
+		t.Fatal("scheduled transfer started before restart")
+		return TransferResult{}, nil
+	}), store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstTask, err := first.Create(context.Background(), CreateTaskRequest{
+		URL: "https://example.com/later.bin", FileName: "later.bin", SaveDirectory: directory,
+		ScheduledAt: &scheduledAt,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = first.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	started := make(chan struct{}, 1)
+	manager, err := NewPersistentManager(context.Background(), transferFunc(func(
+		_ context.Context, _ TransferRequest, _ func(TransferProgress),
+	) (TransferResult, error) {
+		started <- struct{}{}
+		return TransferResult{FinalURL: "https://example.com/later.bin", Size: 1}, nil
+	}), store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer manager.Close()
+	restored, err := manager.Get(context.Background(), firstTask.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if restored.State != TaskStateQueued || restored.ScheduledAt == nil {
+		t.Fatalf("restored scheduled task = %#v", restored)
+	}
+	select {
+	case <-started:
+		t.Fatal("future scheduled task started during restore")
+	case <-time.After(80 * time.Millisecond):
+	}
+	waitForTaskState(t, manager, firstTask.ID, TaskStateCompleted)
+}
+
+func TestPersistentManagerPausesExpiredScheduleOnRestart(t *testing.T) {
+	directory := t.TempDir()
+	store := newMemoryTaskStore()
+	scheduledAt := time.Now().UTC().Add(-time.Second)
+	now := time.Now().UTC()
+	store.records["expired"] = StoredTask{Task: Task{
+		ID: "expired", Protocol: ProtocolHTTP, URL: "https://example.com/expired.bin",
+		FinalURL: "https://example.com/expired.bin", FileName: "expired.bin",
+		SaveDirectory: directory, FilePath: filepath.Join(directory, "expired.bin"),
+		State: TaskStateQueued, ScheduledAt: &scheduledAt, Total: -1,
+		CreatedAt: now, UpdatedAt: now,
+	}}
+	manager, err := NewPersistentManager(context.Background(), transferFunc(func(
+		context.Context, TransferRequest, func(TransferProgress),
+	) (TransferResult, error) {
+		t.Fatal("expired scheduled task started during restore")
+		return TransferResult{}, nil
+	}), store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer manager.Close()
+	restored, err := manager.Get(context.Background(), "expired")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if restored.State != TaskStatePaused || restored.ScheduledAt == nil {
+		t.Fatalf("expired scheduled task = %#v", restored)
+	}
+}
+
 func TestManagerCancelsRunningTask(t *testing.T) {
 	started := make(chan struct{})
 	stopped := make(chan struct{})

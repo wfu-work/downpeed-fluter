@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:intl/intl.dart';
 
 import '../../../configs/localization/l10n_keys.dart';
 import '../../../configs/theme/downpeed_icons.dart';
@@ -18,6 +19,10 @@ import '../../widgets/task_display.dart';
 import '../../widgets/transfer_track.dart';
 import '../task_detail/task_detail_view.dart';
 import 'task_list_controller.dart';
+
+const _taskPageMaxWidth = 1440.0;
+const _taskCardBorderAlpha = 0.56;
+const _taskDividerAlpha = 0.34;
 
 class TaskListView extends GetView<TaskListController> {
   const TaskListView({super.key});
@@ -44,6 +49,7 @@ class TaskListView extends GetView<TaskListController> {
                 children: [
                   _TaskToolbar(controller: controller),
                   _TaskFilterBar(
+                    controller: controller,
                     selected: currentFilter,
                     counts: TaskListFilter.values
                         .map(controller.countForFilter)
@@ -73,11 +79,13 @@ class TaskListView extends GetView<TaskListController> {
 
 class _TaskFilterBar extends StatelessWidget {
   const _TaskFilterBar({
+    required this.controller,
     required this.selected,
     required this.counts,
     required this.onSelected,
   });
 
+  final TaskListController controller;
   final TaskListFilter selected;
   final List<int> counts;
   final ValueChanged<TaskListFilter> onSelected;
@@ -85,51 +93,86 @@ class _TaskFilterBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.downpeedColors;
-    return Container(
+    final horizontalPadding = MediaQuery.sizeOf(context).width < 720
+        ? DownpeedThemeTokens.compactPagePadding
+        : DownpeedThemeTokens.spaceXl;
+    return Padding(
       key: const ValueKey('task-filter-bar'),
-      padding: const EdgeInsets.fromLTRB(
-        DownpeedThemeTokens.pagePadding,
-        8,
-        DownpeedThemeTokens.pagePadding,
-        9,
-      ),
-      decoration: BoxDecoration(
-        color: colors.taskListHeader.withValues(alpha: 0.48),
-        border: Border(bottom: BorderSide(color: colors.border)),
-      ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Container(
-          decoration: BoxDecoration(
-            color: colors.surfaceRaised,
-            border: Border.all(color: colors.borderStrong),
-            borderRadius: BorderRadius.circular(DownpeedThemeTokens.radius),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: IntrinsicHeight(
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                for (
-                  var index = 0;
-                  index < TaskListFilter.values.length;
-                  index++
-                ) ...[
-                  _TaskFilterSegment(
-                    value: TaskListFilter.values[index],
-                    count: counts[index],
-                    selected: selected == TaskListFilter.values[index],
-                    onTap: () => onSelected(TaskListFilter.values[index]),
-                  ),
-                  if (index != TaskListFilter.values.length - 1)
-                    VerticalDivider(
-                      width: 1,
-                      thickness: 1,
-                      color: colors.border,
+      padding: EdgeInsets.fromLTRB(horizontalPadding, 0, horizontalPadding, 14),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: _taskPageMaxWidth),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 760;
+              final filterControl = DecoratedBox(
+                decoration: BoxDecoration(
+                  color: colors.surfaceRaised.withValues(alpha: 0.78),
+                  border: Border.all(
+                    color: colors.border.withValues(
+                      alpha: _taskCardBorderAlpha,
                     ),
+                  ),
+                  borderRadius: BorderRadius.circular(
+                    DownpeedThemeTokens.radiusLarge,
+                  ),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(3),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (
+                        var index = 0;
+                        index < TaskListFilter.values.length;
+                        index++
+                      ) ...[
+                        _TaskFilterSegment(
+                          value: TaskListFilter.values[index],
+                          count: counts[index],
+                          selected: selected == TaskListFilter.values[index],
+                          onTap: () => onSelected(TaskListFilter.values[index]),
+                        ),
+                        if (index != TaskListFilter.values.length - 1)
+                          const SizedBox(width: 2),
+                      ],
+                    ],
+                  ),
+                ),
+              );
+              final search = _TaskSearchField(controller: controller);
+              if (compact) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: filterControl,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    search,
+                  ],
+                );
+              }
+              return Row(
+                children: [
+                  Expanded(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: filterControl,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  SizedBox(width: 240, child: search),
                 ],
-              ],
-            ),
+              );
+            },
           ),
         ),
       ),
@@ -158,15 +201,17 @@ class _TaskFilterSegment extends StatelessWidget {
       selected: selected,
       child: Material(
         color: selected ? colors.sidebarSelection : Colors.transparent,
+        borderRadius: BorderRadius.circular(DownpeedThemeTokens.radius),
         child: InkWell(
           key: ValueKey('task-filter-${value.name}'),
           onTap: onTap,
+          borderRadius: BorderRadius.circular(DownpeedThemeTokens.radius),
           hoverColor: colors.surfaceSubtle,
           focusColor: colors.surfaceSubtle,
           child: ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: 34),
+            constraints: const BoxConstraints(minHeight: 32),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -223,95 +268,101 @@ class _TaskToolbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final horizontalPadding = MediaQuery.sizeOf(context).width < 720
+        ? DownpeedThemeTokens.compactPagePadding
+        : DownpeedThemeTokens.spaceXl;
     final colors = context.downpeedColors;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(
-        DownpeedThemeTokens.pagePadding,
-        14,
-        DownpeedThemeTokens.pagePadding,
-        13,
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        horizontalPadding,
+        22,
+        horizontalPadding,
+        10,
       ),
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: colors.border)),
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final compact = constraints.maxWidth < 620;
-          final title = Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: _taskPageMaxWidth),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 620;
+              final title = Column(
                 key: const ValueKey('task-toolbar-heading'),
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          L10nKeys.tasksTitle.tr,
+                          key: const ValueKey('task-toolbar-title'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.headlineMedium
+                              ?.copyWith(
+                                fontSize: DownpeedThemeTokens.textHeading,
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          L10nKeys.tasksSubtitle.tr,
+                          key: const ValueKey('task-toolbar-subtitle'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                fontSize: DownpeedThemeTokens.textCaption,
+                                color: colors.textMuted,
+                              ),
+                        ),
+                      ),
+                      const SizedBox(width: DownpeedThemeTokens.spaceSm),
+                      const Opacity(
+                        opacity: 0.72,
+                        child: EngineStatusBadge(dense: true),
+                      ),
+                    ],
+                  ),
+                ],
+              );
+              final actions = Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Flexible(
-                    child: Text(
-                      L10nKeys.tasksTitle.tr,
-                      key: const ValueKey('task-toolbar-title'),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
+                  _TaskSortButton(controller: controller),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    key: const ValueKey('add-download-button'),
+                    tooltip: L10nKeys.tasksAdd.tr,
+                    onPressed: controller.openCreateDownload,
+                    icon: const Icon(DownpeedIcons.add),
                   ),
-                  const SizedBox(width: DownpeedThemeTokens.spaceSm),
-                  const EngineStatusBadge(dense: true),
                 ],
-              ),
-              const SizedBox(height: 1),
-              Text(
-                L10nKeys.tasksSubtitle.tr,
-                key: const ValueKey('task-toolbar-subtitle'),
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: colors.textMuted),
-              ),
-            ],
-          );
-          final actions = Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (!compact) ...[
-                SizedBox(
-                  width: 280,
-                  child: _TaskSearchField(controller: controller),
-                ),
-                const SizedBox(width: 10),
-                _TaskSortButton(controller: controller),
-                const SizedBox(width: 8),
-              ],
-              FilledButton.icon(
-                key: const ValueKey('add-download-button'),
-                onPressed: controller.openCreateDownload,
-                icon: const Icon(DownpeedIcons.add),
-                label: Text(L10nKeys.tasksAdd.tr),
-              ),
-            ],
-          );
-          if (compact) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                title,
-                const SizedBox(height: 12),
-                Align(alignment: Alignment.centerRight, child: actions),
-                const SizedBox(height: 12),
-                Row(
+              );
+              if (compact) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Expanded(child: _TaskSearchField(controller: controller)),
-                    const SizedBox(width: 8),
-                    _TaskSortButton(controller: controller),
+                    title,
+                    const SizedBox(height: 12),
+                    Align(alignment: Alignment.centerRight, child: actions),
                   ],
-                ),
-              ],
-            );
-          }
-          return Row(
-            children: [
-              Expanded(child: title),
-              actions,
-            ],
-          );
-        },
+                );
+              }
+              return Row(
+                children: [
+                  Expanded(child: title),
+                  actions,
+                ],
+              );
+            },
+          ),
+        ),
       ),
     );
   }
@@ -325,14 +376,18 @@ class _TaskSearchField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.downpeedColors;
+    final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
+    final fieldHeight = textScale >= 1.6
+        ? 40.0
+        : DownpeedThemeTokens.controlHeight;
     final border = OutlineInputBorder(
       borderRadius: BorderRadius.circular(DownpeedThemeTokens.radius),
       borderSide: BorderSide(
-        color: colors.borderStrong.withValues(alpha: 0.72),
+        color: colors.border.withValues(alpha: _taskCardBorderAlpha),
       ),
     );
     return SizedBox(
-      height: 40,
+      height: fieldHeight,
       child: TextField(
         key: const ValueKey('task-search-field'),
         controller: controller.searchController,
@@ -347,17 +402,20 @@ class _TaskSearchField extends StatelessWidget {
           hintStyle: Theme.of(
             context,
           ).textTheme.bodyMedium?.copyWith(color: colors.textMuted),
-          prefixIcon: const Icon(DownpeedIcons.search, size: 17),
+          prefixIcon: const Icon(DownpeedIcons.search, size: 15),
           prefixIconColor: colors.textSecondary,
-          prefixIconConstraints: const BoxConstraints.tightFor(
-            width: 40,
-            height: 40,
+          prefixIconConstraints: BoxConstraints.tightFor(
+            width: fieldHeight,
+            height: fieldHeight,
           ),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 10),
           fillColor: colors.surfaceRaised,
           enabledBorder: border,
           focusedBorder: border.copyWith(
-            borderSide: BorderSide(color: colors.borderStrong, width: 1.25),
+            borderSide: BorderSide(
+              color: colors.borderStrong.withValues(alpha: 0.9),
+              width: 1.25,
+            ),
           ),
         ),
       ),
@@ -463,9 +521,15 @@ class _ReadyState extends StatelessWidget {
                 key: const ValueKey('task-inspector'),
                 width: inspectorWidth,
                 decoration: BoxDecoration(
-                  color: context.downpeedColors.surfaceRaised,
+                  color: context.downpeedColors.surfaceRaised.withValues(
+                    alpha: 0.72,
+                  ),
                   border: Border(
-                    left: BorderSide(color: context.downpeedColors.border),
+                    left: BorderSide(
+                      color: context.downpeedColors.border.withValues(
+                        alpha: _taskDividerAlpha,
+                      ),
+                    ),
                   ),
                 ),
                 child: TaskDetailPanel(
@@ -519,142 +583,187 @@ class _TaskListPane extends StatelessWidget {
     final batchMessage = controller.batchMessage.value;
     final fileActionError = controller.desktopActions.errorMessage.value;
     final colors = context.downpeedColors;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (controller.hasSelection)
-          _BatchCommandStrip(controller: controller)
-        else
-          Container(
-            padding: const EdgeInsets.fromLTRB(32, 6, 16, 6),
-            decoration: BoxDecoration(
-              color: colors.taskListHeader,
-              border: Border(
-                bottom: BorderSide(
-                  color: colors.taskRowBorder.withValues(alpha: 0.76),
-                ),
-              ),
-            ),
-            child: Row(
-              children: [
-                Tooltip(
-                  message: L10nKeys.tasksSelectAll.tr,
-                  child: Checkbox(
-                    key: const ValueKey('select-all-visible'),
-                    value: controller.allVisibleSelected,
-                    onChanged: tasks.isEmpty
-                        ? null
-                        : (_) => controller.toggleSelectAllVisible(),
-                  ),
-                ),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    L10nKeys.tasksCount.trParams({'count': '${tasks.length}'}),
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: context.downpeedColors.textMuted,
+    final horizontalPadding = MediaQuery.sizeOf(context).width < 720
+        ? DownpeedThemeTokens.compactPagePadding
+        : DownpeedThemeTokens.spaceXl;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(horizontalPadding, 0, horizontalPadding, 24),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final width = constraints.maxWidth > _taskPageMaxWidth
+              ? _taskPageMaxWidth
+              : constraints.maxWidth;
+          return Align(
+            alignment: Alignment.topCenter,
+            child: SizedBox(
+              width: width,
+              height: constraints.maxHeight,
+              child: Container(
+                clipBehavior: Clip.antiAlias,
+                decoration: BoxDecoration(
+                  color: colors.surfaceRaised.withValues(alpha: 0.24),
+                  border: Border.all(
+                    color: colors.border.withValues(
+                      alpha: _taskCardBorderAlpha,
                     ),
                   ),
+                  borderRadius: BorderRadius.circular(
+                    DownpeedThemeTokens.radiusLarge,
+                  ),
                 ),
-                if (controller.filter.value == TaskListFilter.completed &&
-                    controller.completedTaskCount > 0)
-                  TextButton.icon(
-                    key: const ValueKey('clear-completed-button'),
-                    onPressed: controller.clearCompleted,
-                    icon: const Icon(DownpeedIcons.delete),
-                    label: Text(L10nKeys.tasksClearCompleted.tr),
-                  ),
-                if (eventError != null)
-                  IconButton(
-                    tooltip: eventError,
-                    onPressed: controller.retryTasks,
-                    icon: const Icon(DownpeedIcons.retry),
-                  ),
-              ],
-            ),
-          ),
-        if (batchMessage != null)
-          Container(
-            key: const ValueKey('batch-task-message'),
-            padding: const EdgeInsets.symmetric(
-              horizontal: DownpeedThemeTokens.pagePadding,
-              vertical: 8,
-            ),
-            color: context.downpeedColors.surfaceSubtle,
-            child: Text(
-              batchMessage,
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                color: context.downpeedColors.textSecondary,
-              ),
-            ),
-          ),
-        if (fileActionError != null)
-          Container(
-            key: const ValueKey('file-action-message'),
-            padding: const EdgeInsets.symmetric(
-              horizontal: DownpeedThemeTokens.pagePadding,
-              vertical: 8,
-            ),
-            color: context.downpeedColors.danger.withValues(alpha: 0.07),
-            child: Text(
-              fileActionError,
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                color: context.downpeedColors.danger,
-              ),
-            ),
-          ),
-        Expanded(
-          child: DecoratedBox(
-            key: const ValueKey('task-list-surface'),
-            decoration: context.downpeedTaskListDecoration,
-            child: tasks.isEmpty
-                ? const _NoMatchingTasks()
-                : RefreshIndicator(
-                    onRefresh: controller.retryTasks,
-                    child: ListView.builder(
-                      key: const ValueKey('task-list'),
-                      physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 22),
-                      itemCount: tasks.length,
-                      itemBuilder: (context, index) {
-                        final task = tasks[index];
-                        return Padding(
-                          padding: EdgeInsets.only(
-                            bottom: index == tasks.length - 1 ? 0 : 8,
-                          ),
-                          child: _TaskRow(
-                            task: task,
-                            selected:
-                                controller.selectedTaskId.value == task.id,
-                            checked: controller.selectedTaskIds.contains(
-                              task.id,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (controller.hasSelection)
+                      _BatchCommandStrip(controller: controller)
+                    else
+                      Container(
+                        padding: const EdgeInsets.fromLTRB(16, 6, 12, 6),
+                        decoration: BoxDecoration(
+                          color: colors.surfaceSubtle.withValues(alpha: 0.36),
+                          border: Border(
+                            bottom: BorderSide(
+                              color: colors.border.withValues(
+                                alpha: _taskDividerAlpha,
+                              ),
                             ),
-                            acting:
-                                controller.taskService.isActing(task.id) ||
-                                controller.desktopActions.isActing(task.id),
-                            desktopActionsSupported:
-                                controller.desktopActions.isSupported,
-                            onSelectionChanged: () =>
-                                controller.toggleTaskSelection(task.id),
-                            onTap: () => controller.openTask(
-                              task,
-                              compact: navigateToDetail,
-                            ),
-                            onPause: () => controller.pauseTask(task),
-                            onResume: () => controller.resumeTask(task),
-                            onRetry: () => controller.retryTask(task),
-                            onCancel: () => controller.cancelTask(task),
-                            onOpenFile: () => controller.openFile(task),
-                            onRevealFile: () => controller.revealFile(task),
-                            onDelete: () => controller.deleteTask(task),
                           ),
-                        );
-                      },
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                L10nKeys.tasksCount.trParams({
+                                  'count': '${tasks.length}',
+                                }),
+                                style: Theme.of(context).textTheme.labelSmall
+                                    ?.copyWith(color: colors.textMuted),
+                              ),
+                            ),
+                            if (controller.filter.value ==
+                                    TaskListFilter.completed &&
+                                controller.completedTaskCount > 0)
+                              TextButton.icon(
+                                key: const ValueKey('clear-completed-button'),
+                                onPressed: controller.clearCompleted,
+                                icon: const Icon(DownpeedIcons.delete),
+                                label: Text(L10nKeys.tasksClearCompleted.tr),
+                              ),
+                            if (eventError != null)
+                              IconButton(
+                                tooltip: eventError,
+                                onPressed: controller.retryTasks,
+                                icon: const Icon(DownpeedIcons.retry),
+                              ),
+                          ],
+                        ),
+                      ),
+                    if (batchMessage != null)
+                      Container(
+                        key: const ValueKey('batch-task-message'),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 9,
+                        ),
+                        color: colors.surfaceSubtle.withValues(alpha: 0.32),
+                        child: Text(
+                          batchMessage,
+                          style: Theme.of(context).textTheme.labelMedium
+                              ?.copyWith(color: colors.textSecondary),
+                        ),
+                      ),
+                    if (fileActionError != null)
+                      Container(
+                        key: const ValueKey('file-action-message'),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 9,
+                        ),
+                        color: colors.danger.withValues(alpha: 0.07),
+                        child: Text(
+                          fileActionError,
+                          style: Theme.of(context).textTheme.labelMedium
+                              ?.copyWith(color: colors.danger),
+                        ),
+                      ),
+                    Expanded(
+                      child: DecoratedBox(
+                        key: const ValueKey('task-list-surface'),
+                        decoration: context.downpeedTaskListDecoration,
+                        child: tasks.isEmpty
+                            ? const _NoMatchingTasks()
+                            : RefreshIndicator(
+                                onRefresh: controller.retryTasks,
+                                child: ListView.builder(
+                                  key: const ValueKey('task-list'),
+                                  physics:
+                                      const AlwaysScrollableScrollPhysics(),
+                                  padding: const EdgeInsets.fromLTRB(
+                                    16,
+                                    14,
+                                    16,
+                                    22,
+                                  ),
+                                  itemCount: tasks.length,
+                                  itemBuilder: (context, index) {
+                                    final task = tasks[index];
+                                    return Padding(
+                                      padding: EdgeInsets.only(
+                                        bottom: index == tasks.length - 1
+                                            ? 0
+                                            : 8,
+                                      ),
+                                      child: _TaskRow(
+                                        task: task,
+                                        selected:
+                                            controller.selectedTaskId.value ==
+                                            task.id,
+                                        checked: controller.selectedTaskIds
+                                            .contains(task.id),
+                                        acting:
+                                            controller.taskService.isActing(
+                                              task.id,
+                                            ) ||
+                                            controller.desktopActions.isActing(
+                                              task.id,
+                                            ),
+                                        desktopActionsSupported: controller
+                                            .desktopActions
+                                            .isSupported,
+                                        onSelectionChanged: () => controller
+                                            .toggleTaskSelection(task.id),
+                                        onTap: () => controller.openTask(
+                                          task,
+                                          compact: navigateToDetail,
+                                        ),
+                                        onPause: () =>
+                                            controller.pauseTask(task),
+                                        onResume: () =>
+                                            controller.resumeTask(task),
+                                        onRetry: () =>
+                                            controller.retryTask(task),
+                                        onCancel: () =>
+                                            controller.cancelTask(task),
+                                        onOpenFile: () =>
+                                            controller.openFile(task),
+                                        onRevealFile: () =>
+                                            controller.revealFile(task),
+                                        onDelete: () =>
+                                            controller.deleteTask(task),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                      ),
                     ),
-                  ),
-          ),
-        ),
-      ],
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 }
@@ -672,8 +781,12 @@ class _BatchCommandStrip extends StatelessWidget {
       key: const ValueKey('batch-command-strip'),
       padding: const EdgeInsets.fromLTRB(32, 6, 16, 6),
       decoration: BoxDecoration(
-        color: colors.taskListHeader,
-        border: Border(bottom: BorderSide(color: colors.taskRowBorder)),
+        color: colors.surfaceSubtle.withValues(alpha: 0.42),
+        border: Border(
+          bottom: BorderSide(
+            color: colors.border.withValues(alpha: _taskDividerAlpha),
+          ),
+        ),
       ),
       child: Wrap(
         spacing: 8,
@@ -681,6 +794,7 @@ class _BatchCommandStrip extends StatelessWidget {
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           Checkbox(
+            key: const ValueKey('select-all-visible'),
             value: controller.allVisibleSelected
                 ? true
                 : controller.anyVisibleSelected
@@ -825,7 +939,11 @@ class _TaskRow extends StatelessWidget {
         : colors.taskRow;
     final rowShape = RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(DownpeedThemeTokens.taskRowRadius),
-      side: BorderSide(color: colors.taskRowBorder.withValues(alpha: 0.86)),
+      side: BorderSide(
+        color: selected || checked
+            ? colors.accent.withValues(alpha: 0.34)
+            : colors.taskRowBorder.withValues(alpha: _taskCardBorderAlpha),
+      ),
     );
     return Material(
       key: ValueKey('task-row-${task.id}'),
@@ -1149,6 +1267,22 @@ class _TaskRowContent extends StatelessWidget {
             height: 1.22,
           ),
         ),
+        if (task.hasFutureSchedule) ...[
+          const SizedBox(height: 3),
+          Text(
+            L10nKeys.taskScheduledLabel.trParams({
+              'time': DateFormat(
+                'MM-dd HH:mm',
+              ).format(task.scheduledAt!.toLocal()),
+            }),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: context.downpeedColors.accent,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+        ],
         SizedBox(height: compact ? 8 : 7),
         if (compact)
           _CompactTaskTransfer(
@@ -1185,87 +1319,84 @@ class _WideTaskTransfer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.downpeedColors;
-    return LayoutBuilder(
+    return Row(
       key: ValueKey('task-transfer-${task.id}'),
-      builder: (context, constraints) {
-        const fixedWidth = 84 + 10 + 130 + 12 + 78 + 10 + 10 + 40;
-        final trackWidth = (constraints.maxWidth - fixedWidth)
-            .clamp(100.0, 520.0)
-            .toDouble();
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            SizedBox(
-              width: 84,
-              child: Text(
-                taskStateLabel(task.state),
-                key: ValueKey('task-state-${task.id}'),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: statusColor,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        SizedBox(
+          width: 84,
+          child: Text(
+            taskStateLabel(task.state),
+            key: ValueKey('task-state-${task.id}'),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: statusColor,
+              fontWeight: FontWeight.w600,
             ),
-            const SizedBox(width: 10),
-            SizedBox(
+          ),
+        ),
+        const SizedBox(width: 10),
+        Flexible(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: SizedBox(
               key: ValueKey('task-track-${task.id}'),
-              width: trackWidth,
+              width: double.infinity,
               height: 14,
               child: TransferTrack(progress: task.progress, color: statusColor),
             ),
-            const SizedBox(width: 12),
-            SizedBox(
-              width: 130,
-              child: Text(
-                taskProgressText(task),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.right,
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: colors.textMuted,
-                  fontFeatures: const [FontFeature.tabularFigures()],
+          ),
+        ),
+        const SizedBox(width: 12),
+        SizedBox(
+          width: 130,
+          child: Text(
+            taskProgressText(task),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.right,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: colors.textMuted,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        SizedBox(
+          width: 78,
+          child: speedText == null
+              ? null
+              : Text(
+                  speedText!,
+                  key: ValueKey('task-speed-${task.id}'),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.right,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: colors.text,
+                    fontWeight: FontWeight.w600,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
                 ),
-              ),
-            ),
-            const SizedBox(width: 10),
-            SizedBox(
-              width: 78,
-              child: speedText == null
-                  ? null
-                  : Text(
-                      speedText!,
-                      key: ValueKey('task-speed-${task.id}'),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.right,
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: colors.text,
-                        fontWeight: FontWeight.w600,
-                        fontFeatures: const [FontFeature.tabularFigures()],
-                      ),
-                    ),
-            ),
-            const SizedBox(width: 10),
-            SizedBox(
-              width: 40,
-              child: progressText == null
-                  ? null
-                  : Text(
-                      progressText!,
-                      key: ValueKey('task-progress-${task.id}'),
-                      textAlign: TextAlign.right,
-                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                        color: colors.textSecondary,
-                        fontWeight: FontWeight.w600,
-                        fontFeatures: const [FontFeature.tabularFigures()],
-                      ),
-                    ),
-            ),
-          ],
-        );
-      },
+        ),
+        const SizedBox(width: 10),
+        SizedBox(
+          width: 40,
+          child: progressText == null
+              ? null
+              : Text(
+                  progressText!,
+                  key: ValueKey('task-progress-${task.id}'),
+                  textAlign: TextAlign.right,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: colors.textSecondary,
+                    fontWeight: FontWeight.w600,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+        ),
+      ],
     );
   }
 }

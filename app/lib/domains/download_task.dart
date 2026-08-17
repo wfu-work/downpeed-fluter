@@ -51,6 +51,7 @@ class DownloadTask {
     required this.createdAt,
     required this.updatedAt,
     this.protocol = DownloadProtocol.http,
+    this.scheduledAt,
     this.connections = 0,
     this.retryCount = 0,
     this.nextRetryAt,
@@ -95,6 +96,7 @@ class DownloadTask {
     };
     final errorValue = json['error'];
     final completedValue = json['completedAt'];
+    final scheduledValue = json['scheduledAt'];
     final downloaded = requiredInt('downloaded');
     final total = requiredInt('total');
     final speed = requiredInt('speedBps');
@@ -115,7 +117,10 @@ class DownloadTask {
         retryCountValue < 0 ||
         (nextRetryValue != null &&
             (nextRetryValue is! String ||
-                DateTime.tryParse(nextRetryValue) == null))) {
+                DateTime.tryParse(nextRetryValue) == null)) ||
+        (scheduledValue != null &&
+            (scheduledValue is! String ||
+                DateTime.tryParse(scheduledValue) == null))) {
       throw const FormatException('Invalid download task progress.');
     }
 
@@ -131,6 +136,9 @@ class DownloadTask {
       total: total,
       speedBps: speed,
       protocol: protocol,
+      scheduledAt: scheduledValue is String
+          ? DateTime.parse(scheduledValue)
+          : null,
       connections: connectionsValue,
       retryCount: retryCountValue,
       nextRetryAt: nextRetryValue is String
@@ -158,6 +166,7 @@ class DownloadTask {
   final int total;
   final int speedBps;
   final DownloadProtocol protocol;
+  final DateTime? scheduledAt;
   final int connections;
   final int retryCount;
   final DateTime? nextRetryAt;
@@ -186,6 +195,11 @@ class DownloadTask {
   bool get canRetry =>
       state == DownloadTaskState.failed && (error?.retryable ?? false);
   bool get canCancel => !isTerminal;
+
+  bool get hasFutureSchedule =>
+      state == DownloadTaskState.queued &&
+      scheduledAt != null &&
+      scheduledAt!.isAfter(DateTime.now());
 }
 
 class DownloadTaskEvent {

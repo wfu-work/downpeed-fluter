@@ -492,9 +492,10 @@ func TestCreateBTTaskMapsRestrictedTransferErrors(t *testing.T) {
 }
 
 func TestCreateTaskReturnsCreatedTask(t *testing.T) {
+	scheduledAt := time.Now().UTC().Add(time.Hour).Truncate(time.Second)
 	tasks := &stubTaskService{
 		create: func(_ context.Context, input download.CreateTaskRequest) (download.Task, error) {
-			if input.FileName != "file.zip" || input.SaveDirectory != "/tmp/downloads" || input.ExpectedSize != 1572864 || !input.AcceptRanges || input.ETag != `"release-v1"` || input.LastModified == "" {
+			if input.FileName != "file.zip" || input.SaveDirectory != "/tmp/downloads" || input.ExpectedSize != 1572864 || !input.AcceptRanges || input.ETag != `"release-v1"` || input.LastModified == "" || input.ScheduledAt == nil || !input.ScheduledAt.Equal(scheduledAt) {
 				t.Fatalf("input = %#v", input)
 			}
 			return download.Task{ID: "task-1", State: download.TaskStateDownloading, Total: -1}, nil
@@ -502,12 +503,23 @@ func TestCreateTaskReturnsCreatedTask(t *testing.T) {
 	}
 	server := New(time.Now(), WithTaskService(tasks))
 	defer server.Close()
+	body, err := json.Marshal(download.CreateTaskRequest{
+		URL:           "https://example.com/file.zip",
+		FileName:      "file.zip",
+		SaveDirectory: "/tmp/downloads",
+		ExpectedSize:  1572864,
+		AcceptRanges:  true,
+		ETag:          `"release-v1"`,
+		LastModified:  "Tue, 11 Aug 2026 01:02:03 GMT",
+		ScheduledAt:   &scheduledAt,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	response := httptest.NewRecorder()
 	server.Handler().ServeHTTP(
 		response,
-		httptest.NewRequest(http.MethodPost, "/api/v1/tasks", bytes.NewBufferString(
-			`{"url":"https://example.com/file.zip","fileName":"file.zip","saveDirectory":"/tmp/downloads","expectedSize":1572864,"acceptRanges":true,"etag":"\"release-v1\"","lastModified":"Tue, 11 Aug 2026 01:02:03 GMT"}`,
-		)),
+		httptest.NewRequest(http.MethodPost, "/api/v1/tasks", bytes.NewReader(body)),
 	)
 
 	if response.Code != http.StatusCreated {
@@ -520,6 +532,23 @@ func TestCreateTaskReturnsCreatedTask(t *testing.T) {
 	if envelope.Data.ID != "task-1" || envelope.Data.State != download.TaskStateDownloading {
 		t.Fatalf("task = %#v", envelope.Data)
 	}
+}
+
+func TestCreateTaskMapsInvalidSchedule(t *testing.T) {
+	server := New(time.Now(), WithTaskService(&stubTaskService{
+		create: func(context.Context, download.CreateTaskRequest) (download.Task, error) {
+			return download.Task{}, download.ErrInvalidSchedule
+		},
+	}))
+	defer server.Close()
+	response := httptest.NewRecorder()
+	server.Handler().ServeHTTP(
+		response,
+		httptest.NewRequest(http.MethodPost, "/api/v1/tasks", bytes.NewBufferString(
+			`{"url":"https://example.com/file.zip","fileName":"file.zip","saveDirectory":"/tmp/downloads","scheduledAt":"2026-08-17T01:02:03Z"}`,
+		)),
+	)
+	assertAPIError(t, response, http.StatusBadRequest, "invalid_schedule", false)
 }
 
 func TestCreateTasksBatchReturnsPerItemResults(t *testing.T) {

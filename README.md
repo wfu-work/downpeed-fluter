@@ -154,6 +154,7 @@ task_list/
 - 桌面端使用居中可滚动面板，窄窗口使用接近全屏的响应式面板
 - URL、Magnet、Torrent 文件和剪贴板识别
 - 保存目录与安全冲突策略：HTTP 同名任务可停止或自动生成副本名（已完成）
+- 可选开始时间：立即加入队列，或安排在未来时间自动启动（已完成）
 - 基础选项优先，高级连接/Header/代理配置折叠展示
 - 解析后选择文件、显示体积和可用空间
 - 批量粘贴与批量创建
@@ -186,8 +187,8 @@ task_list/
 
 ### 6. 调度与网络
 
-- 最大并发任务、全局下载限速和自动重试次数支持持久化与运行时更新（已完成）
-- 单任务连接数、单任务限速、Wi-Fi/电源条件和计划下载
+- 最大并发任务、全局下载限速、自动重试次数和计划下载支持持久化与运行时更新（已完成）
+- 单任务连接数、单任务限速、Wi-Fi/电源条件和更细粒度调度策略
 - 临时故障指数退避与可解释重试状态（已完成）
 - 系统代理、自定义 HTTP/SOCKS5 代理
 - 网络变化后的安全重连
@@ -326,7 +327,7 @@ POST   /api/v1/diagnostics/export
 
 `GET /api/v1/tasks/{id}/bt/diagnostics` 返回 Go 内核统计的已知、已连接、待连接、half-open 与 Seeder 数，接收、有效、上传、浪费 Chunk 与 Piece 校验统计，以及已连接 Peer 和强制网络策略。Peer IPv4 地址只返回类似 `203.10.x.x:6881` 的脱敏值，不支持的地址形式返回 `Hidden`。Flutter 只在用户展开“连接诊断”时请求，展开期间每 2 秒刷新，收起后停止轮询；仅运行中任务标记为实时诊断。
 
-`POST /api/v1/tasks` 使用解析后的 URL、文件名、用户明确选择的绝对保存目录，以及 `expectedSize`、`acceptRanges`、可选 `etag` 和 `lastModified` 创建任务。Range 可用、大小已知、文件不小于 1 MiB 且存在可用 `If-Range` 校验器时，Go 内核把文件划为四个连续区间并发下载；小文件、未知大小、Range 不可用或缺少安全校验器时保持单连接 GET。`GET /api/v1/tasks` 与 `GET /api/v1/tasks/{id}` 返回 Go 内核中的任务状态，`GET /api/v1/events` 通过 SSE 推送 `task.updated` 和 `task.removed`。
+`POST /api/v1/tasks` 使用解析后的 URL、文件名、用户明确选择的绝对保存目录，以及 `expectedSize`、`acceptRanges`、可选 `etag`、`lastModified` 和 `scheduledAt` 创建任务。`scheduledAt` 使用 RFC3339 时间戳；省略或传入 `null` 时立即进入 FIFO 队列，传入未来时间时保持 `queued`，到达时间后由 Go 调度器自动启动；过去时间返回 `invalid_schedule`。计划任务会随引擎正常关闭和重启保留，继续或重试会清除原计划并立即重新排队。Range 可用、大小已知、文件不小于 1 MiB 且存在可用 `If-Range` 校验器时，Go 内核把文件划为四个连续区间并发下载；小文件、未知大小、Range 不可用或缺少安全校验器时保持单连接 GET。`GET /api/v1/tasks` 与 `GET /api/v1/tasks/{id}` 返回 Go 内核中的任务状态，`GET /api/v1/events` 通过 SSE 推送 `task.updated` 和 `task.removed`。
 
 `GET /api/v1/settings` 返回 Go 引擎持久化的业务设置，`PUT /api/v1/settings` 更新并回读引擎已接受的最终值。`defaultDownloadDirectory` 首次启动时使用操作系统的用户下载目录；用户后续选择的目录必须是已存在的绝对本地目录。`fileConflictPolicy` 只接受 `fail` 与 `uniquify`：默认 `fail` 在冲突时停止创建，`uniquify` 为之后新建的 HTTP 任务选择 `名称 (1).扩展名` 一类未占用副本名；非法值返回 `invalid_file_conflict_policy`。两种策略都不会覆盖最终文件，BT 多文件任务仍保持冲突即停止。`scheduler.maxConcurrentTasks` 允许 1–64，`scheduler.downloadRateLimit` 使用 bytes/s 且 `0` 表示不限速，`scheduler.maxRetries` 允许 0–10；非法值返回 `invalid_scheduler_settings`。`bitTorrent.maxPeerConnections` 允许 1–80，设置页提供 12/24/40/80 四档；新建 BT 任务快照当时策略，修改不会热切换已有任务。`explicitPeersOnly` 必须为 `true`，Tracker、DHT、PEX、WebSeed、IPv6、入站、上传和做种必须为 `false`；任何试图开启的请求都返回 `invalid_bt_policy`。旧数据库缺少 `fileConflictPolicy` 时迁移为 `fail`，缺少 `scheduler` 时迁移为当次启动配置的安全默认值，缺少 BT 策略时迁移为 80 连接的受限默认值；旧版客户端在 PUT 中省略任一新增分组或重名策略时保留对应当前值。Flutter 不复制业务设置。
 
@@ -411,6 +412,7 @@ Flutter 只在已知任务通过 SSE 从非完成态切换为 `completed` 时发
 - [x] 终态任务记录删除、可选文件删除、批量删除和清空已完成
 - [x] 默认下载目录、系统下载文件夹初始化与设置页持久化
 - [x] HTTP 重名时停止或自动生成副本名，且最终文件始终不覆盖
+- [x] 计划下载、引擎重启后的计划恢复和到点唤醒
 
 完成标准：异常断网、应用退出和服务重启不会静默损坏文件，任务状态可以正确恢复。
 

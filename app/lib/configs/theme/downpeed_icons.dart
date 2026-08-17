@@ -17,6 +17,7 @@ class DownpeedIcons {
   static const IconData darkTheme = LucideIcons.moon300;
   static const IconData language = LucideIcons.languages300;
   static const IconData layout = LucideIcons.panelLeft300;
+  static const IconData tools = LucideIcons.slidersHorizontal300;
   static const IconData add = LucideIcons.plus300;
   static const IconData minus = LucideIcons.minus300;
   static const IconData paste = LucideIcons.clipboardPaste300;

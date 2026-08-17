@@ -339,6 +339,14 @@ class TaskDetailPanel extends StatelessWidget {
               onToggle: onToggleDiagnostics,
             ),
           ],
+          if (task.hasFutureSchedule)
+            _DetailRow(
+              label: L10nKeys.createSchedule.tr,
+              value: DateFormat(
+                'yyyy-MM-dd  HH:mm',
+              ).format(task.scheduledAt!.toLocal()),
+              icon: DownpeedIcons.clock,
+            ),
           _DetailRow(
             label: L10nKeys.taskCreated.tr,
             value: DateFormat(

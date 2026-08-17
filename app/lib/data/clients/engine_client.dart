@@ -50,6 +50,7 @@ abstract interface class EngineClient {
     bool acceptRanges = false,
     String etag = '',
     String lastModified = '',
+    DateTime? scheduledAt,
   });
 
   Future<DownloadTask> createBTTask({
@@ -358,6 +359,7 @@ class DioEngineClient implements EngineClient {
     bool acceptRanges = false,
     String etag = '',
     String lastModified = '',
+    DateTime? scheduledAt,
   }) async {
     try {
       final response = await _dio.post<Map<String, dynamic>>(
@@ -370,6 +372,8 @@ class DioEngineClient implements EngineClient {
           'acceptRanges': acceptRanges,
           if (etag.isNotEmpty) 'etag': etag,
           if (lastModified.isNotEmpty) 'lastModified': lastModified,
+          if (scheduledAt != null)
+            'scheduledAt': scheduledAt.toUtc().toIso8601String(),
         },
       );
       return DownloadTask.fromJson(_readData(response.data));
