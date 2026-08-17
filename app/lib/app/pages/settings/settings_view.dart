@@ -6,11 +6,15 @@ import '../../../configs/build_info.dart';
 import '../../../configs/localization/l10n_keys.dart';
 import '../../../configs/theme/downpeed_icons.dart';
 import '../../../configs/theme/downpeed_theme_tokens.dart';
+import '../../../domains/engine_diagnostics.dart';
 import '../../../domains/engine_info.dart';
+import '../../../domains/engine_settings.dart';
+import '../../../services/preferences_service.dart';
 import '../../../services/startup_service.dart';
 import '../../widgets/brand_mark.dart';
 import '../../widgets/downpeed_controls.dart';
 import '../../widgets/engine_status_badge.dart';
+import '../../widgets/task_display.dart';
 import 'settings_controller.dart';
 
 const _settingsWideBreakpoint = 700.0;
@@ -43,23 +47,26 @@ class _WideSettingsLayout extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       key: const ValueKey('settings-page'),
-      backgroundColor: context.downpeedColors.workspace,
-      body: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          SizedBox(
-            width: _settingsNavigationWidth,
-            child: _SettingsNavigation(controller: controller),
-          ),
-          Expanded(
-            child: Obx(
-              () => _SettingsContent(
-                controller: controller,
-                section: controller.selectedSection.value,
+      backgroundColor: Colors.transparent,
+      body: DecoratedBox(
+        decoration: context.downpeedWorkspaceDecoration,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(
+              width: _settingsNavigationWidth,
+              child: _SettingsNavigation(controller: controller),
+            ),
+            Expanded(
+              child: Obx(
+                () => _SettingsContent(
+                  controller: controller,
+                  section: controller.selectedSection.value,
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -77,35 +84,38 @@ class _CompactSettingsLayout extends StatelessWidget {
       final section = controller.selectedSection.value;
       return Scaffold(
         key: const ValueKey('settings-page'),
-        backgroundColor: context.downpeedColors.workspace,
-        body: SafeArea(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _CompactSettingsHeader(
-                title: showDetail
-                    ? _settingsSectionTitle(section)
-                    : L10nKeys.settingsTitle.tr,
-                tooltip: showDetail
-                    ? L10nKeys.settingsBackToMenu.tr
-                    : L10nKeys.settingsBackToTasks.tr,
-                onBack: showDetail
-                    ? controller.closeCompactDetail
-                    : controller.backToTasks,
-              ),
-              Expanded(
-                child: showDetail
-                    ? _SettingsContent(
-                        controller: controller,
-                        section: section,
-                        compact: true,
-                      )
-                    : _SettingsNavigation(
-                        controller: controller,
-                        compact: true,
-                      ),
-              ),
-            ],
+        backgroundColor: Colors.transparent,
+        body: DecoratedBox(
+          decoration: context.downpeedWorkspaceDecoration,
+          child: SafeArea(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _CompactSettingsHeader(
+                  title: showDetail
+                      ? _settingsSectionTitle(section)
+                      : L10nKeys.settingsTitle.tr,
+                  tooltip: showDetail
+                      ? L10nKeys.settingsBackToMenu.tr
+                      : L10nKeys.settingsBackToTasks.tr,
+                  onBack: showDetail
+                      ? controller.closeCompactDetail
+                      : controller.backToTasks,
+                ),
+                Expanded(
+                  child: showDetail
+                      ? _SettingsContent(
+                          controller: controller,
+                          section: section,
+                          compact: true,
+                        )
+                      : _SettingsNavigation(
+                          controller: controller,
+                          compact: true,
+                        ),
+                ),
+              ],
+            ),
           ),
         ),
       );
@@ -168,12 +178,15 @@ class _SettingsNavigation extends StatelessWidget {
     final colors = context.downpeedColors;
     return DecoratedBox(
       key: const ValueKey('settings-navigation'),
-      decoration: BoxDecoration(
-        color: compact ? colors.workspace : colors.sidebar,
-        border: compact
-            ? null
-            : Border(right: BorderSide(color: colors.border)),
-      ),
+      decoration:
+          (compact
+                  ? const BoxDecoration(color: Colors.transparent)
+                  : context.downpeedSidebarDecoration)
+              .copyWith(
+                border: compact
+                    ? null
+                    : Border(right: BorderSide(color: colors.border)),
+              ),
       child: SafeArea(
         top: compact || defaultTargetPlatform != TargetPlatform.macOS,
         child: Column(
@@ -379,8 +392,16 @@ class _SettingsContent extends StatelessWidget {
       final locale = controller.appService.locale.value.languageCode;
       final engineState = controller.engineService.state.value;
       final engineInfo = controller.engineService.info.value;
+      final scheduler = controller.engineSettingsService.scheduler;
+      final schedulerSaving = controller.engineSettingsService.isSaving.value;
+      final fileConflictPolicy =
+          controller.engineSettingsService.fileConflictPolicy;
+      final diagnostics = controller.diagnosticsService.diagnostics.value;
+      final diagnosticsLoading = controller.diagnosticsService.isLoading.value;
+      final diagnosticsExporting =
+          controller.diagnosticsService.isExporting.value;
       return ColoredBox(
-        color: context.downpeedColors.workspace,
+        color: Colors.transparent,
         child: Align(
           alignment: Alignment.topCenter,
           child: ConstrainedBox(
@@ -630,7 +651,7 @@ class _SettingsContent extends StatelessWidget {
                                 label: Text(
                                   controller
                                           .engineSettingsService
-                                          .isSaving
+                                          .isSavingDefaultDownloadDirectory
                                           .value
                                       ? L10nKeys
                                             .settingsDownloadDirectorySaving
@@ -643,6 +664,289 @@ class _SettingsContent extends StatelessWidget {
                             ],
                           ),
                         ),
+                      ),
+                      _SettingsRow(
+                        icon: DownpeedIcons.file,
+                        title: L10nKeys.settingsFileConflictPolicy.tr,
+                        description:
+                            L10nKeys.settingsFileConflictPolicyDescription.tr,
+                        control: fileConflictPolicy == null
+                            ? _SettingsValue(
+                                key: const ValueKey(
+                                  'settings-file-conflict-loading',
+                                ),
+                                value:
+                                    controller
+                                        .engineSettingsService
+                                        .isLoading
+                                        .value
+                                    ? L10nKeys
+                                          .settingsDownloadDirectoryLoading
+                                          .tr
+                                    : L10nKeys
+                                          .settingsDownloadDirectoryUnavailable
+                                          .tr,
+                              )
+                            : compact &&
+                                  MediaQuery.textScalerOf(context).scale(14) >=
+                                      21
+                            ? DownpeedMenuControl<FileConflictPolicy>(
+                                key: const ValueKey(
+                                  'settings-file-conflict-policy',
+                                ),
+                                value: fileConflictPolicy,
+                                options: [
+                                  DownpeedMenuOption(
+                                    value: FileConflictPolicy.uniquify,
+                                    label: L10nKeys
+                                        .settingsFileConflictPolicyRename
+                                        .tr,
+                                  ),
+                                  DownpeedMenuOption(
+                                    value: FileConflictPolicy.fail,
+                                    label: L10nKeys
+                                        .settingsFileConflictPolicyStop
+                                        .tr,
+                                  ),
+                                ],
+                                onSelected: schedulerSaving
+                                    ? null
+                                    : controller.setFileConflictPolicy,
+                                tooltip: L10nKeys.settingsFileConflictPolicy.tr,
+                              )
+                            : DownpeedSegmentedControl<FileConflictPolicy>(
+                                key: const ValueKey(
+                                  'settings-file-conflict-policy',
+                                ),
+                                segments: [
+                                  DownpeedSegment(
+                                    value: FileConflictPolicy.uniquify,
+                                    icon: DownpeedIcons.file,
+                                    label: L10nKeys
+                                        .settingsFileConflictPolicyRename
+                                        .tr,
+                                  ),
+                                  DownpeedSegment(
+                                    value: FileConflictPolicy.fail,
+                                    icon: DownpeedIcons.stop,
+                                    label: L10nKeys
+                                        .settingsFileConflictPolicyStop
+                                        .tr,
+                                  ),
+                                ],
+                                selected: fileConflictPolicy,
+                                onSelected: schedulerSaving
+                                    ? null
+                                    : controller.setFileConflictPolicy,
+                              ),
+                      ),
+                      _SettingsRow(
+                        icon: DownpeedIcons.completed,
+                        title: L10nKeys.settingsDownloadCompletionAction.tr,
+                        description: L10nKeys
+                            .settingsDownloadCompletionActionDescription
+                            .tr,
+                        control:
+                            compact &&
+                                MediaQuery.textScalerOf(context).scale(14) >= 21
+                            ? DownpeedMenuControl<DownloadCompletionAction>(
+                                key: const ValueKey(
+                                  'settings-download-completion-action',
+                                ),
+                                value: controller
+                                    .preferences
+                                    .downloadCompletionAction
+                                    .value,
+                                options: [
+                                  DownpeedMenuOption(
+                                    value: DownloadCompletionAction.none,
+                                    label: L10nKeys
+                                        .settingsDownloadCompletionActionNone
+                                        .tr,
+                                  ),
+                                  DownpeedMenuOption(
+                                    value: DownloadCompletionAction.revealFile,
+                                    label: L10nKeys
+                                        .settingsDownloadCompletionActionReveal
+                                        .tr,
+                                  ),
+                                ],
+                                onSelected:
+                                    controller.setDownloadCompletionAction,
+                                tooltip: L10nKeys
+                                    .settingsDownloadCompletionAction
+                                    .tr,
+                              )
+                            : DownpeedSegmentedControl<
+                                DownloadCompletionAction
+                              >(
+                                key: const ValueKey(
+                                  'settings-download-completion-action',
+                                ),
+                                segments: [
+                                  DownpeedSegment(
+                                    value: DownloadCompletionAction.none,
+                                    icon: DownpeedIcons.minus,
+                                    label: L10nKeys
+                                        .settingsDownloadCompletionActionNone
+                                        .tr,
+                                  ),
+                                  DownpeedSegment(
+                                    value: DownloadCompletionAction.revealFile,
+                                    icon: DownpeedIcons.revealFile,
+                                    label: L10nKeys
+                                        .settingsDownloadCompletionActionReveal
+                                        .tr,
+                                  ),
+                                ],
+                                selected: controller
+                                    .preferences
+                                    .downloadCompletionAction
+                                    .value,
+                                onSelected:
+                                    controller.setDownloadCompletionAction,
+                              ),
+                      ),
+                    ],
+                    SettingsSection.scheduler => [
+                      _SettingsRow(
+                        icon: DownpeedIcons.scheduler,
+                        title: L10nKeys.settingsSchedulerMaxConcurrentTasks.tr,
+                        description: L10nKeys
+                            .settingsSchedulerMaxConcurrentTasksDescription
+                            .tr,
+                        control: scheduler == null
+                            ? _SettingsValue(
+                                key: const ValueKey(
+                                  'settings-scheduler-concurrency-loading',
+                                ),
+                                value:
+                                    controller
+                                        .engineSettingsService
+                                        .isLoading
+                                        .value
+                                    ? L10nKeys
+                                          .settingsDownloadDirectoryLoading
+                                          .tr
+                                    : L10nKeys
+                                          .settingsDownloadDirectoryUnavailable
+                                          .tr,
+                              )
+                            : DownpeedNumberStepper(
+                                key: const ValueKey(
+                                  'settings-scheduler-concurrency',
+                                ),
+                                decrementKey: const ValueKey(
+                                  'settings-scheduler-concurrency-decrement',
+                                ),
+                                incrementKey: const ValueKey(
+                                  'settings-scheduler-concurrency-increment',
+                                ),
+                                value: scheduler.maxConcurrentTasks,
+                                minimum:
+                                    SchedulerSettings.minimumConcurrentTasks,
+                                maximum:
+                                    SchedulerSettings.maximumConcurrentTasks,
+                                onChanged: schedulerSaving
+                                    ? null
+                                    : controller.setMaxConcurrentTasks,
+                                decrementTooltip: L10nKeys
+                                    .settingsSchedulerDecreaseConcurrency
+                                    .tr,
+                                incrementTooltip: L10nKeys
+                                    .settingsSchedulerIncreaseConcurrency
+                                    .tr,
+                              ),
+                      ),
+                      _SettingsRow(
+                        icon: DownpeedIcons.speedLimit,
+                        title: L10nKeys.settingsSchedulerDownloadRateLimit.tr,
+                        description: L10nKeys
+                            .settingsSchedulerDownloadRateLimitDescription
+                            .tr,
+                        control: scheduler == null
+                            ? _SettingsValue(
+                                key: const ValueKey(
+                                  'settings-scheduler-rate-loading',
+                                ),
+                                value:
+                                    controller
+                                        .engineSettingsService
+                                        .isLoading
+                                        .value
+                                    ? L10nKeys
+                                          .settingsDownloadDirectoryLoading
+                                          .tr
+                                    : L10nKeys
+                                          .settingsDownloadDirectoryUnavailable
+                                          .tr,
+                              )
+                            : DownpeedMenuControl<int>(
+                                key: const ValueKey(
+                                  'settings-scheduler-rate-limit',
+                                ),
+                                value: scheduler.downloadRateLimit,
+                                options: [
+                                  for (final value in _schedulerRateLimits(
+                                    scheduler.downloadRateLimit,
+                                  ))
+                                    DownpeedMenuOption<int>(
+                                      value: value,
+                                      label: _schedulerRateLabel(value),
+                                    ),
+                                ],
+                                onSelected: schedulerSaving
+                                    ? null
+                                    : controller.setDownloadRateLimit,
+                                tooltip: L10nKeys.settingsSchedulerRateMenu.tr,
+                              ),
+                      ),
+                      _SettingsRow(
+                        icon: DownpeedIcons.retryPolicy,
+                        title: L10nKeys.settingsSchedulerAutomaticRetries.tr,
+                        description: L10nKeys
+                            .settingsSchedulerAutomaticRetriesDescription
+                            .tr,
+                        control: scheduler == null
+                            ? _SettingsValue(
+                                key: const ValueKey(
+                                  'settings-scheduler-retries-loading',
+                                ),
+                                value:
+                                    controller
+                                        .engineSettingsService
+                                        .isLoading
+                                        .value
+                                    ? L10nKeys
+                                          .settingsDownloadDirectoryLoading
+                                          .tr
+                                    : L10nKeys
+                                          .settingsDownloadDirectoryUnavailable
+                                          .tr,
+                              )
+                            : DownpeedNumberStepper(
+                                key: const ValueKey(
+                                  'settings-scheduler-retries',
+                                ),
+                                decrementKey: const ValueKey(
+                                  'settings-scheduler-retries-decrement',
+                                ),
+                                incrementKey: const ValueKey(
+                                  'settings-scheduler-retries-increment',
+                                ),
+                                value: scheduler.maxRetries,
+                                minimum: SchedulerSettings.minimumRetries,
+                                maximum: SchedulerSettings.maximumRetries,
+                                onChanged: schedulerSaving
+                                    ? null
+                                    : controller.setMaxRetries,
+                                decrementTooltip: L10nKeys
+                                    .settingsSchedulerDecreaseRetries
+                                    .tr,
+                                incrementTooltip: L10nKeys
+                                    .settingsSchedulerIncreaseRetries
+                                    .tr,
+                              ),
                       ),
                     ],
                     SettingsSection.bitTorrent => [
@@ -737,6 +1041,107 @@ class _SettingsContent extends StatelessWidget {
                               icon: const Icon(DownpeedIcons.retry),
                             ),
                           ],
+                        ),
+                      ),
+                    ],
+                    SettingsSection.diagnostics => [
+                      _SettingsRow(
+                        icon: DownpeedIcons.path,
+                        title: L10nKeys.settingsDiagnosticsDataDirectory.tr,
+                        description: L10nKeys
+                            .settingsDiagnosticsDataDirectoryDescription
+                            .tr,
+                        control: _DiagnosticPathValue(
+                          key: const ValueKey(
+                            'settings-diagnostics-data-directory',
+                          ),
+                          path:
+                              diagnostics?.storage.dataDirectory ??
+                              (diagnosticsLoading
+                                  ? L10nKeys.settingsDiagnosticsLoading.tr
+                                  : L10nKeys.settingsDiagnosticsUnavailable.tr),
+                        ),
+                      ),
+                      _SettingsRow(
+                        icon: DownpeedIcons.database,
+                        title: L10nKeys.settingsDiagnosticsDatabase.tr,
+                        description:
+                            L10nKeys.settingsDiagnosticsDatabaseDescription.tr,
+                        control: _DiagnosticPathValue(
+                          key: const ValueKey('settings-diagnostics-database'),
+                          path:
+                              diagnostics?.storage.databasePath ??
+                              (diagnosticsLoading
+                                  ? L10nKeys.settingsDiagnosticsLoading.tr
+                                  : L10nKeys.settingsDiagnosticsUnavailable.tr),
+                          detail: diagnostics == null
+                              ? null
+                              : diagnostics.storage.databaseAvailable
+                              ? formatBytes(
+                                  diagnostics.storage.databaseSizeBytes,
+                                )
+                              : L10nKeys
+                                    .settingsDiagnosticsDatabaseUnavailable
+                                    .tr,
+                        ),
+                      ),
+                      _SettingsRow(
+                        icon: DownpeedIcons.logs,
+                        title: L10nKeys.settingsDiagnosticsLogs.tr,
+                        description:
+                            L10nKeys.settingsDiagnosticsLogsDescription.tr,
+                        control: _DiagnosticPathValue(
+                          key: const ValueKey('settings-diagnostics-logs'),
+                          path: diagnostics == null
+                              ? (diagnosticsLoading
+                                    ? L10nKeys.settingsDiagnosticsLoading.tr
+                                    : L10nKeys
+                                          .settingsDiagnosticsUnavailable
+                                          .tr)
+                              : diagnostics.storage.logsAvailable
+                              ? diagnostics.storage.logPath
+                              : L10nKeys.settingsDiagnosticsLogsUnavailable.tr,
+                        ),
+                      ),
+                      _SettingsRow(
+                        icon: DownpeedIcons.diagnostics,
+                        title: L10nKeys.settingsDiagnosticsTasks.tr,
+                        description:
+                            L10nKeys.settingsDiagnosticsTasksDescription.tr,
+                        control: _SettingsValue(
+                          key: const ValueKey('settings-diagnostics-tasks'),
+                          value: diagnostics == null
+                              ? (diagnosticsLoading
+                                    ? L10nKeys.settingsDiagnosticsLoading.tr
+                                    : L10nKeys
+                                          .settingsDiagnosticsUnavailable
+                                          .tr)
+                              : _diagnosticTaskSummary(diagnostics.tasks),
+                        ),
+                      ),
+                      _SettingsRow(
+                        icon: DownpeedIcons.archive,
+                        title: L10nKeys.settingsDiagnosticsExport.tr,
+                        description:
+                            L10nKeys.settingsDiagnosticsExportDescription.tr,
+                        control: FilledButton.icon(
+                          key: const ValueKey('settings-diagnostics-export'),
+                          onPressed: diagnostics == null || diagnosticsExporting
+                              ? null
+                              : controller.exportDiagnostics,
+                          icon: diagnosticsExporting
+                              ? const SizedBox.square(
+                                  dimension: 14,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(DownpeedIcons.archive),
+                          label: Text(
+                            diagnosticsExporting
+                                ? L10nKeys.settingsDiagnosticsExporting.tr
+                                : L10nKeys.settingsDiagnosticsExportAction.tr,
+                          ),
                         ),
                       ),
                     ],
@@ -838,11 +1243,49 @@ class _SettingsContent extends StatelessWidget {
                           controller.engineSettingsService.errorMessage.value!,
                     ),
                   ],
+                  if (controller
+                          .engineSettingsService
+                          .fileConflictErrorMessage
+                          .value !=
+                      null) ...[
+                    const SizedBox(height: 14),
+                    _SettingsPreferenceNote(
+                      key: const ValueKey('settings-file-conflict-error'),
+                      title: L10nKeys.settingsFileConflictPolicyErrorTitle.tr,
+                      body: controller
+                          .engineSettingsService
+                          .fileConflictErrorMessage
+                          .value!,
+                    ),
+                  ],
                   const SizedBox(height: 14),
                   _SettingsPreferenceNote(
                     key: const ValueKey('settings-downloads-note'),
                     title: L10nKeys.settingsDownloadsNoteTitle.tr,
                     body: L10nKeys.settingsDownloadsNoteBody.tr,
+                  ),
+                ],
+                if (section == SettingsSection.scheduler) ...[
+                  if (controller
+                          .engineSettingsService
+                          .schedulerErrorMessage
+                          .value !=
+                      null) ...[
+                    const SizedBox(height: 14),
+                    _SettingsPreferenceNote(
+                      key: const ValueKey('settings-scheduler-error'),
+                      title: L10nKeys.settingsSchedulerErrorTitle.tr,
+                      body: controller
+                          .engineSettingsService
+                          .schedulerErrorMessage
+                          .value!,
+                    ),
+                  ],
+                  const SizedBox(height: 14),
+                  _SettingsPreferenceNote(
+                    key: const ValueKey('settings-scheduler-note'),
+                    title: L10nKeys.settingsSchedulerNoteTitle.tr,
+                    body: L10nKeys.settingsSchedulerNoteBody.tr,
                   ),
                 ],
                 if (section == SettingsSection.bitTorrent) ...[
@@ -876,6 +1319,72 @@ class _SettingsContent extends StatelessWidget {
                     body: L10nKeys.settingsEngineNoteBody.tr,
                   ),
                 ],
+                if (section == SettingsSection.diagnostics) ...[
+                  if (controller.diagnosticsService.loadErrorMessage.value !=
+                      null) ...[
+                    const SizedBox(height: 14),
+                    _SettingsPreferenceNote(
+                      key: const ValueKey('settings-diagnostics-load-error'),
+                      title: L10nKeys.settingsDiagnosticsLoadErrorTitle.tr,
+                      body:
+                          controller.diagnosticsService.loadErrorMessage.value!,
+                      action: OutlinedButton.icon(
+                        key: const ValueKey('settings-diagnostics-refresh'),
+                        onPressed: diagnosticsLoading
+                            ? null
+                            : controller.refreshDiagnostics,
+                        icon: const Icon(DownpeedIcons.retry),
+                        label: Text(L10nKeys.settingsDiagnosticsRefresh.tr),
+                      ),
+                    ),
+                  ],
+                  if (controller.diagnosticsService.exportErrorMessage.value !=
+                      null) ...[
+                    const SizedBox(height: 14),
+                    _SettingsPreferenceNote(
+                      key: const ValueKey('settings-diagnostics-export-error'),
+                      title: L10nKeys.settingsDiagnosticsExportErrorTitle.tr,
+                      body: controller
+                          .diagnosticsService
+                          .exportErrorMessage
+                          .value!,
+                    ),
+                  ],
+                  if (controller.diagnosticsService.savedArchivePath.value !=
+                      null) ...[
+                    const SizedBox(height: 14),
+                    _SettingsPreferenceNote(
+                      key: const ValueKey('settings-diagnostics-success'),
+                      title: L10nKeys.settingsDiagnosticsExportSuccessTitle.tr,
+                      body: L10nKeys.settingsDiagnosticsExportSuccessBody
+                          .trParams({
+                            'path': controller
+                                .diagnosticsService
+                                .savedArchivePath
+                                .value!,
+                          }),
+                      action:
+                          controller.diagnosticsService.canRevealSavedArchive
+                          ? TextButton.icon(
+                              key: const ValueKey(
+                                'settings-diagnostics-reveal',
+                              ),
+                              onPressed: controller.revealDiagnosticArchive,
+                              icon: const Icon(DownpeedIcons.revealFile),
+                              label: Text(
+                                L10nKeys.settingsDiagnosticsReveal.tr,
+                              ),
+                            )
+                          : null,
+                    ),
+                  ],
+                  const SizedBox(height: 14),
+                  _SettingsPreferenceNote(
+                    key: const ValueKey('settings-diagnostics-privacy'),
+                    title: L10nKeys.settingsDiagnosticsPrivacyTitle.tr,
+                    body: L10nKeys.settingsDiagnosticsPrivacyBody.tr,
+                  ),
+                ],
                 if (section == SettingsSection.about) ...[
                   const SizedBox(height: 14),
                   _SettingsPreferenceNote(
@@ -897,11 +1406,13 @@ class _SettingsPreferenceNote extends StatelessWidget {
   const _SettingsPreferenceNote({
     required this.title,
     required this.body,
+    this.action,
     super.key,
   });
 
   final String title;
   final String body;
+  final Widget? action;
 
   @override
   Widget build(BuildContext context) {
@@ -943,6 +1454,7 @@ class _SettingsPreferenceNote extends StatelessWidget {
                     height: 1.45,
                   ),
                 ),
+                if (action != null) ...[const SizedBox(height: 10), action!],
               ],
             ),
           ),
@@ -1123,6 +1635,58 @@ class _SettingsValue extends StatelessWidget {
   }
 }
 
+class _DiagnosticPathValue extends StatelessWidget {
+  const _DiagnosticPathValue({required this.path, this.detail, super.key});
+
+  final String path;
+  final String? detail;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.downpeedColors;
+    return Tooltip(
+      message: path,
+      child: Container(
+        constraints: const BoxConstraints(
+          minHeight: DownpeedThemeTokens.controlHeight,
+          maxWidth: 360,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          color: colors.surfaceSubtle,
+          border: Border.all(color: colors.border),
+          borderRadius: BorderRadius.circular(DownpeedThemeTokens.radius),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              path,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                color: colors.textSecondary,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+            if (detail != null) ...[
+              const SizedBox(height: 3),
+              Text(
+                detail!,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: colors.textMuted,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _LockedPolicyValue extends StatelessWidget {
   const _LockedPolicyValue({required this.safe, super.key});
 
@@ -1297,6 +1861,12 @@ List<_SettingsNavigationGroup> _settingsNavigationGroups() => [
         section: SettingsSection.downloads,
       ),
       _SettingsNavigationDestination(
+        key: const ValueKey('settings-nav-scheduler'),
+        icon: DownpeedIcons.scheduler,
+        label: L10nKeys.settingsScheduler.tr,
+        section: SettingsSection.scheduler,
+      ),
+      _SettingsNavigationDestination(
         key: const ValueKey('settings-nav-bt'),
         icon: DownpeedIcons.magnet,
         label: L10nKeys.settingsBT.tr,
@@ -1337,6 +1907,12 @@ List<_SettingsNavigationGroup> _settingsNavigationGroups() => [
         section: SettingsSection.engine,
       ),
       _SettingsNavigationDestination(
+        key: const ValueKey('settings-nav-diagnostics'),
+        icon: DownpeedIcons.diagnostics,
+        label: L10nKeys.settingsDiagnostics.tr,
+        section: SettingsSection.diagnostics,
+      ),
+      _SettingsNavigationDestination(
         key: const ValueKey('settings-nav-about'),
         icon: DownpeedIcons.about,
         label: L10nKeys.settingsAbout.tr,
@@ -1351,8 +1927,10 @@ String _settingsSectionTitle(SettingsSection section) => switch (section) {
   SettingsSection.workspace => L10nKeys.settingsWorkspace.tr,
   SettingsSection.notifications => L10nKeys.settingsNotifications.tr,
   SettingsSection.downloads => L10nKeys.settingsDownloads.tr,
+  SettingsSection.scheduler => L10nKeys.settingsScheduler.tr,
   SettingsSection.bitTorrent => L10nKeys.settingsBT.tr,
   SettingsSection.engine => L10nKeys.settingsEngine.tr,
+  SettingsSection.diagnostics => L10nKeys.settingsDiagnostics.tr,
   SettingsSection.about => L10nKeys.settingsAbout.tr,
 };
 
@@ -1363,10 +1941,31 @@ String _settingsSectionDescription(SettingsSection section) =>
       SettingsSection.notifications =>
         L10nKeys.settingsNotificationsDescription.tr,
       SettingsSection.downloads => L10nKeys.settingsDownloadsDescription.tr,
+      SettingsSection.scheduler => L10nKeys.settingsSchedulerDescription.tr,
       SettingsSection.bitTorrent => L10nKeys.settingsBTDescription.tr,
       SettingsSection.engine => L10nKeys.settingsEngineSectionDescription.tr,
+      SettingsSection.diagnostics => L10nKeys.settingsDiagnosticsDescription.tr,
       SettingsSection.about => L10nKeys.settingsAboutDescription.tr,
     };
+
+String _diagnosticTaskSummary(DiagnosticTaskSummary summary) => L10nKeys
+    .settingsDiagnosticsTasksValue
+    .trParams({'total': '${summary.total}', 'active': '${summary.active}'});
+
+List<int> _schedulerRateLimits(int current) => <int>{
+  0,
+  1 * 1024 * 1024,
+  5 * 1024 * 1024,
+  10 * 1024 * 1024,
+  20 * 1024 * 1024,
+  50 * 1024 * 1024,
+  100 * 1024 * 1024,
+  current,
+}.toList()..sort();
+
+String _schedulerRateLabel(int value) => value == 0
+    ? L10nKeys.settingsSchedulerUnlimited.tr
+    : '${formatBytes(value)}/s';
 
 String _engineTitle(EngineConnectionState state) => switch (state) {
   EngineConnectionState.checking => L10nKeys.engineChecking.tr,

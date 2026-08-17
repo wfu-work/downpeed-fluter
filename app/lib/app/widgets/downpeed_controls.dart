@@ -1,5 +1,8 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
+import '../../configs/theme/downpeed_icons.dart';
 import '../../configs/theme/downpeed_theme_tokens.dart';
 
 class DownpeedSegment<T> {
@@ -20,32 +23,41 @@ class DownpeedSegmentedControl<T> extends StatelessWidget {
 
   final List<DownpeedSegment<T>> segments;
   final T selected;
-  final ValueChanged<T> onSelected;
+  final ValueChanged<T>? onSelected;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.downpeedColors;
-    return Container(
-      height: DownpeedThemeTokens.controlHeight,
-      decoration: BoxDecoration(
-        color: colors.surfaceRaised,
-        border: Border.all(color: colors.borderStrong),
-        borderRadius: BorderRadius.circular(DownpeedThemeTokens.radius),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (var index = 0; index < segments.length; index++) ...[
-            _SegmentButton<T>(
-              segment: segments[index],
-              selected: segments[index].value == selected,
-              onPressed: () => onSelected(segments[index].value),
-            ),
-            if (index != segments.length - 1)
-              VerticalDivider(width: 1, thickness: 1, color: colors.border),
+    final controlHeight = math.max(
+      DownpeedThemeTokens.controlHeight,
+      MediaQuery.textScalerOf(context).scale(14) + 14,
+    );
+    return Opacity(
+      opacity: onSelected == null ? 0.5 : 1,
+      child: Container(
+        constraints: BoxConstraints(minHeight: controlHeight),
+        decoration: BoxDecoration(
+          color: colors.surfaceRaised,
+          border: Border.all(color: colors.borderStrong),
+          borderRadius: BorderRadius.circular(DownpeedThemeTokens.radius),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (var index = 0; index < segments.length; index++) ...[
+              _SegmentButton<T>(
+                segment: segments[index],
+                selected: segments[index].value == selected,
+                onPressed: onSelected == null
+                    ? null
+                    : () => onSelected?.call(segments[index].value),
+              ),
+              if (index != segments.length - 1)
+                VerticalDivider(width: 1, thickness: 1, color: colors.border),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -60,13 +72,14 @@ class _SegmentButton<T> extends StatelessWidget {
 
   final DownpeedSegment<T> segment;
   final bool selected;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.downpeedColors;
     return Semantics(
       button: true,
+      enabled: onPressed != null,
       selected: selected,
       child: Material(
         color: selected ? colors.sidebarSelection : Colors.transparent,
@@ -174,6 +187,191 @@ class DownpeedSwitch extends StatelessWidget {
                 ),
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class DownpeedNumberStepper extends StatelessWidget {
+  const DownpeedNumberStepper({
+    super.key,
+    required this.value,
+    required this.minimum,
+    required this.maximum,
+    required this.onChanged,
+    required this.decrementTooltip,
+    required this.incrementTooltip,
+    this.decrementKey,
+    this.incrementKey,
+  });
+
+  final int value;
+  final int minimum;
+  final int maximum;
+  final ValueChanged<int>? onChanged;
+  final String decrementTooltip;
+  final String incrementTooltip;
+  final Key? decrementKey;
+  final Key? incrementKey;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.downpeedColors;
+    final height = math.max(
+      DownpeedThemeTokens.controlHeight,
+      MediaQuery.textScalerOf(context).scale(14) + 14,
+    );
+    final enabled = onChanged != null;
+    return Semantics(
+      value: '$value',
+      enabled: enabled,
+      child: Opacity(
+        opacity: enabled ? 1 : 0.46,
+        child: Container(
+          height: height,
+          decoration: BoxDecoration(
+            color: colors.surfaceRaised,
+            border: Border.all(color: colors.borderStrong),
+            borderRadius: BorderRadius.circular(DownpeedThemeTokens.radius),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _StepperButton(
+                key: decrementKey,
+                icon: DownpeedIcons.minus,
+                tooltip: decrementTooltip,
+                onPressed: enabled && value > minimum
+                    ? () => onChanged?.call(value - 1)
+                    : null,
+                height: height,
+              ),
+              VerticalDivider(width: 1, thickness: 1, color: colors.border),
+              SizedBox(
+                width: 44,
+                child: Text(
+                  '$value',
+                  maxLines: 1,
+                  textAlign: TextAlign.center,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: colors.text,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+              ),
+              VerticalDivider(width: 1, thickness: 1, color: colors.border),
+              _StepperButton(
+                key: incrementKey,
+                icon: DownpeedIcons.add,
+                tooltip: incrementTooltip,
+                onPressed: enabled && value < maximum
+                    ? () => onChanged?.call(value + 1)
+                    : null,
+                height: height,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _StepperButton extends StatelessWidget {
+  const _StepperButton({
+    super.key,
+    required this.icon,
+    required this.tooltip,
+    required this.onPressed,
+    required this.height,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback? onPressed;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) => IconButton(
+    tooltip: tooltip,
+    onPressed: onPressed,
+    padding: EdgeInsets.zero,
+    constraints: BoxConstraints.tightFor(width: height, height: height),
+    iconSize: 14,
+    icon: Icon(icon),
+  );
+}
+
+class DownpeedMenuOption<T> {
+  const DownpeedMenuOption({required this.value, required this.label});
+
+  final T value;
+  final String label;
+}
+
+class DownpeedMenuControl<T> extends StatelessWidget {
+  const DownpeedMenuControl({
+    super.key,
+    required this.value,
+    required this.options,
+    required this.onSelected,
+    required this.tooltip,
+  });
+
+  final T value;
+  final List<DownpeedMenuOption<T>> options;
+  final ValueChanged<T>? onSelected;
+  final String tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.downpeedColors;
+    final selected = options.firstWhere((option) => option.value == value);
+    final height = math.max(
+      DownpeedThemeTokens.controlHeight,
+      MediaQuery.textScalerOf(context).scale(14) + 14,
+    );
+    return Opacity(
+      opacity: onSelected == null ? 0.46 : 1,
+      child: PopupMenuButton<T>(
+        enabled: onSelected != null,
+        tooltip: tooltip,
+        initialValue: value,
+        onSelected: onSelected,
+        itemBuilder: (context) => [
+          for (final option in options)
+            PopupMenuItem<T>(value: option.value, child: Text(option.label)),
+        ],
+        child: Container(
+          height: height,
+          constraints: const BoxConstraints(minWidth: 132, maxWidth: 190),
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            color: colors.surfaceRaised,
+            border: Border.all(color: colors.borderStrong),
+            borderRadius: BorderRadius.circular(DownpeedThemeTokens.radius),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: Text(
+                  selected.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: colors.text,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(DownpeedIcons.expand, size: 14, color: colors.textSecondary),
+            ],
           ),
         ),
       ),

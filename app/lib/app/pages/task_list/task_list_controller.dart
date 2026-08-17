@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 
 import '../../../configs/localization/l10n_keys.dart';
@@ -7,10 +6,10 @@ import '../../../domains/batch_task_result.dart';
 import '../../../services/engine_service.dart';
 import '../../../services/bt_diagnostics_service.dart';
 import '../../../services/desktop_actions_service.dart';
+import '../../../services/download_dialog_service.dart';
 import '../../../services/task_service.dart';
 import '../../../domains/download_task.dart';
 import '../../../domains/engine_info.dart';
-import '../create_download/create_download_view.dart';
 import '../../routes/app_pages.dart';
 import '../../widgets/delete_task_dialog.dart';
 
@@ -40,7 +39,6 @@ class TaskListController extends GetxController {
   final diagnosticsExpandedTaskIds = <String>{}.obs;
   Worker? _engineWorker;
   Worker? _tasksWorker;
-  bool _createDownloadOpen = false;
 
   List<DownloadTask> get tasks => taskService.tasks;
   List<DownloadTask> get visibleTasks {
@@ -126,22 +124,9 @@ class TaskListController extends GetxController {
     sort.value = value;
   }
 
-  Future<void> openCreateDownload() => _openCreateDownload();
+  Future<void> openCreateDownload() => DownloadDialogService.to.open();
 
-  Future<void> pasteDownload() async {
-    final clipboard = await Clipboard.getData(Clipboard.kTextPlain);
-    await _openCreateDownload(initialUrl: clipboard?.text?.trim() ?? '');
-  }
-
-  Future<void> _openCreateDownload({String initialUrl = ''}) async {
-    if (_createDownloadOpen) return;
-    _createDownloadOpen = true;
-    try {
-      await showCreateDownloadDialog(initialUrl: initialUrl);
-    } finally {
-      _createDownloadOpen = false;
-    }
-  }
+  Future<void> pasteDownload() => DownloadDialogService.to.paste();
 
   void openTask(DownloadTask task, {required bool compact}) {
     if (compact) {

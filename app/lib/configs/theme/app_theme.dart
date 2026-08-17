@@ -347,8 +347,8 @@ class AppTheme {
       ),
       titleLarge: TextStyle(
         color: color,
-        fontSize: DownpeedThemeTokens.textTitle,
-        height: 1.32,
+        fontSize: DownpeedThemeTokens.textHeading,
+        height: 1.28,
         fontWeight: FontWeight.w600,
         letterSpacing: 0,
       ),

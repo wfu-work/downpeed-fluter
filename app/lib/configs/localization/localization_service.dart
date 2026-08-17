@@ -11,6 +11,9 @@ class LocalizationService extends Translations {
   Map<String, Map<String, String>> get keys => const {
     'zh_CN': {
       L10nKeys.appName: 'Downpeed',
+      L10nKeys.navOverview: '概览',
+      L10nKeys.navTasks: '下载任务',
+      L10nKeys.navNetwork: '网络',
       L10nKeys.navAll: '全部任务',
       L10nKeys.navActive: '正在传输',
       L10nKeys.navCompleted: '已完成',
@@ -20,6 +23,66 @@ class LocalizationService extends Translations {
       L10nKeys.sidebarExpand: '展开侧栏',
       L10nKeys.sidebarThemeToLight: '切换到浅色模式',
       L10nKeys.sidebarThemeToDark: '切换到深色模式',
+      L10nKeys.overviewTitle: '概览',
+      L10nKeys.overviewSubtitle: '查看当前传输、队列和最近任务。',
+      L10nKeys.overviewCurrentSpeed: '当前下载速度',
+      L10nKeys.overviewActive: '传输中',
+      L10nKeys.overviewQueued: '排队与暂停',
+      L10nKeys.overviewCompleted: '已完成',
+      L10nKeys.overviewIssues: '需要处理',
+      L10nKeys.overviewCurrentTransfers: '当前传输',
+      L10nKeys.overviewCurrentTransfersSubtitle: '优先显示下载、重试、排队和暂停中的任务。',
+      L10nKeys.overviewRecent: '最近任务',
+      L10nKeys.overviewRecentSubtitle: '按最近更新时间排列。',
+      L10nKeys.overviewViewAll: '查看全部任务',
+      L10nKeys.overviewNewDownload: '新建下载',
+      L10nKeys.overviewPasteLink: '粘贴链接',
+      L10nKeys.overviewRefresh: '刷新任务',
+      L10nKeys.overviewNoActiveTitle: '当前没有进行中的任务',
+      L10nKeys.overviewNoActiveBody: '队列处于空闲状态，新建任务后会在这里显示。',
+      L10nKeys.overviewNoRecentTitle: '还没有最近任务',
+      L10nKeys.overviewNoRecentBody: '完成一次下载后，可在这里快速回看任务状态。',
+      L10nKeys.networkTitle: '网络',
+      L10nKeys.networkSubtitle: '查看本机引擎、下载调度和受限 BitTorrent 网络边界。',
+      L10nKeys.networkRefresh: '刷新引擎',
+      L10nKeys.networkOpenSettings: '进入设置',
+      L10nKeys.networkEngine: '本机引擎',
+      L10nKeys.networkEngineSubtitle: '界面通过本机 API 读取任务与实时进度。',
+      L10nKeys.networkEngineName: '引擎',
+      L10nKeys.networkEngineVersion: '版本',
+      L10nKeys.networkApi: 'API',
+      L10nKeys.networkRuntime: '运行时',
+      L10nKeys.networkPlatform: '平台',
+      L10nKeys.networkScheduler: '速度与调度',
+      L10nKeys.networkSchedulerSubtitle: '本机引擎当前执行的并发、带宽和故障重试策略。',
+      L10nKeys.networkMaxConcurrentTasks: '最大并发任务',
+      L10nKeys.networkConcurrentTasksValue: '@count 个任务',
+      L10nKeys.networkDownloadRateLimit: '全局下载限速',
+      L10nKeys.networkAutomaticRetries: '自动重试次数',
+      L10nKeys.networkRetriesValue: '@count 次',
+      L10nKeys.networkUnlimited: '不限速',
+      L10nKeys.networkDownloads: '下载边界',
+      L10nKeys.networkDownloadsSubtitle: '新任务的保存位置与受限 BT 连接预算。',
+      L10nKeys.networkDefaultDirectory: '默认下载目录',
+      L10nKeys.networkPeerBudget: '每任务 Peer 预算',
+      L10nKeys.networkPeerBudgetValue: '@count 个连接',
+      L10nKeys.networkPolicy: '受限网络策略',
+      L10nKeys.networkPolicySubtitle: '以下能力由本机引擎执行；完成独立安全门禁前不会开放。',
+      L10nKeys.networkPolicyRestricted: '受限策略正常',
+      L10nKeys.networkPolicyUnexpected: '检测到非预期网络能力',
+      L10nKeys.networkExplicitPeers: '仅显式公网 IPv4 Peer',
+      L10nKeys.networkTrackers: 'Tracker',
+      L10nKeys.networkDht: 'DHT',
+      L10nKeys.networkPex: 'PEX',
+      L10nKeys.networkWebSeeds: 'WebSeed',
+      L10nKeys.networkIpv6: 'IPv6',
+      L10nKeys.networkInbound: '入站连接',
+      L10nKeys.networkUpload: '上传',
+      L10nKeys.networkSeeding: '做种',
+      L10nKeys.networkEnabled: '已开启',
+      L10nKeys.networkDisabled: '已关闭',
+      L10nKeys.networkLoading: '正在读取引擎信息…',
+      L10nKeys.networkUnavailable: '连接本机引擎后显示网络信息。',
       L10nKeys.settingsTitle: '设置',
       L10nKeys.settingsSubtitle: '管理界面与本机偏好。',
       L10nKeys.settingsBackToTasks: '返回下载任务',
@@ -51,7 +114,7 @@ class LocalizationService extends Translations {
       L10nKeys.settingsWorkspaceDescription: '调整任务工作区的侧栏状态与宽度，让常用导航保持顺手。',
       L10nKeys.settingsSidebarExpanded: '默认展开侧栏',
       L10nKeys.settingsSidebarExpandedDescription:
-          '应用启动且窗口空间足够时，自动显示完整菜单、筛选入口和任务数量。',
+          '应用启动且窗口空间足够时，自动显示完整的概览、下载任务和网络入口。',
       L10nKeys.settingsSidebarWidth: '侧栏宽度',
       L10nKeys.settingsSidebarWidthDescription:
           '在任务工作区拖动侧栏右边缘调整宽度，当前尺寸会自动保存在本机。',
@@ -84,7 +147,7 @@ class LocalizationService extends Translations {
       L10nKeys.settingsNotificationsNoteBody:
           '关闭此选项会立即停止 Downpeed 发送新的完成通知，不影响下载任务。如果已在系统设置中拒绝通知权限，还需在系统中重新允许。',
       L10nKeys.settingsDownloads: '下载与文件',
-      L10nKeys.settingsDownloadsDescription: '设置新任务的默认保存位置，减少重复选择文件夹的操作。',
+      L10nKeys.settingsDownloadsDescription: '设置新任务的保存位置、同名文件处理方式和本机完成动作。',
       L10nKeys.settingsDownloadDirectory: '默认下载目录',
       L10nKeys.settingsDownloadDirectoryDescription:
           '新建 HTTP 下载时会自动使用此目录，仍可在单个任务中临时更改。',
@@ -98,9 +161,47 @@ class LocalizationService extends Translations {
       L10nKeys.settingsDownloadDirectoryOffline: '本机引擎未连接，暂时无法更改默认下载目录。',
       L10nKeys.settingsDownloadDirectoryPickerError: '无法打开文件夹选择器，请稍后重试。',
       L10nKeys.settingsDownloadDirectoryErrorTitle: '默认目录未更改',
-      L10nKeys.settingsDownloadsNoteTitle: '默认使用系统下载文件夹',
+      L10nKeys.settingsFileConflictPolicy: '同名文件处理',
+      L10nKeys.settingsFileConflictPolicyDescription:
+          '新建 HTTP 任务遇到已有文件、临时文件或活动任务占名时，选择生成副本名或停止创建。',
+      L10nKeys.settingsFileConflictPolicyRename: '自动重命名',
+      L10nKeys.settingsFileConflictPolicyStop: '停止创建',
+      L10nKeys.settingsFileConflictPolicyErrorTitle: '重名策略未更改',
+      L10nKeys.settingsFileConflictPolicyInvalid: '本机引擎不支持所选重名策略，已保留原设置。',
+      L10nKeys.settingsFileConflictPolicyOffline: '本机引擎未连接，暂时无法更改重名策略。',
+      L10nKeys.settingsFileConflictPolicySaveError: '无法保存重名策略，请稍后重试。',
+      L10nKeys.settingsDownloadCompletionAction: '下载完成后',
+      L10nKeys.settingsDownloadCompletionActionDescription:
+          '可在任务实时完成后定位文件；启动或刷新时载入的历史完成记录不会触发。',
+      L10nKeys.settingsDownloadCompletionActionNone: '无操作',
+      L10nKeys.settingsDownloadCompletionActionReveal: '在文件管理器中显示',
+      L10nKeys.settingsDownloadsNoteTitle: '文件策略与完成动作分开生效',
       L10nKeys.settingsDownloadsNoteBody:
-          '首次启动时默认为当前电脑的“下载”文件夹。更改后由本机引擎保存，并应用于之后新建的任务；已有任务、进行中的下载和已保存文件不会移动。',
+          '默认目录和重名策略由本机引擎保存，只影响之后创建的 HTTP 任务，且永不覆盖现有文件；BT 多文件任务仍在冲突时停止。完成后动作保存在当前设备，默认无操作；短时间内多项任务完成时只定位最后一项。',
+      L10nKeys.settingsScheduler: '速度与调度',
+      L10nKeys.settingsSchedulerDescription: '调整下载队列的并发、全局带宽上限和临时故障重试策略。',
+      L10nKeys.settingsSchedulerMaxConcurrentTasks: '最大并发任务',
+      L10nKeys.settingsSchedulerMaxConcurrentTasksDescription:
+          '增加后会立即启动更多排队任务；降低时不会中断已经运行的下载。',
+      L10nKeys.settingsSchedulerDownloadRateLimit: '全局下载限速',
+      L10nKeys.settingsSchedulerDownloadRateLimitDescription:
+          '所有 HTTP 下载连接共享此带宽上限，选择不限速可恢复完整可用带宽。',
+      L10nKeys.settingsSchedulerAutomaticRetries: '自动重试次数',
+      L10nKeys.settingsSchedulerAutomaticRetriesDescription:
+          '临时网络故障按指数退避自动重试；设为 0 后新发生的故障不会自动重试。',
+      L10nKeys.settingsSchedulerUnlimited: '不限速',
+      L10nKeys.settingsSchedulerRateMenu: '选择全局下载限速',
+      L10nKeys.settingsSchedulerDecreaseConcurrency: '减少最大并发任务',
+      L10nKeys.settingsSchedulerIncreaseConcurrency: '增加最大并发任务',
+      L10nKeys.settingsSchedulerDecreaseRetries: '减少自动重试次数',
+      L10nKeys.settingsSchedulerIncreaseRetries: '增加自动重试次数',
+      L10nKeys.settingsSchedulerNoteTitle: '调度设置由本机引擎立即执行',
+      L10nKeys.settingsSchedulerNoteBody:
+          '设置保存成功后立即应用。降低并发不会暂停进行中的任务，只会等待空出槽位后再启动队列；限速会动态作用于当前和之后的 HTTP 下载。',
+      L10nKeys.settingsSchedulerErrorTitle: '调度设置未更改',
+      L10nKeys.settingsSchedulerInvalid: '调度值超出当前引擎支持的范围。',
+      L10nKeys.settingsSchedulerOffline: '本机引擎未连接，暂时无法更改调度设置。',
+      L10nKeys.settingsSchedulerSaveError: '无法保存调度设置，请稍后重试。',
       L10nKeys.settingsBT: 'BitTorrent',
       L10nKeys.settingsBTDescription: '管理受限 BT 传输的 Peer 预算，并查看引擎强制关闭的网络能力。',
       L10nKeys.settingsBTPeerBudget: 'Peer 连接上限',
@@ -127,6 +228,44 @@ class LocalizationService extends Translations {
       L10nKeys.settingsEngineNoteTitle: '下载任务由本机引擎处理',
       L10nKeys.settingsEngineNoteBody:
           '本机引擎负责链接解析、队列调度、断点续传和文件写入，界面只读取并显示它的状态。使用刷新按钮只会重新检查连接，不会暂停、重启或修改下载任务。',
+      L10nKeys.settingsDiagnostics: '数据与诊断',
+      L10nKeys.settingsDiagnosticsDescription: '查看本机数据存储状态，并导出不含任务隐私的诊断包。',
+      L10nKeys.settingsDiagnosticsDataDirectory: '引擎数据目录',
+      L10nKeys.settingsDiagnosticsDataDirectoryDescription:
+          '显示经过缩写的本机存储位置，不暴露当前用户的完整主目录。',
+      L10nKeys.settingsDiagnosticsDatabase: '任务数据库',
+      L10nKeys.settingsDiagnosticsDatabaseDescription:
+          '本机引擎使用的任务与设置数据库，仅显示缩写路径和当前文件大小。',
+      L10nKeys.settingsDiagnosticsDatabaseUnavailable: '数据库状态不可用',
+      L10nKeys.settingsDiagnosticsLogs: '引擎日志',
+      L10nKeys.settingsDiagnosticsLogsDescription:
+          '当前版本不在磁盘持久保存运行日志，避免积累不必要的本机信息。',
+      L10nKeys.settingsDiagnosticsLogsUnavailable: '未落盘',
+      L10nKeys.settingsDiagnosticsTasks: '任务状态摘要',
+      L10nKeys.settingsDiagnosticsTasksDescription:
+          '只统计任务数量，诊断包不写入链接、文件名、单个任务保存路径和任务标识。',
+      L10nKeys.settingsDiagnosticsTasksValue: '@total 个任务 · @active 个活动',
+      L10nKeys.settingsDiagnosticsExport: '诊断包',
+      L10nKeys.settingsDiagnosticsExportDescription:
+          '导出版本、运行时、安全设置摘要、存储状态和任务计数，保存位置由你选择。',
+      L10nKeys.settingsDiagnosticsExportAction: '导出诊断包',
+      L10nKeys.settingsDiagnosticsExporting: '正在导出…',
+      L10nKeys.settingsDiagnosticsLoading: '正在读取…',
+      L10nKeys.settingsDiagnosticsUnavailable: '连接引擎后显示',
+      L10nKeys.settingsDiagnosticsRefresh: '重新读取',
+      L10nKeys.settingsDiagnosticsOffline: '本机引擎未连接，暂时无法读取或导出诊断信息。',
+      L10nKeys.settingsDiagnosticsLoadErrorTitle: '诊断信息暂不可用',
+      L10nKeys.settingsDiagnosticsLoadError: '本机引擎未能准备诊断摘要，请稍后重试。',
+      L10nKeys.settingsDiagnosticsExportErrorTitle: '诊断包未导出',
+      L10nKeys.settingsDiagnosticsExportError: '本机引擎未能生成诊断包，请稍后重试。',
+      L10nKeys.settingsDiagnosticsSaveError: '诊断包无法保存到所选位置，请选择其他文件夹后重试。',
+      L10nKeys.settingsDiagnosticsRevealError: '文件管理器无法定位已保存的诊断包。',
+      L10nKeys.settingsDiagnosticsExportSuccessTitle: '诊断包已保存',
+      L10nKeys.settingsDiagnosticsExportSuccessBody: '保存位置：@path',
+      L10nKeys.settingsDiagnosticsReveal: '显示文件',
+      L10nKeys.settingsDiagnosticsPrivacyTitle: '导出内容默认脱敏',
+      L10nKeys.settingsDiagnosticsPrivacyBody:
+          '诊断包不会包含任务 URL、请求 Header、Cookie、代理凭据、磁力链接、种子元数据、文件名、单个任务保存路径或任务标识。默认目录等必要路径会缩写；当前版本没有可导出的落盘日志。',
       L10nKeys.settingsAbout: '关于与许可证',
       L10nKeys.settingsAboutDescription: '查看应用、引擎与运行环境版本，以及开源组件的许可信息。',
       L10nKeys.settingsAboutAppVersion: 'Downpeed 客户端',
@@ -143,6 +282,10 @@ class LocalizationService extends Translations {
           '反馈问题时，请同时提供客户端版本、引擎版本和 API 版本。许可证页只展示已随客户端编译的依赖。',
       L10nKeys.tasksTitle: '下载任务',
       L10nKeys.tasksSubtitle: '查看进度、速度和需要处理的任务。',
+      L10nKeys.tasksFilterAll: '全部任务',
+      L10nKeys.tasksFilterActive: '正在传输',
+      L10nKeys.tasksFilterCompleted: '已完成',
+      L10nKeys.tasksFilterIssues: '需要处理',
       L10nKeys.tasksAdd: '新建下载',
       L10nKeys.tasksSearch: '搜索',
       L10nKeys.tasksSort: '任务排序',
@@ -360,6 +503,9 @@ class LocalizationService extends Translations {
     },
     'en_US': {
       L10nKeys.appName: 'Downpeed',
+      L10nKeys.navOverview: 'Overview',
+      L10nKeys.navTasks: 'Downloads',
+      L10nKeys.navNetwork: 'Network',
       L10nKeys.navAll: 'All transfers',
       L10nKeys.navActive: 'Active',
       L10nKeys.navCompleted: 'Completed',
@@ -369,6 +515,76 @@ class LocalizationService extends Translations {
       L10nKeys.sidebarExpand: 'Expand sidebar',
       L10nKeys.sidebarThemeToLight: 'Switch to light mode',
       L10nKeys.sidebarThemeToDark: 'Switch to dark mode',
+      L10nKeys.overviewTitle: 'Overview',
+      L10nKeys.overviewSubtitle:
+          'Review current transfers, the queue, and recent tasks.',
+      L10nKeys.overviewCurrentSpeed: 'Current download speed',
+      L10nKeys.overviewActive: 'Transferring',
+      L10nKeys.overviewQueued: 'Queued & paused',
+      L10nKeys.overviewCompleted: 'Completed',
+      L10nKeys.overviewIssues: 'Needs attention',
+      L10nKeys.overviewCurrentTransfers: 'Current transfers',
+      L10nKeys.overviewCurrentTransfersSubtitle:
+          'Downloads, retries, queued tasks, and paused work appear first.',
+      L10nKeys.overviewRecent: 'Recent tasks',
+      L10nKeys.overviewRecentSubtitle: 'Ordered by the latest update.',
+      L10nKeys.overviewViewAll: 'View all downloads',
+      L10nKeys.overviewNewDownload: 'New download',
+      L10nKeys.overviewPasteLink: 'Paste link',
+      L10nKeys.overviewRefresh: 'Refresh tasks',
+      L10nKeys.overviewNoActiveTitle: 'No transfer is active',
+      L10nKeys.overviewNoActiveBody:
+          'The queue is idle. New tasks will appear here.',
+      L10nKeys.overviewNoRecentTitle: 'No recent tasks yet',
+      L10nKeys.overviewNoRecentBody:
+          'Completed and updated downloads will be easy to revisit here.',
+      L10nKeys.networkTitle: 'Network',
+      L10nKeys.networkSubtitle:
+          'Review the local engine, download scheduling, and restricted BitTorrent boundary.',
+      L10nKeys.networkRefresh: 'Refresh engine',
+      L10nKeys.networkOpenSettings: 'Open settings',
+      L10nKeys.networkEngine: 'Local engine',
+      L10nKeys.networkEngineSubtitle:
+          'The interface reads tasks and live progress through the local API.',
+      L10nKeys.networkEngineName: 'Engine',
+      L10nKeys.networkEngineVersion: 'Version',
+      L10nKeys.networkApi: 'API',
+      L10nKeys.networkRuntime: 'Runtime',
+      L10nKeys.networkPlatform: 'Platform',
+      L10nKeys.networkScheduler: 'Speed & scheduling',
+      L10nKeys.networkSchedulerSubtitle:
+          'Concurrency, bandwidth, and failure retry policies enforced by the local engine.',
+      L10nKeys.networkMaxConcurrentTasks: 'Maximum concurrent tasks',
+      L10nKeys.networkConcurrentTasksValue: '@count tasks',
+      L10nKeys.networkDownloadRateLimit: 'Global download limit',
+      L10nKeys.networkAutomaticRetries: 'Automatic retries',
+      L10nKeys.networkRetriesValue: '@count retries',
+      L10nKeys.networkUnlimited: 'Unlimited',
+      L10nKeys.networkDownloads: 'Download boundary',
+      L10nKeys.networkDownloadsSubtitle:
+          'Default save location and the restricted BT peer budget.',
+      L10nKeys.networkDefaultDirectory: 'Default download folder',
+      L10nKeys.networkPeerBudget: 'Peer budget per task',
+      L10nKeys.networkPeerBudgetValue: '@count connections',
+      L10nKeys.networkPolicy: 'Restricted network policy',
+      L10nKeys.networkPolicySubtitle:
+          'The local engine enforces these capabilities until each security gate is complete.',
+      L10nKeys.networkPolicyRestricted: 'Restricted policy intact',
+      L10nKeys.networkPolicyUnexpected: 'Unexpected capability detected',
+      L10nKeys.networkExplicitPeers: 'Explicit public IPv4 peers only',
+      L10nKeys.networkTrackers: 'Trackers',
+      L10nKeys.networkDht: 'DHT',
+      L10nKeys.networkPex: 'PEX',
+      L10nKeys.networkWebSeeds: 'WebSeed',
+      L10nKeys.networkIpv6: 'IPv6',
+      L10nKeys.networkInbound: 'Inbound connections',
+      L10nKeys.networkUpload: 'Upload',
+      L10nKeys.networkSeeding: 'Seeding',
+      L10nKeys.networkEnabled: 'Enabled',
+      L10nKeys.networkDisabled: 'Disabled',
+      L10nKeys.networkLoading: 'Loading engine information…',
+      L10nKeys.networkUnavailable:
+          'Connect the local engine to view network information.',
       L10nKeys.settingsTitle: 'Settings',
       L10nKeys.settingsSubtitle: 'Manage local preferences.',
       L10nKeys.settingsBackToTasks: 'Back to transfers',
@@ -404,7 +620,7 @@ class LocalizationService extends Translations {
           'Tune the transfer workspace sidebar so everyday navigation stays comfortable.',
       L10nKeys.settingsSidebarExpanded: 'Expand sidebar by default',
       L10nKeys.settingsSidebarExpandedDescription:
-          'Show the full menu, filters, and task counts at launch when the window has enough room.',
+          'Show the full Overview, Downloads, and Network menu when the window has enough room.',
       L10nKeys.settingsSidebarWidth: 'Sidebar width',
       L10nKeys.settingsSidebarWidthDescription:
           'Drag the sidebar edge in the transfer workspace. Its current size is saved on this device.',
@@ -449,7 +665,7 @@ class LocalizationService extends Translations {
           'Turning this off immediately stops new Downpeed completion notifications without affecting downloads. If permission was denied in system settings, allow it there before notifications can appear.',
       L10nKeys.settingsDownloads: 'Downloads & files',
       L10nKeys.settingsDownloadsDescription:
-          'Choose where new tasks save files by default and avoid selecting the same folder repeatedly.',
+          'Choose where new tasks save, how name conflicts are handled, and what this device does on completion.',
       L10nKeys.settingsDownloadDirectory: 'Default download folder',
       L10nKeys.settingsDownloadDirectoryDescription:
           'New HTTP downloads use this folder automatically. You can still override it for an individual task.',
@@ -470,10 +686,59 @@ class LocalizationService extends Translations {
           'The folder picker could not be opened. Try again.',
       L10nKeys.settingsDownloadDirectoryErrorTitle:
           'Default folder not changed',
+      L10nKeys.settingsFileConflictPolicy: 'Existing file names',
+      L10nKeys.settingsFileConflictPolicyDescription:
+          'When a new HTTP task finds an existing file, partial file, or active task with the same name, create a copy name or stop.',
+      L10nKeys.settingsFileConflictPolicyRename: 'Auto rename',
+      L10nKeys.settingsFileConflictPolicyStop: 'Stop',
+      L10nKeys.settingsFileConflictPolicyErrorTitle:
+          'File conflict setting not changed',
+      L10nKeys.settingsFileConflictPolicyInvalid:
+          'The local engine does not support this file conflict policy. The previous setting was kept.',
+      L10nKeys.settingsFileConflictPolicyOffline:
+          'The local engine is offline, so file conflict handling cannot be changed.',
+      L10nKeys.settingsFileConflictPolicySaveError:
+          'File conflict handling could not be saved. Try again.',
+      L10nKeys.settingsDownloadCompletionAction: 'After download completes',
+      L10nKeys.settingsDownloadCompletionActionDescription:
+          'Optionally reveal files after a live completion. Historical completed records loaded at startup or refresh never trigger it.',
+      L10nKeys.settingsDownloadCompletionActionNone: 'Do nothing',
+      L10nKeys.settingsDownloadCompletionActionReveal: 'Reveal in file manager',
       L10nKeys.settingsDownloadsNoteTitle:
-          'The system Downloads folder is the default',
+          'File rules and completion actions apply separately',
       L10nKeys.settingsDownloadsNoteBody:
-          'On first launch, Downpeed uses this computer’s Downloads folder. Changes are stored by the local engine and apply to newly created tasks; existing tasks, active downloads, and saved files are not moved.',
+          'The local engine stores the default folder and conflict policy for future HTTP tasks only, and never overwrites existing files. Multi-file BT tasks still stop on conflicts. The completion action is stored on this device and defaults to doing nothing; a burst of completions reveals only the last file.',
+      L10nKeys.settingsScheduler: 'Speed & scheduling',
+      L10nKeys.settingsSchedulerDescription:
+          'Tune queue concurrency, the global bandwidth ceiling, and retries for temporary failures.',
+      L10nKeys.settingsSchedulerMaxConcurrentTasks: 'Maximum concurrent tasks',
+      L10nKeys.settingsSchedulerMaxConcurrentTasksDescription:
+          'Raising this starts more queued tasks immediately. Lowering it never interrupts active downloads.',
+      L10nKeys.settingsSchedulerDownloadRateLimit: 'Global download limit',
+      L10nKeys.settingsSchedulerDownloadRateLimitDescription:
+          'All HTTP download connections share this ceiling. Choose Unlimited to restore all available bandwidth.',
+      L10nKeys.settingsSchedulerAutomaticRetries: 'Automatic retries',
+      L10nKeys.settingsSchedulerAutomaticRetriesDescription:
+          'Temporary network failures retry with exponential backoff. Set this to 0 to disable new automatic retries.',
+      L10nKeys.settingsSchedulerUnlimited: 'Unlimited',
+      L10nKeys.settingsSchedulerRateMenu: 'Choose global download limit',
+      L10nKeys.settingsSchedulerDecreaseConcurrency:
+          'Decrease maximum concurrent tasks',
+      L10nKeys.settingsSchedulerIncreaseConcurrency:
+          'Increase maximum concurrent tasks',
+      L10nKeys.settingsSchedulerDecreaseRetries: 'Decrease automatic retries',
+      L10nKeys.settingsSchedulerIncreaseRetries: 'Increase automatic retries',
+      L10nKeys.settingsSchedulerNoteTitle:
+          'The local engine applies scheduling changes immediately',
+      L10nKeys.settingsSchedulerNoteBody:
+          'Changes take effect after the engine saves them. Lower concurrency does not pause active tasks; the queue waits for free slots. The rate limit updates current and future HTTP downloads dynamically.',
+      L10nKeys.settingsSchedulerErrorTitle: 'Scheduling settings not changed',
+      L10nKeys.settingsSchedulerInvalid:
+          'A scheduling value is outside the range supported by this engine.',
+      L10nKeys.settingsSchedulerOffline:
+          'The local engine is offline, so scheduling settings cannot be changed.',
+      L10nKeys.settingsSchedulerSaveError:
+          'Scheduling settings could not be saved. Try again.',
       L10nKeys.settingsBT: 'BitTorrent',
       L10nKeys.settingsBTDescription:
           'Manage the peer budget for restricted BT transfers and review capabilities locked off by the engine.',
@@ -508,6 +773,54 @@ class LocalizationService extends Translations {
           'Downloads are handled by the local engine',
       L10nKeys.settingsEngineNoteBody:
           'The local engine resolves links, schedules the queue, resumes transfers, and writes files while the interface reads and presents its state. Refresh only checks the connection again; it does not pause, restart, or modify downloads.',
+      L10nKeys.settingsDiagnostics: 'Data & diagnostics',
+      L10nKeys.settingsDiagnosticsDescription:
+          'Review local storage health and export a diagnostic bundle without task-level private data.',
+      L10nKeys.settingsDiagnosticsDataDirectory: 'Engine data folder',
+      L10nKeys.settingsDiagnosticsDataDirectoryDescription:
+          'Shows a shortened local storage location without exposing the full user home path.',
+      L10nKeys.settingsDiagnosticsDatabase: 'Task database',
+      L10nKeys.settingsDiagnosticsDatabaseDescription:
+          'The engine task and settings database, shown only as a shortened path and current file size.',
+      L10nKeys.settingsDiagnosticsDatabaseUnavailable:
+          'Database status unavailable',
+      L10nKeys.settingsDiagnosticsLogs: 'Engine logs',
+      L10nKeys.settingsDiagnosticsLogsDescription:
+          'This build does not persist runtime logs to disk, avoiding unnecessary local data retention.',
+      L10nKeys.settingsDiagnosticsLogsUnavailable: 'Not stored',
+      L10nKeys.settingsDiagnosticsTasks: 'Task status summary',
+      L10nKeys.settingsDiagnosticsTasksDescription:
+          'Counts tasks only. Links, file names, per-task save paths, and task identifiers are not written into the bundle.',
+      L10nKeys.settingsDiagnosticsTasksValue: '@total tasks · @active active',
+      L10nKeys.settingsDiagnosticsExport: 'Diagnostic bundle',
+      L10nKeys.settingsDiagnosticsExportDescription:
+          'Export versions, runtime details, safe settings, storage health, and task counts to a location you choose.',
+      L10nKeys.settingsDiagnosticsExportAction: 'Export bundle',
+      L10nKeys.settingsDiagnosticsExporting: 'Exporting…',
+      L10nKeys.settingsDiagnosticsLoading: 'Loading…',
+      L10nKeys.settingsDiagnosticsUnavailable: 'Connect the engine to view',
+      L10nKeys.settingsDiagnosticsRefresh: 'Reload',
+      L10nKeys.settingsDiagnosticsOffline:
+          'The local engine is offline, so diagnostic information cannot be read or exported.',
+      L10nKeys.settingsDiagnosticsLoadErrorTitle:
+          'Diagnostic information is unavailable',
+      L10nKeys.settingsDiagnosticsLoadError:
+          'The local engine could not prepare its diagnostic summary. Try again later.',
+      L10nKeys.settingsDiagnosticsExportErrorTitle:
+          'Diagnostic bundle not exported',
+      L10nKeys.settingsDiagnosticsExportError:
+          'The local engine could not generate a diagnostic bundle. Try again later.',
+      L10nKeys.settingsDiagnosticsSaveError:
+          'The bundle could not be saved to that location. Choose another folder and try again.',
+      L10nKeys.settingsDiagnosticsRevealError:
+          'The file manager could not reveal the saved diagnostic bundle.',
+      L10nKeys.settingsDiagnosticsExportSuccessTitle: 'Diagnostic bundle saved',
+      L10nKeys.settingsDiagnosticsExportSuccessBody: 'Saved to @path',
+      L10nKeys.settingsDiagnosticsReveal: 'Show file',
+      L10nKeys.settingsDiagnosticsPrivacyTitle:
+          'Exported information is redacted by default',
+      L10nKeys.settingsDiagnosticsPrivacyBody:
+          'The bundle excludes task URLs, request headers, cookies, proxy credentials, magnet links, torrent metadata, file names, per-task save paths, and task identifiers. Necessary paths such as the default folder are shortened, and this build has no persisted logs to export.',
       L10nKeys.settingsAbout: 'About & licenses',
       L10nKeys.settingsAboutDescription:
           'Review app, engine, and runtime versions together with open-source license information.',
@@ -528,6 +841,10 @@ class LocalizationService extends Translations {
       L10nKeys.tasksTitle: 'Transfers',
       L10nKeys.tasksSubtitle:
           'Review progress, speed, and tasks that need attention.',
+      L10nKeys.tasksFilterAll: 'All transfers',
+      L10nKeys.tasksFilterActive: 'Active',
+      L10nKeys.tasksFilterCompleted: 'Completed',
+      L10nKeys.tasksFilterIssues: 'Needs attention',
       L10nKeys.tasksAdd: 'New download',
       L10nKeys.tasksSearch: 'Search',
       L10nKeys.tasksSort: 'Sort transfers',

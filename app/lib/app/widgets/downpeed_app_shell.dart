@@ -14,23 +14,22 @@ import 'brand_mark.dart';
 import 'engine_status_badge.dart';
 
 const _macOSWindowControlsWidth = 76.0;
+const _macOSSidebarToggleExtent = 40.0;
+const _macOSCollapsedSidebarWidth =
+    _macOSWindowControlsWidth + _macOSSidebarToggleExtent + 4;
 const _macOSTitleBarHeight = 38.0;
+
+enum AppDestination { overview, tasks, network, settings }
 
 class DownpeedAppShell extends StatefulWidget {
   const DownpeedAppShell({
     super.key,
     required this.child,
-    this.selectedTaskFilter = 0,
-    this.onTaskFilterChanged,
-    this.taskCounts,
-    this.settingsSelected = false,
+    required this.selectedDestination,
   });
 
   final Widget child;
-  final int selectedTaskFilter;
-  final ValueChanged<int>? onTaskFilterChanged;
-  final List<int>? taskCounts;
-  final bool settingsSelected;
+  final AppDestination selectedDestination;
 
   @override
   State<DownpeedAppShell> createState() => _DownpeedAppShellState();
@@ -58,42 +57,41 @@ class _DownpeedAppShellState extends State<DownpeedAppShell> {
               .clamp(DownpeedThemeTokens.sidebarMinWidth, maxSidebarWidth)
               .toDouble();
           return Scaffold(
-            backgroundColor: context.downpeedColors.workspace,
-            body: showSidebar
-                ? Row(
-                    children: [
-                      _SidebarPane(
-                        expanded: expanded,
-                        expandedWidth: expandedWidth,
-                        resizing: _isResizingSidebar,
-                        selectedIndex: widget.selectedTaskFilter,
-                        settingsSelected: widget.settingsSelected,
-                        counts: widget.taskCounts,
-                        onSelected: widget.onTaskFilterChanged,
-                        onSettingsSelected: _openSettings,
-                        onToggle: () => unawaited(
-                          _preferences.setSidebarExpanded(!expanded),
+            backgroundColor: Colors.transparent,
+            body: DecoratedBox(
+              decoration: context.downpeedWorkspaceDecoration,
+              child: showSidebar
+                  ? Row(
+                      children: [
+                        _SidebarPane(
+                          expanded: expanded,
+                          expandedWidth: expandedWidth,
+                          resizing: _isResizingSidebar,
+                          selectedDestination: widget.selectedDestination,
+                          onSelected: _openDestination,
+                          onToggle: () => unawaited(
+                            _preferences.setSidebarExpanded(!expanded),
+                          ),
+                          onResizeStart: () =>
+                              _startSidebarResize(expandedWidth),
+                          onResizeUpdate: (delta) =>
+                              _updateSidebarWidth(delta, maxSidebarWidth),
+                          onResizeEnd: _finishSidebarResize,
                         ),
-                        onResizeStart: () => _startSidebarResize(expandedWidth),
-                        onResizeUpdate: (delta) =>
-                            _updateSidebarWidth(delta, maxSidebarWidth),
-                        onResizeEnd: _finishSidebarResize,
-                      ),
-                      Expanded(child: widget.child),
-                    ],
-                  )
-                : Column(
-                    children: [
-                      const _CompactHeader(),
-                      Expanded(child: widget.child),
-                      _CompactNavigation(
-                        selectedIndex: widget.selectedTaskFilter,
-                        settingsSelected: widget.settingsSelected,
-                        onSelected: widget.onTaskFilterChanged,
-                        onSettingsSelected: _openSettings,
-                      ),
-                    ],
-                  ),
+                        Expanded(child: widget.child),
+                      ],
+                    )
+                  : Column(
+                      children: [
+                        const _CompactHeader(),
+                        Expanded(child: widget.child),
+                        _CompactNavigation(
+                          selectedDestination: widget.selectedDestination,
+                          onSelected: _openDestination,
+                        ),
+                      ],
+                    ),
+            ),
           );
         });
       },
@@ -120,9 +118,16 @@ class _DownpeedAppShellState extends State<DownpeedAppShell> {
     unawaited(_preferences.persistSidebarWidth());
   }
 
-  void _openSettings() {
-    if (Get.currentRoute.split('?').first == Routes.settings) return;
-    Get.toNamed<void>(Routes.settings);
+  void _openDestination(AppDestination destination) {
+    if (destination == widget.selectedDestination) return;
+    final route = switch (destination) {
+      AppDestination.overview => Routes.overview,
+      AppDestination.tasks => Routes.tasks,
+      AppDestination.network => Routes.network,
+      AppDestination.settings => Routes.settings,
+    };
+    if (Get.currentRoute.split('?').first == route) return;
+    Get.offAllNamed<void>(route);
   }
 }
 
@@ -131,11 +136,8 @@ class _SidebarPane extends StatelessWidget {
     required this.expanded,
     required this.expandedWidth,
     required this.resizing,
-    required this.selectedIndex,
-    required this.settingsSelected,
-    required this.counts,
+    required this.selectedDestination,
     required this.onSelected,
-    required this.onSettingsSelected,
     required this.onToggle,
     required this.onResizeStart,
     required this.onResizeUpdate,
@@ -145,11 +147,8 @@ class _SidebarPane extends StatelessWidget {
   final bool expanded;
   final double expandedWidth;
   final bool resizing;
-  final int selectedIndex;
-  final bool settingsSelected;
-  final List<int>? counts;
-  final ValueChanged<int>? onSelected;
-  final VoidCallback onSettingsSelected;
+  final AppDestination selectedDestination;
+  final ValueChanged<AppDestination> onSelected;
   final VoidCallback onToggle;
   final VoidCallback onResizeStart;
   final ValueChanged<double> onResizeUpdate;
@@ -159,14 +158,13 @@ class _SidebarPane extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.downpeedColors;
     final collapsedWidth = defaultTargetPlatform == TargetPlatform.macOS
-        ? _macOSWindowControlsWidth
+        ? _macOSCollapsedSidebarWidth
         : DownpeedThemeTokens.sidebarCollapsedWidth;
     return SizedBox(
       key: const ValueKey('sidebar-pane'),
       width: expanded ? expandedWidth : collapsedWidth,
       child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: colors.sidebar,
+        decoration: context.downpeedSidebarDecoration.copyWith(
           border: Border(right: BorderSide(color: colors.border)),
         ),
         child: Stack(
@@ -176,19 +174,13 @@ class _SidebarPane extends StatelessWidget {
               top: defaultTargetPlatform != TargetPlatform.macOS,
               child: expanded
                   ? _ExpandedSidebar(
-                      selectedIndex: selectedIndex,
-                      settingsSelected: settingsSelected,
-                      counts: counts,
+                      selectedDestination: selectedDestination,
                       onSelected: onSelected,
-                      onSettingsSelected: onSettingsSelected,
                       onToggle: onToggle,
                     )
                   : _CollapsedSidebar(
-                      selectedIndex: selectedIndex,
-                      settingsSelected: settingsSelected,
-                      counts: counts,
+                      selectedDestination: selectedDestination,
                       onSelected: onSelected,
-                      onSettingsSelected: onSettingsSelected,
                       onToggle: onToggle,
                     ),
             ),
@@ -214,19 +206,13 @@ class _SidebarPane extends StatelessWidget {
 
 class _ExpandedSidebar extends StatelessWidget {
   const _ExpandedSidebar({
-    required this.selectedIndex,
-    required this.settingsSelected,
-    required this.counts,
+    required this.selectedDestination,
     required this.onSelected,
-    required this.onSettingsSelected,
     required this.onToggle,
   });
 
-  final int selectedIndex;
-  final bool settingsSelected;
-  final List<int>? counts;
-  final ValueChanged<int>? onSelected;
-  final VoidCallback onSettingsSelected;
+  final AppDestination selectedDestination;
+  final ValueChanged<AppDestination> onSelected;
   final VoidCallback onToggle;
 
   @override
@@ -251,17 +237,18 @@ class _ExpandedSidebar extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: DownpeedThemeTokens.spaceSm),
-          for (var index = 0; index < _navigationItems.length; index++)
+          const SizedBox(height: 6),
+          for (final item in _navigationItems)
             _NavigationTile(
-              key: ValueKey('sidebar-filter-$index'),
-              icon: _navigationItems[index].icon,
-              label: _navigationItems[index].label,
-              selected: !settingsSelected && selectedIndex == index,
-              count: _countAt(index),
-              onTap: onSelected == null ? null : () => onSelected!(index),
+              key: ValueKey('sidebar-destination-${item.destination.name}'),
+              icon: item.icon,
+              label: item.label,
+              selected: selectedDestination == item.destination,
+              onTap: () => onSelected(item.destination),
             ),
           const Spacer(),
+          Divider(color: context.downpeedColors.border.withValues(alpha: 0.72)),
+          const SizedBox(height: 7),
           Row(
             children: [
               Expanded(
@@ -269,8 +256,8 @@ class _ExpandedSidebar extends StatelessWidget {
                   key: const ValueKey('sidebar-settings'),
                   icon: DownpeedIcons.settings,
                   label: L10nKeys.navSettings.tr,
-                  selected: settingsSelected,
-                  onTap: onSettingsSelected,
+                  selected: selectedDestination == AppDestination.settings,
+                  onTap: () => onSelected(AppDestination.settings),
                 ),
               ),
               const SizedBox(width: DownpeedThemeTokens.spaceXs),
@@ -280,11 +267,6 @@ class _ExpandedSidebar extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  int? _countAt(int index) {
-    final values = counts;
-    return values != null && index < values.length ? values[index] : null;
   }
 }
 
@@ -312,47 +294,67 @@ class _SidebarThemeToggle extends StatelessWidget {
 
 class _CollapsedSidebar extends StatelessWidget {
   const _CollapsedSidebar({
-    required this.selectedIndex,
-    required this.settingsSelected,
-    required this.counts,
+    required this.selectedDestination,
     required this.onSelected,
-    required this.onSettingsSelected,
     required this.onToggle,
   });
 
-  final int selectedIndex;
-  final bool settingsSelected;
-  final List<int>? counts;
-  final ValueChanged<int>? onSelected;
-  final VoidCallback onSettingsSelected;
+  final AppDestination selectedDestination;
+  final ValueChanged<AppDestination> onSelected;
   final VoidCallback onToggle;
 
   @override
   Widget build(BuildContext context) {
-    final topInset = defaultTargetPlatform == TargetPlatform.macOS
-        ? _macOSTitleBarHeight
-        : DownpeedThemeTokens.spaceSm;
+    final isMacOS = defaultTargetPlatform == TargetPlatform.macOS;
     return Column(
       children: [
-        SizedBox(height: topInset),
+        if (isMacOS)
+          SizedBox(
+            key: const ValueKey('sidebar-collapsed-titlebar'),
+            height: _macOSTitleBarHeight,
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: Padding(
+                padding: const EdgeInsets.only(right: 4),
+                child: IconButton(
+                  key: const ValueKey('sidebar-toggle-collapsed'),
+                  tooltip: L10nKeys.sidebarExpand.tr,
+                  onPressed: onToggle,
+                  style: IconButton.styleFrom(
+                    fixedSize: const Size.square(
+                      DownpeedThemeTokens.touchTarget,
+                    ),
+                    padding: EdgeInsets.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  icon: const Icon(DownpeedIcons.sidebarOpen),
+                ),
+              ),
+            ),
+          )
+        else
+          const SizedBox(height: DownpeedThemeTokens.spaceSm),
         const DownpeedBrandMark(size: 22),
-        const SizedBox(height: DownpeedThemeTokens.spaceXs),
-        IconButton(
-          key: const ValueKey('sidebar-toggle-collapsed'),
-          tooltip: L10nKeys.sidebarExpand.tr,
-          onPressed: onToggle,
-          icon: const Icon(DownpeedIcons.sidebarOpen),
-        ),
+        if (!isMacOS) ...[
+          const SizedBox(height: DownpeedThemeTokens.spaceXs),
+          IconButton(
+            key: const ValueKey('sidebar-toggle-collapsed'),
+            tooltip: L10nKeys.sidebarExpand.tr,
+            onPressed: onToggle,
+            icon: const Icon(DownpeedIcons.sidebarOpen),
+          ),
+        ],
         const SizedBox(height: DownpeedThemeTokens.spaceSm),
         const Divider(indent: 12, endIndent: 12),
-        for (var index = 0; index < _navigationItems.length; index++)
+        for (final item in _navigationItems)
           _CollapsedDestination(
-            key: ValueKey('sidebar-filter-$index-collapsed'),
-            icon: _navigationItems[index].icon,
-            label: _navigationItems[index].label,
-            count: _countAt(index),
-            selected: !settingsSelected && selectedIndex == index,
-            onPressed: onSelected == null ? null : () => onSelected!(index),
+            key: ValueKey(
+              'sidebar-destination-${item.destination.name}-collapsed',
+            ),
+            icon: item.icon,
+            label: item.label,
+            selected: selectedDestination == item.destination,
+            onPressed: () => onSelected(item.destination),
           ),
         const Spacer(),
         Padding(
@@ -361,17 +363,12 @@ class _CollapsedSidebar extends StatelessWidget {
             key: const ValueKey('sidebar-settings-collapsed'),
             icon: DownpeedIcons.settings,
             label: L10nKeys.navSettings.tr,
-            selected: settingsSelected,
-            onPressed: onSettingsSelected,
+            selected: selectedDestination == AppDestination.settings,
+            onPressed: () => onSelected(AppDestination.settings),
           ),
         ),
       ],
     );
-  }
-
-  int? _countAt(int index) {
-    final values = counts;
-    return values != null && index < values.length ? values[index] : null;
   }
 }
 
@@ -430,14 +427,12 @@ class _NavigationTile extends StatefulWidget {
     required this.icon,
     required this.label,
     this.selected = false,
-    this.count,
     this.onTap,
   });
 
   final IconData icon;
   final String label;
   final bool selected;
-  final int? count;
   final VoidCallback? onTap;
 
   @override
@@ -451,26 +446,13 @@ class _NavigationTileState extends State<_NavigationTile> {
   Widget build(BuildContext context) {
     final colors = context.downpeedColors;
     final selected = widget.selected;
-    final count = widget.count;
-    final hasItems = count != null && count > 0;
     final animationDuration = MediaQuery.disableAnimationsOf(context)
         ? Duration.zero
         : const Duration(milliseconds: 120);
     final backgroundColor = selected
-        ? Color.alphaBlend(
-            colors.sidebarSelection.withValues(alpha: 0.7),
-            colors.sidebar,
-          )
+        ? colors.sidebarSelection
         : _hovered
-        ? Color.alphaBlend(
-            colors.sidebarSelection.withValues(alpha: 0.34),
-            colors.sidebar,
-          )
-        : Colors.transparent;
-    final countBackground = selected
-        ? colors.sidebar
-        : hasItems
-        ? colors.sidebarSelection.withValues(alpha: 0.48)
+        ? colors.sidebarSelection.withValues(alpha: 0.38)
         : Colors.transparent;
 
     return Padding(
@@ -479,17 +461,15 @@ class _NavigationTileState extends State<_NavigationTile> {
         onEnter: (_) => setState(() => _hovered = true),
         onExit: (_) => setState(() => _hovered = false),
         child: AnimatedContainer(
+          key: selected ? const ValueKey('sidebar-selected-indicator') : null,
           duration: animationDuration,
           curve: Curves.easeOutCubic,
-          height: DownpeedThemeTokens.controlHeight,
+          height: DownpeedThemeTokens.sidebarNavigationHeight,
           clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
             color: backgroundColor,
-            borderRadius: BorderRadius.circular(DownpeedThemeTokens.radius),
-            border: Border.all(
-              color: selected
-                  ? colors.border.withValues(alpha: 0.72)
-                  : Colors.transparent,
+            borderRadius: BorderRadius.circular(
+              DownpeedThemeTokens.radiusLarge,
             ),
           ),
           child: Material(
@@ -497,90 +477,33 @@ class _NavigationTileState extends State<_NavigationTile> {
             child: InkWell(
               onTap: widget.onTap,
               hoverColor: Colors.transparent,
-              borderRadius: BorderRadius.circular(DownpeedThemeTokens.radius),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  Positioned(
-                    left: 4,
-                    top: 8,
-                    bottom: 8,
-                    child: AnimatedContainer(
-                      key: selected
-                          ? const ValueKey('sidebar-selected-indicator')
-                          : null,
-                      duration: animationDuration,
-                      curve: Curves.easeOutCubic,
-                      width: 2,
-                      decoration: BoxDecoration(
-                        color: selected ? colors.accent : Colors.transparent,
-                        borderRadius: BorderRadius.circular(
-                          DownpeedThemeTokens.radiusPill,
+              borderRadius: BorderRadius.circular(
+                DownpeedThemeTokens.radiusLarge,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Row(
+                  children: [
+                    Icon(
+                      widget.icon,
+                      size: DownpeedThemeTokens.sidebarIconSize,
+                      color: selected ? colors.text : colors.textSecondary,
+                    ),
+                    const SizedBox(width: 11),
+                    Expanded(
+                      child: Text(
+                        widget.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: selected ? colors.text : colors.textSecondary,
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    child: Row(
-                      children: [
-                        Icon(
-                          widget.icon,
-                          size: DownpeedThemeTokens.iconSize,
-                          color: selected ? colors.text : colors.textMuted,
-                        ),
-                        const SizedBox(width: 9),
-                        Expanded(
-                          child: Text(
-                            widget.label,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: Theme.of(context).textTheme.bodyMedium
-                                ?.copyWith(
-                                  color: selected
-                                      ? colors.text
-                                      : colors.textSecondary,
-                                  fontWeight: selected
-                                      ? FontWeight.w500
-                                      : FontWeight.w400,
-                                ),
-                          ),
-                        ),
-                        if (count != null)
-                          AnimatedContainer(
-                            key: const ValueKey('sidebar-count-badge'),
-                            duration: animationDuration,
-                            curve: Curves.easeOutCubic,
-                            height: 20,
-                            constraints: const BoxConstraints(minWidth: 22),
-                            padding: const EdgeInsets.symmetric(horizontal: 5),
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              color: countBackground,
-                              borderRadius: BorderRadius.circular(
-                                DownpeedThemeTokens.radiusPill,
-                              ),
-                            ),
-                            child: Text(
-                              '$count',
-                              style: Theme.of(context).textTheme.labelSmall
-                                  ?.copyWith(
-                                    color: selected || hasItems
-                                        ? colors.textSecondary
-                                        : colors.textMuted,
-                                    fontWeight: hasItems
-                                        ? FontWeight.w500
-                                        : FontWeight.w400,
-                                    fontFeatures: const [
-                                      FontFeature.tabularFigures(),
-                                    ],
-                                  ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -597,22 +520,19 @@ class _CollapsedDestination extends StatelessWidget {
     required this.label,
     required this.selected,
     required this.onPressed,
-    this.count,
   });
 
   final IconData icon;
   final String label;
   final bool selected;
   final VoidCallback? onPressed;
-  final int? count;
 
   @override
   Widget build(BuildContext context) {
-    final tooltip = count == null ? label : '$label · $count';
     return Padding(
       padding: const EdgeInsets.only(bottom: 3),
       child: IconButton(
-        tooltip: tooltip,
+        tooltip: label,
         onPressed: onPressed,
         style: IconButton.styleFrom(
           backgroundColor: selected
@@ -654,43 +574,41 @@ class _CompactHeader extends StatelessWidget {
 
 class _CompactNavigation extends StatelessWidget {
   const _CompactNavigation({
-    required this.selectedIndex,
-    required this.settingsSelected,
+    required this.selectedDestination,
     required this.onSelected,
-    required this.onSettingsSelected,
   });
 
-  final int selectedIndex;
-  final bool settingsSelected;
-  final ValueChanged<int>? onSelected;
-  final VoidCallback onSettingsSelected;
+  final AppDestination selectedDestination;
+  final ValueChanged<AppDestination> onSelected;
 
   @override
   Widget build(BuildContext context) {
+    final destinations = <_NavigationItem>[
+      ..._navigationItems,
+      _NavigationItem(
+        AppDestination.settings,
+        DownpeedIcons.settings,
+        L10nKeys.navSettings,
+      ),
+    ];
     return NavigationBar(
-      selectedIndex: settingsSelected ? 4 : selectedIndex.clamp(0, 3),
-      onDestinationSelected: (index) {
-        if (index == 4) {
-          onSettingsSelected();
-        } else {
-          onSelected?.call(index);
-        }
-      },
+      selectedIndex: destinations.indexWhere(
+        (item) => item.destination == selectedDestination,
+      ),
+      onDestinationSelected: (index) =>
+          onSelected(destinations[index].destination),
       destinations: [
-        for (final item in _navigationItems)
+        for (final item in destinations)
           NavigationDestination(icon: Icon(item.icon), label: item.label),
-        NavigationDestination(
-          icon: const Icon(DownpeedIcons.settings),
-          label: L10nKeys.navSettings.tr,
-        ),
       ],
     );
   }
 }
 
 class _NavigationItem {
-  const _NavigationItem(this.icon, this.labelKey);
+  const _NavigationItem(this.destination, this.icon, this.labelKey);
 
+  final AppDestination destination;
   final IconData icon;
   final String labelKey;
 
@@ -698,8 +616,19 @@ class _NavigationItem {
 }
 
 const _navigationItems = <_NavigationItem>[
-  _NavigationItem(DownpeedIcons.all, L10nKeys.navAll),
-  _NavigationItem(DownpeedIcons.active, L10nKeys.navActive),
-  _NavigationItem(DownpeedIcons.completed, L10nKeys.navCompleted),
-  _NavigationItem(DownpeedIcons.issues, L10nKeys.navIssues),
+  _NavigationItem(
+    AppDestination.overview,
+    DownpeedIcons.overview,
+    L10nKeys.navOverview,
+  ),
+  _NavigationItem(
+    AppDestination.tasks,
+    DownpeedIcons.download,
+    L10nKeys.navTasks,
+  ),
+  _NavigationItem(
+    AppDestination.network,
+    DownpeedIcons.connections,
+    L10nKeys.navNetwork,
+  ),
 ];

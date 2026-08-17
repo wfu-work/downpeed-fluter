@@ -4,8 +4,11 @@ import '../data/clients/engine_client.dart';
 import '../services/app_service.dart';
 import '../services/bt_diagnostics_service.dart';
 import '../services/directory_picker.dart';
+import '../services/diagnostic_archive_saver.dart';
+import '../services/diagnostics_service.dart';
 import '../services/desktop_actions_service.dart';
 import '../services/desktop_integration_service.dart';
+import '../services/download_dialog_service.dart';
 import '../services/embedded_engine_service.dart';
 import '../services/engine_service.dart';
 import '../services/engine_settings_service.dart';
@@ -44,11 +47,20 @@ class DependencyRegistrar {
         permanent: true,
       );
     }
+    if (!Get.isRegistered<DownloadDialogService>()) {
+      Get.put<DownloadDialogService>(DownloadDialogService(), permanent: true);
+    }
     if (!Get.isRegistered<StartupService>()) {
       Get.put<StartupService>(StartupService(), permanent: true);
     }
     if (!Get.isRegistered<DirectoryPicker>()) {
       Get.put<DirectoryPicker>(const SystemDirectoryPicker(), permanent: true);
+    }
+    if (!Get.isRegistered<DiagnosticArchiveSaver>()) {
+      Get.put<DiagnosticArchiveSaver>(
+        const SystemDiagnosticArchiveSaver(),
+        permanent: true,
+      );
     }
     if (!Get.isRegistered<TorrentFilePicker>()) {
       Get.put<TorrentFilePicker>(
@@ -62,6 +74,9 @@ class DependencyRegistrar {
           platform: const MethodChannelDesktopActions(),
           completionNotificationsEnabled: () =>
               PreferencesService.to.completionNotificationsEnabled.value,
+          revealCompletedFileEnabled: () =>
+              PreferencesService.to.downloadCompletionAction.value ==
+              DownloadCompletionAction.revealFile,
         ),
         permanent: true,
       );
@@ -75,6 +90,16 @@ class DependencyRegistrar {
     if (!Get.isRegistered<EngineSettingsService>()) {
       Get.put<EngineSettingsService>(
         EngineSettingsService(client: Get.find<EngineClient>()),
+        permanent: true,
+      );
+    }
+    if (!Get.isRegistered<DiagnosticsService>()) {
+      Get.put<DiagnosticsService>(
+        DiagnosticsService(
+          client: Get.find<EngineClient>(),
+          archiveSaver: Get.find<DiagnosticArchiveSaver>(),
+          desktopActions: Get.find<DesktopActionsService>().platform,
+        ),
         permanent: true,
       );
     }

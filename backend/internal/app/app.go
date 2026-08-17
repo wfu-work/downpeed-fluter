@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/wfu-work/downpeed-fluter/backend/internal/config"
+	enginediagnostics "github.com/wfu-work/downpeed-fluter/backend/internal/diagnostics"
 	"github.com/wfu-work/downpeed-fluter/backend/internal/download"
 	"github.com/wfu-work/downpeed-fluter/backend/internal/httpapi"
 	btprotocol "github.com/wfu-work/downpeed-fluter/backend/internal/protocol/bt"
@@ -48,7 +49,8 @@ func (a *App) RunWithReady(ctx context.Context, ready func(address string)) erro
 	if err := ensureDefaultDownloadDirectory(defaultDownloadDirectory); err != nil {
 		return err
 	}
-	store, err := repository.OpenBoltTaskStore(filepath.Join(a.cfg.DataDir, "tasks.db"))
+	databasePath := filepath.Join(a.cfg.DataDir, "tasks.db")
+	store, err := repository.OpenBoltTaskStore(databasePath)
 	if err != nil {
 		return err
 	}
@@ -56,7 +58,17 @@ func (a *App) RunWithReady(ctx context.Context, ready func(address string)) erro
 		context.Background(),
 		store,
 		defaultDownloadDirectory,
+		download.WithDefaultSchedulerSettings(download.SchedulerSettings{
+			MaxConcurrentTasks: a.cfg.MaxConcurrentTasks,
+			DownloadRateLimit:  a.cfg.DownloadRateLimit,
+			MaxRetries:         a.cfg.MaxRetries,
+		}),
 	)
+	if err != nil {
+		_ = store.Close()
+		return err
+	}
+	engineSettings, err := settings.GetSettings(context.Background())
 	if err != nil {
 		_ = store.Close()
 		return err
@@ -65,19 +77,28 @@ func (a *App) RunWithReady(ctx context.Context, ready func(address string)) erro
 		context.Background(),
 		httpprotocol.NewDownloader(nil),
 		store,
-		download.WithMaxConcurrentTasks(a.cfg.MaxConcurrentTasks),
-		download.WithRetryPolicy(a.cfg.MaxRetries, a.cfg.RetryBaseDelay),
-		download.WithDownloadRateLimit(a.cfg.DownloadRateLimit),
+		download.WithMaxConcurrentTasks(engineSettings.Scheduler.MaxConcurrentTasks),
+		download.WithRetryPolicy(engineSettings.Scheduler.MaxRetries, a.cfg.RetryBaseDelay),
+		download.WithDownloadRateLimit(engineSettings.Scheduler.DownloadRateLimit),
+		download.WithFileConflictPolicy(engineSettings.FileConflictPolicy),
 		download.WithBTTransfer(btprotocol.NewDownloader(settings)),
 	)
 	if err != nil {
 		_ = store.Close()
 		return err
 	}
+	settings.SetSchedulerSettingsApplier(manager.ApplySchedulerSettings)
+	settings.SetFileConflictPolicyApplier(manager.ApplyFileConflictPolicy)
+	startedAt := time.Now().UTC()
 	apiServer := httpapi.New(
-		time.Now(),
+		startedAt,
 		httpapi.WithTaskService(manager),
 		httpapi.WithSettingsService(settings),
+		httpapi.WithDiagnosticsService(enginediagnostics.New(enginediagnostics.Config{
+			DataDirectory: a.cfg.DataDir,
+			DatabasePath:  databasePath,
+			StartedAt:     startedAt,
+		}, manager, settings)),
 	)
 	defer apiServer.Close()
 

@@ -3,6 +3,8 @@ import 'package:get_storage/get_storage.dart';
 
 import '../configs/theme/downpeed_theme_tokens.dart';
 
+enum DownloadCompletionAction { none, revealFile }
+
 class PreferencesService extends GetxService {
   PreferencesService({GetStorage? storage})
     : _storage = storage ?? GetStorage();
@@ -16,11 +18,12 @@ class PreferencesService extends GetxService {
   final sidebarExpanded = true.obs;
   final sidebarWidth = DownpeedThemeTokens.sidebarWidth.obs;
   final completionNotificationsEnabled = true.obs;
+  final downloadCompletionAction = DownloadCompletionAction.none.obs;
   final closeToTrayEnabled = true.obs;
   final startHiddenOnLogin = false.obs;
 
   Future<void> init() async {
-    await GetStorage.init();
+    await _storage.initStorage;
     _initialized = true;
     sidebarExpanded.value =
         _storage.read<bool>('${_prefix}_sidebar_expanded') ?? true;
@@ -34,6 +37,12 @@ class PreferencesService extends GetxService {
             .toDouble();
     completionNotificationsEnabled.value =
         _storage.read<bool>('${_prefix}_completion_notifications') ?? true;
+    downloadCompletionAction.value = switch (_storage.read<String>(
+      '${_prefix}_download_completion_action',
+    )) {
+      'revealFile' => DownloadCompletionAction.revealFile,
+      _ => DownloadCompletionAction.none,
+    };
     closeToTrayEnabled.value =
         _storage.read<bool>('${_prefix}_close_to_tray') ?? true;
     startHiddenOnLogin.value =
@@ -76,6 +85,13 @@ class PreferencesService extends GetxService {
   Future<void> setCompletionNotificationsEnabled(bool value) async {
     completionNotificationsEnabled.value = value;
     await _write('${_prefix}_completion_notifications', value);
+  }
+
+  Future<void> setDownloadCompletionAction(
+    DownloadCompletionAction value,
+  ) async {
+    downloadCompletionAction.value = value;
+    await _write('${_prefix}_download_completion_action', value.name);
   }
 
   Future<void> setCloseToTrayEnabled(bool value) async {

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -87,16 +89,24 @@ class DesktopActionsService extends GetxService {
   DesktopActionsService({
     required this.platform,
     bool Function()? completionNotificationsEnabled,
+    bool Function()? revealCompletedFileEnabled,
+    this.completionRevealDelay = const Duration(milliseconds: 450),
   }) : _completionNotificationsEnabled =
-           completionNotificationsEnabled ?? (() => true);
+           completionNotificationsEnabled ?? (() => true),
+       _revealCompletedFileEnabled =
+           revealCompletedFileEnabled ?? (() => false);
 
   static DesktopActionsService get to => Get.find<DesktopActionsService>();
 
   final DesktopActionsPlatform platform;
   final bool Function() _completionNotificationsEnabled;
+  final bool Function() _revealCompletedFileEnabled;
+  final Duration completionRevealDelay;
   final activeTaskIds = <String>{}.obs;
   final errorMessage = RxnString();
   final _feedbackTaskId = RxnString();
+  Timer? _completionRevealTimer;
+  DownloadTask? _pendingCompletionReveal;
 
   bool get isSupported => platform.isSupported;
 
@@ -110,6 +120,12 @@ class DesktopActionsService extends GetxService {
 
   Future<void> revealFile(DownloadTask task) =>
       _performFileAction(task, platform.revealFile);
+
+  Future<void> handleCompleted(DownloadTask task) async {
+    if (task.state != DownloadTaskState.completed) return;
+    _scheduleCompletionReveal(task);
+    await notifyCompleted(task);
+  }
 
   Future<void> notifyCompleted(DownloadTask task) async {
     if (!isSupported ||
@@ -128,6 +144,19 @@ class DesktopActionsService extends GetxService {
     } on Object {
       // Notifications are best-effort and must never alter engine task state.
     }
+  }
+
+  void _scheduleCompletionReveal(DownloadTask task) {
+    if (!isSupported || !_revealCompletedFileEnabled()) return;
+    _pendingCompletionReveal = task;
+    _completionRevealTimer?.cancel();
+    _completionRevealTimer = Timer(completionRevealDelay, () {
+      final pending = _pendingCompletionReveal;
+      _pendingCompletionReveal = null;
+      _completionRevealTimer = null;
+      if (pending == null || !_revealCompletedFileEnabled()) return;
+      unawaited(revealFile(pending));
+    });
   }
 
   Future<void> _performFileAction(
@@ -158,4 +187,11 @@ class DesktopActionsService extends GetxService {
     'unsupported' => L10nKeys.taskFileActionUnsupported.tr,
     _ => L10nKeys.taskFileActionUnavailable.tr,
   };
+
+  @override
+  void onClose() {
+    _completionRevealTimer?.cancel();
+    _pendingCompletionReveal = null;
+    super.onClose();
+  }
 }

@@ -10,8 +10,10 @@ import (
 )
 
 type updateSettingsRequest struct {
-	DefaultDownloadDirectory string                     `json:"defaultDownloadDirectory"`
-	BitTorrent               *download.BTPolicySettings `json:"bitTorrent,omitempty"`
+	DefaultDownloadDirectory string                       `json:"defaultDownloadDirectory"`
+	FileConflictPolicy       *download.FileConflictPolicy `json:"fileConflictPolicy,omitempty"`
+	Scheduler                *download.SchedulerSettings  `json:"scheduler,omitempty"`
+	BitTorrent               *download.BTPolicySettings   `json:"bitTorrent,omitempty"`
 }
 
 func (s *Server) getSettings(w http.ResponseWriter, r *http.Request) {
@@ -48,8 +50,18 @@ func (s *Server) updateSettings(w http.ResponseWriter, r *http.Request) {
 	if input.BitTorrent != nil {
 		policy = *input.BitTorrent
 	}
+	scheduler := current.Scheduler
+	if input.Scheduler != nil {
+		scheduler = *input.Scheduler
+	}
+	fileConflictPolicy := current.FileConflictPolicy
+	if input.FileConflictPolicy != nil {
+		fileConflictPolicy = *input.FileConflictPolicy
+	}
 	settings, err := s.settings.UpdateSettings(r.Context(), download.EngineSettings{
 		DefaultDownloadDirectory: input.DefaultDownloadDirectory,
+		FileConflictPolicy:       fileConflictPolicy,
+		Scheduler:                scheduler,
 		BitTorrent:               policy,
 	})
 	if err != nil {
@@ -63,6 +75,14 @@ func (s *Server) updateSettings(w http.ResponseWriter, r *http.Request) {
 }
 
 func writeSettingsError(w http.ResponseWriter, r *http.Request, err error) {
+	if errors.Is(err, download.ErrInvalidFileConflictPolicy) {
+		writeAPIError(w, r, http.StatusBadRequest, "invalid_file_conflict_policy", "File conflict handling must use a supported safe policy.", false)
+		return
+	}
+	if errors.Is(err, download.ErrInvalidSchedulerSettings) {
+		writeAPIError(w, r, http.StatusBadRequest, "invalid_scheduler_settings", "Scheduler settings exceed the supported operating limits.", false)
+		return
+	}
 	if errors.Is(err, download.ErrInvalidBTPolicy) {
 		writeAPIError(w, r, http.StatusBadRequest, "invalid_bt_policy", "BitTorrent policy exceeds the current safe operating limits.", false)
 		return

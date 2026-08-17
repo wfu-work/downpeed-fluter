@@ -36,18 +36,20 @@ class TaskListView extends GetView<TaskListController> {
         child: Focus(
           autofocus: true,
           child: DownpeedAppShell(
-            selectedTaskFilter: currentFilter.index,
-            onTaskFilterChanged: (index) =>
-                controller.setFilter(TaskListFilter.values[index]),
-            taskCounts: TaskListFilter.values
-                .map(controller.countForFilter)
-                .toList(growable: false),
+            selectedDestination: AppDestination.tasks,
             child: SafeArea(
               left: false,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   _TaskToolbar(controller: controller),
+                  _TaskFilterBar(
+                    selected: currentFilter,
+                    counts: TaskListFilter.values
+                        .map(controller.countForFilter)
+                        .toList(growable: false),
+                    onSelected: controller.setFilter,
+                  ),
                   Expanded(
                     child: switch (controller.engineService.state.value) {
                       EngineConnectionState.checking => const _CheckingState(),
@@ -67,6 +69,151 @@ class TaskListView extends GetView<TaskListController> {
       );
     });
   }
+}
+
+class _TaskFilterBar extends StatelessWidget {
+  const _TaskFilterBar({
+    required this.selected,
+    required this.counts,
+    required this.onSelected,
+  });
+
+  final TaskListFilter selected;
+  final List<int> counts;
+  final ValueChanged<TaskListFilter> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.downpeedColors;
+    return Container(
+      key: const ValueKey('task-filter-bar'),
+      padding: const EdgeInsets.fromLTRB(
+        DownpeedThemeTokens.pagePadding,
+        8,
+        DownpeedThemeTokens.pagePadding,
+        9,
+      ),
+      decoration: BoxDecoration(
+        color: colors.taskListHeader.withValues(alpha: 0.48),
+        border: Border(bottom: BorderSide(color: colors.border)),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Container(
+          decoration: BoxDecoration(
+            color: colors.surfaceRaised,
+            border: Border.all(color: colors.borderStrong),
+            borderRadius: BorderRadius.circular(DownpeedThemeTokens.radius),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: IntrinsicHeight(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (
+                  var index = 0;
+                  index < TaskListFilter.values.length;
+                  index++
+                ) ...[
+                  _TaskFilterSegment(
+                    value: TaskListFilter.values[index],
+                    count: counts[index],
+                    selected: selected == TaskListFilter.values[index],
+                    onTap: () => onSelected(TaskListFilter.values[index]),
+                  ),
+                  if (index != TaskListFilter.values.length - 1)
+                    VerticalDivider(
+                      width: 1,
+                      thickness: 1,
+                      color: colors.border,
+                    ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TaskFilterSegment extends StatelessWidget {
+  const _TaskFilterSegment({
+    required this.value,
+    required this.count,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final TaskListFilter value;
+  final int count;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.downpeedColors;
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: Material(
+        color: selected ? colors.sidebarSelection : Colors.transparent,
+        child: InkWell(
+          key: ValueKey('task-filter-${value.name}'),
+          onTap: onTap,
+          hoverColor: colors.surfaceSubtle,
+          focusColor: colors.surfaceSubtle,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 34),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    _filterIcon(value),
+                    size: 14,
+                    color: selected ? colors.text : colors.textSecondary,
+                  ),
+                  const SizedBox(width: 7),
+                  Text(
+                    _filterLabel(value),
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: selected ? colors.text : colors.textSecondary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(width: 9),
+                  Text(
+                    '$count',
+                    key: ValueKey('task-filter-count-${value.name}'),
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: selected ? colors.textSecondary : colors.textMuted,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  IconData _filterIcon(TaskListFilter filter) => switch (filter) {
+    TaskListFilter.all => DownpeedIcons.all,
+    TaskListFilter.active => DownpeedIcons.active,
+    TaskListFilter.completed => DownpeedIcons.completed,
+    TaskListFilter.issues => DownpeedIcons.issues,
+  };
+
+  String _filterLabel(TaskListFilter filter) => switch (filter) {
+    TaskListFilter.all => L10nKeys.tasksFilterAll.tr,
+    TaskListFilter.active => L10nKeys.tasksFilterActive.tr,
+    TaskListFilter.completed => L10nKeys.tasksFilterCompleted.tr,
+    TaskListFilter.issues => L10nKeys.tasksFilterIssues.tr,
+  };
 }
 
 class _TaskToolbar extends StatelessWidget {
@@ -125,21 +272,12 @@ class _TaskToolbar extends StatelessWidget {
             children: [
               if (!compact) ...[
                 SizedBox(
-                  width: 210,
-                  child: TextField(
-                    key: const ValueKey('task-search-field'),
-                    controller: controller.searchController,
-                    onChanged: controller.updateSearch,
-                    textInputAction: TextInputAction.search,
-                    decoration: InputDecoration(
-                      hintText: L10nKeys.tasksSearch.tr,
-                      prefixIcon: const Icon(DownpeedIcons.search),
-                    ),
-                  ),
+                  width: 280,
+                  child: _TaskSearchField(controller: controller),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 10),
                 _TaskSortButton(controller: controller),
-                const SizedBox(width: 6),
+                const SizedBox(width: 8),
               ],
               FilledButton.icon(
                 key: const ValueKey('add-download-button'),
@@ -159,18 +297,7 @@ class _TaskToolbar extends StatelessWidget {
                 const SizedBox(height: 12),
                 Row(
                   children: [
-                    Expanded(
-                      child: TextField(
-                        key: const ValueKey('task-search-field'),
-                        controller: controller.searchController,
-                        onChanged: controller.updateSearch,
-                        textInputAction: TextInputAction.search,
-                        decoration: InputDecoration(
-                          hintText: L10nKeys.tasksSearch.tr,
-                          prefixIcon: const Icon(DownpeedIcons.search),
-                        ),
-                      ),
-                    ),
+                    Expanded(child: _TaskSearchField(controller: controller)),
                     const SizedBox(width: 8),
                     _TaskSortButton(controller: controller),
                   ],
@@ -190,6 +317,54 @@ class _TaskToolbar extends StatelessWidget {
   }
 }
 
+class _TaskSearchField extends StatelessWidget {
+  const _TaskSearchField({required this.controller});
+
+  final TaskListController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.downpeedColors;
+    final border = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(DownpeedThemeTokens.radius),
+      borderSide: BorderSide(
+        color: colors.borderStrong.withValues(alpha: 0.72),
+      ),
+    );
+    return SizedBox(
+      height: 40,
+      child: TextField(
+        key: const ValueKey('task-search-field'),
+        controller: controller.searchController,
+        onChanged: controller.updateSearch,
+        textInputAction: TextInputAction.search,
+        cursorColor: colors.accent,
+        style: Theme.of(
+          context,
+        ).textTheme.bodyMedium?.copyWith(color: colors.text),
+        decoration: InputDecoration(
+          hintText: L10nKeys.tasksSearch.tr,
+          hintStyle: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(color: colors.textMuted),
+          prefixIcon: const Icon(DownpeedIcons.search, size: 17),
+          prefixIconColor: colors.textSecondary,
+          prefixIconConstraints: const BoxConstraints.tightFor(
+            width: 40,
+            height: 40,
+          ),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+          fillColor: colors.surfaceRaised,
+          enabledBorder: border,
+          focusedBorder: border.copyWith(
+            borderSide: BorderSide(color: colors.borderStrong, width: 1.25),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _TaskSortButton extends StatelessWidget {
   const _TaskSortButton({required this.controller});
 
@@ -202,7 +377,7 @@ class _TaskSortButton extends StatelessWidget {
       tooltip: L10nKeys.tasksSort.tr,
       initialValue: controller.sort.value,
       onSelected: controller.setSort,
-      icon: const Icon(DownpeedIcons.sort),
+      icon: const Icon(DownpeedIcons.sort, size: 17),
       itemBuilder: (context) => TaskListSort.values
           .map(
             (value) => PopupMenuItem<TaskListSort>(
@@ -343,6 +518,7 @@ class _TaskListPane extends StatelessWidget {
     final eventError = controller.taskService.eventErrorMessage.value;
     final batchMessage = controller.batchMessage.value;
     final fileActionError = controller.desktopActions.errorMessage.value;
+    final colors = context.downpeedColors;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -350,10 +526,13 @@ class _TaskListPane extends StatelessWidget {
           _BatchCommandStrip(controller: controller)
         else
           Container(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+            padding: const EdgeInsets.fromLTRB(32, 6, 16, 6),
             decoration: BoxDecoration(
+              color: colors.taskListHeader,
               border: Border(
-                bottom: BorderSide(color: context.downpeedColors.border),
+                bottom: BorderSide(
+                  color: colors.taskRowBorder.withValues(alpha: 0.76),
+                ),
               ),
             ),
             child: Row(
@@ -425,42 +604,55 @@ class _TaskListPane extends StatelessWidget {
             ),
           ),
         Expanded(
-          child: tasks.isEmpty
-              ? const _NoMatchingTasks()
-              : RefreshIndicator(
-                  onRefresh: controller.retryTasks,
-                  child: ListView.builder(
-                    key: const ValueKey('task-list'),
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    itemCount: tasks.length,
-                    itemBuilder: (context, index) {
-                      final task = tasks[index];
-                      return _TaskRow(
-                        task: task,
-                        selected: controller.selectedTaskId.value == task.id,
-                        checked: controller.selectedTaskIds.contains(task.id),
-                        acting:
-                            controller.taskService.isActing(task.id) ||
-                            controller.desktopActions.isActing(task.id),
-                        desktopActionsSupported:
-                            controller.desktopActions.isSupported,
-                        onSelectionChanged: () =>
-                            controller.toggleTaskSelection(task.id),
-                        onTap: () => controller.openTask(
-                          task,
-                          compact: navigateToDetail,
-                        ),
-                        onPause: () => controller.pauseTask(task),
-                        onResume: () => controller.resumeTask(task),
-                        onRetry: () => controller.retryTask(task),
-                        onCancel: () => controller.cancelTask(task),
-                        onOpenFile: () => controller.openFile(task),
-                        onRevealFile: () => controller.revealFile(task),
-                        onDelete: () => controller.deleteTask(task),
-                      );
-                    },
+          child: DecoratedBox(
+            key: const ValueKey('task-list-surface'),
+            decoration: context.downpeedTaskListDecoration,
+            child: tasks.isEmpty
+                ? const _NoMatchingTasks()
+                : RefreshIndicator(
+                    onRefresh: controller.retryTasks,
+                    child: ListView.builder(
+                      key: const ValueKey('task-list'),
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 22),
+                      itemCount: tasks.length,
+                      itemBuilder: (context, index) {
+                        final task = tasks[index];
+                        return Padding(
+                          padding: EdgeInsets.only(
+                            bottom: index == tasks.length - 1 ? 0 : 8,
+                          ),
+                          child: _TaskRow(
+                            task: task,
+                            selected:
+                                controller.selectedTaskId.value == task.id,
+                            checked: controller.selectedTaskIds.contains(
+                              task.id,
+                            ),
+                            acting:
+                                controller.taskService.isActing(task.id) ||
+                                controller.desktopActions.isActing(task.id),
+                            desktopActionsSupported:
+                                controller.desktopActions.isSupported,
+                            onSelectionChanged: () =>
+                                controller.toggleTaskSelection(task.id),
+                            onTap: () => controller.openTask(
+                              task,
+                              compact: navigateToDetail,
+                            ),
+                            onPause: () => controller.pauseTask(task),
+                            onResume: () => controller.resumeTask(task),
+                            onRetry: () => controller.retryTask(task),
+                            onCancel: () => controller.cancelTask(task),
+                            onOpenFile: () => controller.openFile(task),
+                            onRevealFile: () => controller.revealFile(task),
+                            onDelete: () => controller.deleteTask(task),
+                          ),
+                        );
+                      },
+                    ),
                   ),
-                ),
+          ),
         ),
       ],
     );
@@ -478,10 +670,10 @@ class _BatchCommandStrip extends StatelessWidget {
     final selectedCount = controller.selectedTaskIds.length;
     return Container(
       key: const ValueKey('batch-command-strip'),
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+      padding: const EdgeInsets.fromLTRB(32, 6, 16, 6),
       decoration: BoxDecoration(
-        color: colors.surfaceSubtle,
-        border: Border(bottom: BorderSide(color: colors.border)),
+        color: colors.taskListHeader,
+        border: Border(bottom: BorderSide(color: colors.taskRowBorder)),
       ),
       child: Wrap(
         spacing: 8,
@@ -628,18 +820,28 @@ class _TaskRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.downpeedColors;
     final statusColor = taskStateColor(context, task.state);
+    final rowColor = selected || checked
+        ? colors.taskRowSelected
+        : colors.taskRow;
+    final rowShape = RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(DownpeedThemeTokens.taskRowRadius),
+      side: BorderSide(color: colors.taskRowBorder.withValues(alpha: 0.86)),
+    );
     return Material(
       key: ValueKey('task-row-${task.id}'),
-      color: selected || checked ? colors.surfaceSubtle : Colors.transparent,
+      color: rowColor,
+      shape: rowShape,
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
         onSecondaryTapDown: (details) =>
             _showContextMenu(context, details.globalPosition),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(16, 9, 12, 9),
-          decoration: BoxDecoration(
-            border: Border(bottom: BorderSide(color: colors.border)),
-          ),
+        borderRadius: BorderRadius.circular(DownpeedThemeTokens.taskRowRadius),
+        hoverColor: colors.taskRowHover,
+        focusColor: colors.taskRowHover.withValues(alpha: 0.88),
+        splashColor: colors.sidebarSelection.withValues(alpha: 0.36),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 12, 10),
           child: LayoutBuilder(
             builder: (context, constraints) {
               final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
@@ -891,7 +1093,7 @@ class _TaskRowDetails extends StatelessWidget {
                   child: Icon(
                     taskStateIcon(task.state),
                     key: ValueKey('task-state-icon-${task.id}'),
-                    size: DownpeedThemeTokens.iconSize,
+                    size: DownpeedThemeTokens.taskStatusIconSize,
                     color: statusColor,
                   ),
                 ),
@@ -941,8 +1143,10 @@ class _TaskRowContent extends StatelessWidget {
           maxLines: compact ? 2 : 1,
           overflow: TextOverflow.ellipsis,
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            fontWeight: FontWeight.w500,
-            height: 1.25,
+            fontSize: DownpeedThemeTokens.textBodyLarge,
+            fontWeight: FontWeight.w600,
+            color: context.downpeedColors.text,
+            height: 1.22,
           ),
         ),
         SizedBox(height: compact ? 8 : 7),
@@ -981,79 +1185,87 @@ class _WideTaskTransfer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.downpeedColors;
-    return Row(
+    return LayoutBuilder(
       key: ValueKey('task-transfer-${task.id}'),
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        SizedBox(
-          width: 92,
-          child: Text(
-            taskStateLabel(task.state),
-            key: ValueKey('task-state-${task.id}'),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: statusColor,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: SizedBox(
-            height: 12,
-            child: TransferTrack(progress: task.progress, color: statusColor),
-          ),
-        ),
-        const SizedBox(width: 12),
-        SizedBox(
-          width: 130,
-          child: Text(
-            taskProgressText(task),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.right,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: colors.textMuted,
-              fontFeatures: const [FontFeature.tabularFigures()],
-            ),
-          ),
-        ),
-        const SizedBox(width: 10),
-        SizedBox(
-          width: 78,
-          child: speedText == null
-              ? null
-              : Text(
-                  speedText!,
-                  key: ValueKey('task-speed-${task.id}'),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.right,
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: colors.text,
-                    fontWeight: FontWeight.w500,
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
+      builder: (context, constraints) {
+        const fixedWidth = 84 + 10 + 130 + 12 + 78 + 10 + 10 + 40;
+        final trackWidth = (constraints.maxWidth - fixedWidth)
+            .clamp(100.0, 520.0)
+            .toDouble();
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: 84,
+              child: Text(
+                taskStateLabel(task.state),
+                key: ValueKey('task-state-${task.id}'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: statusColor,
+                  fontWeight: FontWeight.w600,
                 ),
-        ),
-        const SizedBox(width: 8),
-        SizedBox(
-          width: 34,
-          child: progressText == null
-              ? null
-              : Text(
-                  progressText!,
-                  key: ValueKey('task-progress-${task.id}'),
-                  textAlign: TextAlign.right,
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: colors.textSecondary,
-                    fontWeight: FontWeight.w500,
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            SizedBox(
+              key: ValueKey('task-track-${task.id}'),
+              width: trackWidth,
+              height: 14,
+              child: TransferTrack(progress: task.progress, color: statusColor),
+            ),
+            const SizedBox(width: 12),
+            SizedBox(
+              width: 130,
+              child: Text(
+                taskProgressText(task),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.right,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: colors.textMuted,
+                  fontFeatures: const [FontFeature.tabularFigures()],
                 ),
-        ),
-      ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            SizedBox(
+              width: 78,
+              child: speedText == null
+                  ? null
+                  : Text(
+                      speedText!,
+                      key: ValueKey('task-speed-${task.id}'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.right,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: colors.text,
+                        fontWeight: FontWeight.w600,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
+                    ),
+            ),
+            const SizedBox(width: 10),
+            SizedBox(
+              width: 40,
+              child: progressText == null
+                  ? null
+                  : Text(
+                      progressText!,
+                      key: ValueKey('task-progress-${task.id}'),
+                      textAlign: TextAlign.right,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: colors.textSecondary,
+                        fontWeight: FontWeight.w600,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
+                    ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -1107,6 +1319,7 @@ class _CompactTaskTransfer extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         SizedBox(
+          key: ValueKey('task-track-${task.id}'),
           height: 12,
           child: TransferTrack(progress: task.progress, color: statusColor),
         ),

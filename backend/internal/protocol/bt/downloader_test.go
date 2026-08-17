@@ -49,6 +49,8 @@ func TestDownloaderPrepareSnapshotsCurrentBTPolicy(t *testing.T) {
 	policy.MaxPeerConnections = 24
 	if _, err = settings.UpdateSettings(context.Background(), download.EngineSettings{
 		DefaultDownloadDirectory: directory,
+		FileConflictPolicy:       download.DefaultFileConflictPolicy,
+		Scheduler:                download.DefaultSchedulerSettings(),
 		BitTorrent:               policy,
 	}); err != nil {
 		t.Fatal(err)

@@ -5,6 +5,7 @@ import 'package:downpeed_flutter/domains/bt_diagnostics.dart';
 import 'package:downpeed_flutter/domains/delete_task_result.dart';
 import 'package:downpeed_flutter/domains/download_resolution.dart';
 import 'package:downpeed_flutter/domains/download_task.dart';
+import 'package:downpeed_flutter/domains/engine_diagnostics.dart';
 import 'package:downpeed_flutter/domains/engine_info.dart';
 import 'package:downpeed_flutter/domains/engine_settings.dart';
 
@@ -61,6 +62,12 @@ class StubEngineClient implements EngineClient {
   Future<EngineInfo> fetchInfo() => throw UnimplementedError();
 
   @override
+  Future<EngineDiagnostics> fetchDiagnostics() => throw UnimplementedError();
+
+  @override
+  Future<DiagnosticArchive> exportDiagnostics() => throw UnimplementedError();
+
+  @override
   Future<BTDiagnostics> fetchBTDiagnostics(String taskId) =>
       throw UnimplementedError();
 
@@ -70,6 +77,8 @@ class StubEngineClient implements EngineClient {
   @override
   Future<EngineSettings> updateSettings({
     required String defaultDownloadDirectory,
+    required FileConflictPolicy fileConflictPolicy,
+    required SchedulerSettings scheduler,
     required BTPolicySettings bitTorrent,
   }) => throw UnimplementedError();
 

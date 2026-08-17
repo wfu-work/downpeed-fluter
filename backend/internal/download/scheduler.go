@@ -21,6 +21,7 @@ type managerConfig struct {
 	maxRetries         int
 	retryBaseDelay     time.Duration
 	downloadRateLimit  int64
+	fileConflictPolicy FileConflictPolicy
 	btTransfer         BTTransfer
 }
 
@@ -53,6 +54,14 @@ func WithDownloadRateLimit(bytesPerSecond int64) ManagerOption {
 	}
 }
 
+func WithFileConflictPolicy(policy FileConflictPolicy) ManagerOption {
+	return func(config *managerConfig) {
+		if _, err := validateFileConflictPolicy(policy); err == nil {
+			config.fileConflictPolicy = policy
+		}
+	}
+}
+
 func WithBTTransfer(transfer BTTransfer) ManagerOption {
 	return func(config *managerConfig) {
 		config.btTransfer = transfer
@@ -64,6 +73,7 @@ func defaultManagerConfig() managerConfig {
 		maxConcurrentTasks: DefaultMaxConcurrentTasks,
 		maxRetries:         DefaultMaxRetries,
 		retryBaseDelay:     DefaultRetryBaseDelay,
+		fileConflictPolicy: DefaultFileConflictPolicy,
 	}
 }
 
@@ -75,6 +85,24 @@ func resolveManagerConfig(options []ManagerOption) managerConfig {
 		}
 	}
 	return config
+}
+
+// ApplySchedulerSettings updates future scheduling decisions without
+// interrupting transfers that already hold a running slot.
+func (m *Manager) ApplySchedulerSettings(settings SchedulerSettings) {
+	m.mu.Lock()
+	if m.closed {
+		m.mu.Unlock()
+		return
+	}
+	m.maxConcurrentTasks = settings.MaxConcurrentTasks
+	m.maxRetries = settings.MaxRetries
+	m.limiter.SetBytesPerSecond(settings.DownloadRateLimit)
+	updates := m.fillAvailableSlotsLocked()
+	m.mu.Unlock()
+	for _, update := range updates {
+		m.publish(update)
+	}
 }
 
 func (m *Manager) enqueueLocked(id string) {

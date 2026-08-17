@@ -40,9 +40,9 @@ class _TransferTrackPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    const gap = 4.0;
-    const trackHeight = 4.0;
-    final segments = (size.width / 40).round().clamp(6, 16);
+    const gap = 5.0;
+    const trackHeight = 6.0;
+    final segments = (size.width / 38).round().clamp(6, 16);
     final segmentWidth = (size.width - gap * (segments - 1)) / segments;
     final completedWidth = progress * size.width;
     for (var index = 0; index < segments; index++) {

@@ -87,19 +87,26 @@ void main() {
     final platform = _RecordingDesktopActions();
     final service = TaskService(
       client: client,
-      desktopActions: DesktopActionsService(platform: platform),
+      desktopActions: DesktopActionsService(
+        platform: platform,
+        revealCompletedFileEnabled: () => true,
+        completionRevealDelay: Duration.zero,
+      ),
     );
     addTearDown(service.onClose);
 
     await service.start();
     expect(platform.notifications, isEmpty);
+    expect(platform.revealedPaths, isEmpty);
 
     client.emit(_task(DownloadTaskState.downloading, downloaded: 512));
     client.emit(_task(DownloadTaskState.completed, downloaded: 1024));
     client.emit(_task(DownloadTaskState.completed, downloaded: 1024));
     await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
 
     expect(platform.notifications, <String>['task-1']);
+    expect(platform.revealedPaths, <String>['/tmp/downloads/archive.zip']);
   });
 
   test('deletes a task only after the engine confirms removal', () async {
@@ -166,6 +173,7 @@ DesktopActionsService _desktopActions() =>
 
 class _RecordingDesktopActions implements DesktopActionsPlatform {
   final notifications = <String>[];
+  final revealedPaths = <String>[];
 
   @override
   bool get isSupported => true;
@@ -174,7 +182,9 @@ class _RecordingDesktopActions implements DesktopActionsPlatform {
   Future<void> openFile(String path) async {}
 
   @override
-  Future<void> revealFile(String path) async {}
+  Future<void> revealFile(String path) async {
+    revealedPaths.add(path);
+  }
 
   @override
   Future<void> showCompletionNotification({

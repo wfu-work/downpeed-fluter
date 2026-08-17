@@ -4,6 +4,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 class DownpeedIcons {
   const DownpeedIcons._();
 
+  static const IconData overview = LucideIcons.layoutDashboard300;
   static const IconData all = LucideIcons.inbox300;
   static const IconData active = LucideIcons.arrowDownToLine300;
   static const IconData completed = LucideIcons.circleCheck300;
@@ -17,11 +18,15 @@ class DownpeedIcons {
   static const IconData language = LucideIcons.languages300;
   static const IconData layout = LucideIcons.panelLeft300;
   static const IconData add = LucideIcons.plus300;
+  static const IconData minus = LucideIcons.minus300;
   static const IconData paste = LucideIcons.clipboardPaste300;
   static const IconData retry = LucideIcons.rotateCcw300;
   static const IconData search = LucideIcons.search300;
   static const IconData sort = LucideIcons.arrowDownUp300;
   static const IconData engine = LucideIcons.gauge300;
+  static const IconData scheduler = LucideIcons.workflow300;
+  static const IconData speedLimit = LucideIcons.gauge300;
+  static const IconData retryPolicy = LucideIcons.listRestart300;
   static const IconData download = LucideIcons.download300;
   static const IconData magnet = LucideIcons.magnet300;
   static const IconData torrentFile = LucideIcons.fileUp300;
@@ -34,6 +39,10 @@ class DownpeedIcons {
   static const IconData locked = LucideIcons.lockKeyhole300;
   static const IconData upload = LucideIcons.upload300;
   static const IconData database = LucideIcons.database300;
+  static const IconData diagnostics = LucideIcons.activity300;
+  static const IconData archive = LucideIcons.fileArchive300;
+  static const IconData storage = LucideIcons.hardDrive300;
+  static const IconData logs = LucideIcons.scrollText300;
   static const IconData info = LucideIcons.info300;
   static const IconData close = LucideIcons.x300;
   static const IconData folder = LucideIcons.folderOpen300;

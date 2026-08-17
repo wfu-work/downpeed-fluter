@@ -7,6 +7,7 @@ import 'package:downpeed_flutter/domains/bt_diagnostics.dart';
 import 'package:downpeed_flutter/domains/bt_resolution.dart';
 import 'package:downpeed_flutter/domains/download_resolution.dart';
 import 'package:downpeed_flutter/domains/download_task.dart';
+import 'package:downpeed_flutter/domains/engine_settings.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -98,6 +99,12 @@ void main() {
           jsonEncode(<String, dynamic>{
             'data': <String, dynamic>{
               'defaultDownloadDirectory': directory,
+              'fileConflictPolicy': request.method == 'PUT'
+                  ? (body as Map<String, dynamic>)['fileConflictPolicy']
+                  : 'fail',
+              'scheduler': request.method == 'PUT'
+                  ? (body as Map<String, dynamic>)['scheduler']
+                  : _schedulerJson(),
               'bitTorrent': _btPolicyJson(
                 request.method == 'PUT'
                     ? ((body as Map<String, dynamic>)['bitTorrent']
@@ -119,11 +126,20 @@ void main() {
     final initial = await client.fetchSettings();
     final updated = await client.updateSettings(
       defaultDownloadDirectory: '/tmp/downpeed-selected',
+      fileConflictPolicy: FileConflictPolicy.uniquify,
+      scheduler: initial.scheduler.copyWith(
+        maxConcurrentTasks: 4,
+        downloadRateLimit: 5 * 1024 * 1024,
+      ),
       bitTorrent: initial.bitTorrent.copyWith(maxPeerConnections: 24),
     );
 
     expect(initial.defaultDownloadDirectory, '/tmp/Downloads');
+    expect(initial.fileConflictPolicy, FileConflictPolicy.fail);
     expect(updated.defaultDownloadDirectory, '/tmp/downpeed-selected');
+    expect(updated.fileConflictPolicy, FileConflictPolicy.uniquify);
+    expect(updated.scheduler.maxConcurrentTasks, 4);
+    expect(updated.scheduler.downloadRateLimit, 5 * 1024 * 1024);
     expect(updated.bitTorrent.maxPeerConnections, 24);
     expect(requests, <Map<String, dynamic>>[
       <String, dynamic>{'method': 'GET', 'path': '/api/v1/settings'},
@@ -132,9 +148,90 @@ void main() {
         'path': '/api/v1/settings',
         'body': <String, dynamic>{
           'defaultDownloadDirectory': '/tmp/downpeed-selected',
+          'fileConflictPolicy': 'uniquify',
+          'scheduler': _schedulerJson(
+            maxConcurrentTasks: 4,
+            downloadRateLimit: 5 * 1024 * 1024,
+          ),
           'bitTorrent': _btPolicyJson(24),
         },
       },
+    ]);
+  });
+
+  test('reads diagnostics and downloads the bounded ZIP archive', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => server.close(force: true));
+    final archiveBytes = <int>[0x50, 0x4b, 0x03, 0x04, 0x01];
+    final requests = <String>[];
+    server.listen((request) async {
+      requests.add('${request.method} ${request.uri.path}');
+      if (request.uri.path.endsWith('/export')) {
+        request.response
+          ..statusCode = HttpStatus.ok
+          ..headers.contentType = ContentType('application', 'zip')
+          ..headers.set(
+            'X-Downpeed-Filename',
+            'downpeed-diagnostics-20260817-010203Z.zip',
+          )
+          ..add(archiveBytes);
+      } else {
+        request.response
+          ..statusCode = HttpStatus.ok
+          ..headers.contentType = ContentType.json
+          ..write(
+            jsonEncode(<String, dynamic>{
+              'data': <String, dynamic>{
+                'generatedAt': '2026-08-17T01:02:03Z',
+                'storage': <String, dynamic>{
+                  'dataDirectory': '~/Library/Application Support/Downpeed',
+                  'databasePath':
+                      '~/Library/Application Support/Downpeed/tasks.db',
+                  'databaseSizeBytes': 4096,
+                  'databaseAvailable': true,
+                  'logsAvailable': false,
+                },
+                'tasks': <String, dynamic>{
+                  'total': 7,
+                  'active': 2,
+                  'queued': 1,
+                  'paused': 1,
+                  'completed': 2,
+                  'failed': 1,
+                  'canceled': 0,
+                  'http': 5,
+                  'bitTorrent': 2,
+                },
+                'privacy': <String, dynamic>{
+                  'pathsRedacted': true,
+                  'taskDetailsIncluded': false,
+                  'logsIncluded': false,
+                },
+              },
+              'error': null,
+              'requestId': 'diagnostics',
+            }),
+          );
+      }
+      await request.response.close();
+    });
+    final client = DioEngineClient(
+      baseUrl: 'http://${server.address.address}:${server.port}',
+    );
+
+    final diagnostics = await client.fetchDiagnostics();
+    final archive = await client.exportDiagnostics();
+
+    expect(diagnostics.storage.databaseSizeBytes, 4096);
+    expect(diagnostics.storage.logPath, isEmpty);
+    expect(diagnostics.tasks.total, 7);
+    expect(diagnostics.tasks.active, 2);
+    expect(diagnostics.privacy.taskDetailsIncluded, isFalse);
+    expect(archive.filename, 'downpeed-diagnostics-20260817-010203Z.zip');
+    expect(archive.bytes, archiveBytes);
+    expect(requests, <String>[
+      'GET /api/v1/diagnostics',
+      'POST /api/v1/diagnostics/export',
     ]);
   });
 
@@ -727,4 +824,14 @@ Map<String, dynamic> _btPolicyJson(int maxPeerConnections) => <String, dynamic>{
   'ipv6Enabled': false,
   'uploadEnabled': false,
   'seedingEnabled': false,
+};
+
+Map<String, dynamic> _schedulerJson({
+  int maxConcurrentTasks = 3,
+  int downloadRateLimit = 0,
+  int maxRetries = 2,
+}) => <String, dynamic>{
+  'maxConcurrentTasks': maxConcurrentTasks,
+  'downloadRateLimit': downloadRateLimit,
+  'maxRetries': maxRetries,
 };

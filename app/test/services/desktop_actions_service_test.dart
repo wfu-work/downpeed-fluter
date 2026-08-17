@@ -67,12 +67,74 @@ void main() {
 
     expect(platform.notificationId, isNull);
   });
+
+  test('coalesces automatic completion reveals to the latest task', () async {
+    final platform = _FakeDesktopActions();
+    final service = DesktopActionsService(
+      platform: platform,
+      completionNotificationsEnabled: () => false,
+      revealCompletedFileEnabled: () => true,
+      completionRevealDelay: Duration.zero,
+    );
+    addTearDown(service.onClose);
+
+    await Future.wait(<Future<void>>[
+      service.handleCompleted(
+        _task(DownloadTaskState.completed, id: 'task-1', fileName: 'first.zip'),
+      ),
+      service.handleCompleted(
+        _task(
+          DownloadTaskState.completed,
+          id: 'task-2',
+          fileName: 'second.zip',
+        ),
+      ),
+    ]);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(platform.revealedPaths, <String>['/tmp/downloads/second.zip']);
+  });
+
+  test(
+    'automatic reveal is default-off and reports sanitized failures',
+    () async {
+      final disabledPlatform = _FakeDesktopActions();
+      final disabledService = DesktopActionsService(
+        platform: disabledPlatform,
+        completionRevealDelay: Duration.zero,
+      );
+      addTearDown(disabledService.onClose);
+
+      await disabledService.handleCompleted(_task(DownloadTaskState.completed));
+      await Future<void>.delayed(Duration.zero);
+      expect(disabledPlatform.revealedPaths, isEmpty);
+
+      final failingPlatform = _FakeDesktopActions(
+        revealErrorCode: 'file_not_found',
+      );
+      final enabledService = DesktopActionsService(
+        platform: failingPlatform,
+        completionNotificationsEnabled: () => false,
+        revealCompletedFileEnabled: () => true,
+        completionRevealDelay: Duration.zero,
+      );
+      addTearDown(enabledService.onClose);
+      final task = _task(DownloadTaskState.completed);
+
+      await enabledService.handleCompleted(task);
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(enabledService.errorFor(task.id), '文件已被移动或删除，无法执行此操作。');
+    },
+  );
 }
 
 class _FakeDesktopActions implements DesktopActionsPlatform {
-  _FakeDesktopActions({this.openErrorCode});
+  _FakeDesktopActions({this.openErrorCode, this.revealErrorCode});
 
   final String? openErrorCode;
+  final String? revealErrorCode;
   final openedPaths = <String>[];
   final revealedPaths = <String>[];
   String? notificationId;
@@ -90,6 +152,9 @@ class _FakeDesktopActions implements DesktopActionsPlatform {
 
   @override
   Future<void> revealFile(String path) async {
+    if (revealErrorCode case final code?) {
+      throw DesktopActionException(code);
+    }
     revealedPaths.add(path);
   }
 
@@ -105,15 +170,19 @@ class _FakeDesktopActions implements DesktopActionsPlatform {
   }
 }
 
-DownloadTask _task(DownloadTaskState state) {
+DownloadTask _task(
+  DownloadTaskState state, {
+  String id = 'task-1',
+  String fileName = 'archive.zip',
+}) {
   final now = DateTime.utc(2026, 8, 11, 1);
   return DownloadTask(
-    id: 'task-1',
+    id: id,
     url: 'https://example.com/archive.zip',
     finalUrl: 'https://cdn.example.com/archive.zip',
-    fileName: 'archive.zip',
+    fileName: fileName,
     saveDirectory: '/tmp/downloads',
-    filePath: '/tmp/downloads/archive.zip',
+    filePath: '/tmp/downloads/$fileName',
     state: state,
     downloaded: state == DownloadTaskState.completed ? 1024 : 512,
     total: 1024,

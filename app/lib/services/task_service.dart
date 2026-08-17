@@ -198,7 +198,7 @@ class TaskService extends GetxService {
           if (previous != null &&
               previous.state != DownloadTaskState.completed &&
               event.task.state == DownloadTaskState.completed) {
-            unawaited(desktopActions.notifyCompleted(event.task));
+            unawaited(desktopActions.handleCompleted(event.task));
           }
         } else if (event.type == 'task.removed') {
           eventErrorMessage.value = null;

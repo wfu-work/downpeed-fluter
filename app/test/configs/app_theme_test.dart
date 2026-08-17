@@ -29,13 +29,14 @@ void main() {
     );
   });
 
-  test('uses the Codex neutral dark palette', () {
+  test('uses the indigo desktop dark palette', () {
     final theme = AppTheme.dark;
 
-    expect(theme.colorScheme.primary, const Color(0xFFFFFFFF));
-    expect(theme.scaffoldBackgroundColor, const Color(0xFF131313));
-    expect(theme.colorScheme.surface, const Color(0xFF1F1F1F));
-    expect(theme.colorScheme.onSurface, const Color(0xFFDBDBDB));
-    expect(theme.dividerColor, const Color(0xFF3A3A3A));
+    expect(theme.colorScheme.primary, const Color(0xFFF5F3F8));
+    expect(theme.scaffoldBackgroundColor, const Color(0xFF28234F));
+    expect(theme.colorScheme.surface, const Color(0xFF22273A));
+    expect(theme.colorScheme.onSurface, const Color(0xFFF1EFF4));
+    expect(theme.dividerColor, const Color(0xFF42465F));
+    expect(theme.textTheme.titleLarge?.fontSize, 19);
   });
 }

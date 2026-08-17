@@ -457,9 +457,17 @@ class _SettingsEngineClient extends StubEngineClient {
   @override
   Future<EngineSettings> fetchSettings() async => const EngineSettings(
     defaultDownloadDirectory: '/tmp/Downloads',
+    fileConflictPolicy: FileConflictPolicy.fail,
+    scheduler: _testScheduler,
     bitTorrent: _testBTPolicy,
   );
 }
+
+const _testScheduler = SchedulerSettings(
+  maxConcurrentTasks: 3,
+  downloadRateLimit: 0,
+  maxRetries: 2,
+);
 
 const _magnetResolution = BTResolution(
   sourceType: BTSourceType.magnet,

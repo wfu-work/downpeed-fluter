@@ -9,6 +9,7 @@ import '../../domains/bt_diagnostics.dart';
 import '../../domains/delete_task_result.dart';
 import '../../domains/download_resolution.dart';
 import '../../domains/download_task.dart';
+import '../../domains/engine_diagnostics.dart';
 import '../../domains/engine_info.dart';
 import '../../domains/engine_settings.dart';
 
@@ -20,10 +21,16 @@ const defaultEngineBaseUrl = String.fromEnvironment(
 abstract interface class EngineClient {
   Future<EngineInfo> fetchInfo();
 
+  Future<EngineDiagnostics> fetchDiagnostics();
+
+  Future<DiagnosticArchive> exportDiagnostics();
+
   Future<EngineSettings> fetchSettings();
 
   Future<EngineSettings> updateSettings({
     required String defaultDownloadDirectory,
+    required FileConflictPolicy fileConflictPolicy,
+    required SchedulerSettings scheduler,
     required BTPolicySettings bitTorrent,
   });
 
@@ -111,6 +118,8 @@ class DioEngineClient implements EngineClient {
 
   final Dio _dio;
 
+  static const maxDiagnosticArchiveBytes = 8 << 20;
+
   @override
   Future<EngineInfo> fetchInfo() async {
     try {
@@ -126,6 +135,69 @@ class DioEngineClient implements EngineClient {
         code: 'incompatible_engine',
         retryable: false,
       );
+    }
+  }
+
+  @override
+  Future<EngineDiagnostics> fetchDiagnostics() async {
+    try {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '/api/v1/diagnostics',
+      );
+      return EngineDiagnostics.fromJson(_readData(response.data));
+    } on EngineClientException {
+      rethrow;
+    } on DioException catch (error) {
+      throw _normalizeDioError(error);
+    } on Object catch (error) {
+      if (error is FormatException || error is TypeError) {
+        throw const EngineClientException(
+          'The engine returned unsupported diagnostic information.',
+          code: 'incompatible_engine',
+          retryable: false,
+        );
+      }
+      rethrow;
+    }
+  }
+
+  @override
+  Future<DiagnosticArchive> exportDiagnostics() async {
+    try {
+      final response = await _dio.post<List<int>>(
+        '/api/v1/diagnostics/export',
+        options: Options(
+          responseType: ResponseType.bytes,
+          receiveTimeout: const Duration(seconds: 15),
+          headers: const {'Accept': 'application/zip'},
+        ),
+      );
+      final bytes = response.data;
+      if (bytes == null ||
+          bytes.isEmpty ||
+          bytes.length > maxDiagnosticArchiveBytes) {
+        throw const FormatException('Invalid diagnostic archive.');
+      }
+      final filename = _diagnosticFilename(
+        response.headers.value('x-downpeed-filename'),
+      );
+      return DiagnosticArchive(
+        filename: filename,
+        bytes: Uint8List.fromList(bytes),
+      );
+    } on EngineClientException {
+      rethrow;
+    } on DioException catch (error) {
+      throw _normalizeDioError(error);
+    } on Object catch (error) {
+      if (error is FormatException || error is TypeError) {
+        throw const EngineClientException(
+          'The engine returned an invalid diagnostic archive.',
+          code: 'incompatible_engine',
+          retryable: false,
+        );
+      }
+      rethrow;
     }
   }
 
@@ -150,6 +222,8 @@ class DioEngineClient implements EngineClient {
   @override
   Future<EngineSettings> updateSettings({
     required String defaultDownloadDirectory,
+    required FileConflictPolicy fileConflictPolicy,
+    required SchedulerSettings scheduler,
     required BTPolicySettings bitTorrent,
   }) async {
     try {
@@ -157,6 +231,8 @@ class DioEngineClient implements EngineClient {
         '/api/v1/settings',
         data: <String, dynamic>{
           'defaultDownloadDirectory': defaultDownloadDirectory,
+          'fileConflictPolicy': fileConflictPolicy.apiValue,
+          'scheduler': scheduler.toJson(),
           'bitTorrent': bitTorrent.toJson(),
         },
       );
@@ -647,7 +723,7 @@ class DioEngineClient implements EngineClient {
   }
 
   EngineClientException _normalizeDioError(DioException error) {
-    final responseBody = error.response?.data;
+    final responseBody = _decodedResponseBody(error.response?.data);
     if (responseBody is Map) {
       final responseError = responseBody['error'];
       if (responseError is Map) {
@@ -671,5 +747,26 @@ class DioEngineClient implements EngineClient {
       code: retryable ? 'engine_unreachable' : 'engine_rejected',
       retryable: retryable,
     );
+  }
+
+  dynamic _decodedResponseBody(dynamic body) {
+    if (body is List<int>) {
+      try {
+        return jsonDecode(utf8.decode(body));
+      } on Object {
+        return body;
+      }
+    }
+    return body;
+  }
+
+  String _diagnosticFilename(String? value) {
+    final filename = value?.trim() ?? '';
+    if (RegExp(
+      r'^downpeed-diagnostics-[0-9]{8}-[0-9]{6}Z\.zip$',
+    ).hasMatch(filename)) {
+      return filename;
+    }
+    return 'downpeed-diagnostics.zip';
   }
 }

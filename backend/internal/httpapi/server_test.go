@@ -105,10 +105,17 @@ func TestSettingsAPIReadsUpdatesAndRejectsInvalidDirectory(t *testing.T) {
 	if getEnvelope.Data.BitTorrent != download.DefaultBTPolicySettings() {
 		t.Fatalf("BT policy = %#v", getEnvelope.Data.BitTorrent)
 	}
+	if getEnvelope.Data.Scheduler != download.DefaultSchedulerSettings() {
+		t.Fatalf("scheduler = %#v", getEnvelope.Data.Scheduler)
+	}
+	if getEnvelope.Data.FileConflictPolicy != download.DefaultFileConflictPolicy {
+		t.Fatalf("file conflict policy = %q", getEnvelope.Data.FileConflictPolicy)
+	}
 
 	policy := download.DefaultBTPolicySettings()
 	policy.MaxPeerConnections = 20
-	updateBody, _ := json.Marshal(download.EngineSettings{DefaultDownloadDirectory: selected, BitTorrent: policy})
+	scheduler := download.SchedulerSettings{MaxConcurrentTasks: 5, DownloadRateLimit: 5 * 1024 * 1024, MaxRetries: 4}
+	updateBody, _ := json.Marshal(download.EngineSettings{DefaultDownloadDirectory: selected, FileConflictPolicy: download.FileConflictPolicyUniquify, Scheduler: scheduler, BitTorrent: policy})
 	putResponse := httptest.NewRecorder()
 	server.Handler().ServeHTTP(putResponse, httptest.NewRequest(http.MethodPut, "/api/v1/settings", bytes.NewReader(updateBody)))
 	if putResponse.Code != http.StatusOK {
@@ -118,7 +125,7 @@ func TestSettingsAPIReadsUpdatesAndRejectsInvalidDirectory(t *testing.T) {
 	if err = json.NewDecoder(putResponse.Body).Decode(&putEnvelope); err != nil {
 		t.Fatal(err)
 	}
-	if putEnvelope.Data.DefaultDownloadDirectory != selected || putEnvelope.Data.BitTorrent.MaxPeerConnections != 20 {
+	if putEnvelope.Data.DefaultDownloadDirectory != selected || putEnvelope.Data.FileConflictPolicy != download.FileConflictPolicyUniquify || putEnvelope.Data.Scheduler != scheduler || putEnvelope.Data.BitTorrent.MaxPeerConnections != 20 {
 		t.Fatalf("updated settings = %#v", putEnvelope.Data)
 	}
 
@@ -133,21 +140,37 @@ func TestSettingsAPIReadsUpdatesAndRejectsInvalidDirectory(t *testing.T) {
 	if err = json.NewDecoder(legacyResponse.Body).Decode(&legacyEnvelope); err != nil {
 		t.Fatal(err)
 	}
-	if legacyEnvelope.Data.DefaultDownloadDirectory != legacyDirectory || legacyEnvelope.Data.BitTorrent.MaxPeerConnections != 20 {
+	if legacyEnvelope.Data.DefaultDownloadDirectory != legacyDirectory || legacyEnvelope.Data.FileConflictPolicy != download.FileConflictPolicyUniquify || legacyEnvelope.Data.Scheduler != scheduler || legacyEnvelope.Data.BitTorrent.MaxPeerConnections != 20 {
 		t.Fatalf("legacy update reset policy: %#v", legacyEnvelope.Data)
 	}
 
-	invalidBody, _ := json.Marshal(download.EngineSettings{DefaultDownloadDirectory: filepath.Join(selected, "missing")})
+	invalidBody, _ := json.Marshal(download.EngineSettings{DefaultDownloadDirectory: filepath.Join(selected, "missing"), Scheduler: scheduler})
 	invalidResponse := httptest.NewRecorder()
 	server.Handler().ServeHTTP(invalidResponse, httptest.NewRequest(http.MethodPut, "/api/v1/settings", bytes.NewReader(invalidBody)))
 	assertAPIError(t, invalidResponse, http.StatusBadRequest, "invalid_download_directory", false)
 
 	unsafe := download.DefaultBTPolicySettings()
 	unsafe.UploadEnabled = true
-	unsafeBody, _ := json.Marshal(download.EngineSettings{DefaultDownloadDirectory: selected, BitTorrent: unsafe})
+	unsafeBody, _ := json.Marshal(download.EngineSettings{DefaultDownloadDirectory: selected, FileConflictPolicy: download.FileConflictPolicyUniquify, Scheduler: scheduler, BitTorrent: unsafe})
 	unsafeResponse := httptest.NewRecorder()
 	server.Handler().ServeHTTP(unsafeResponse, httptest.NewRequest(http.MethodPut, "/api/v1/settings", bytes.NewReader(unsafeBody)))
 	assertAPIError(t, unsafeResponse, http.StatusBadRequest, "invalid_bt_policy", false)
+
+	invalidSchedulerBody, _ := json.Marshal(map[string]any{
+		"defaultDownloadDirectory": selected,
+		"scheduler":                map[string]any{"maxConcurrentTasks": 0, "downloadRateLimit": 0, "maxRetries": 2},
+	})
+	invalidSchedulerResponse := httptest.NewRecorder()
+	server.Handler().ServeHTTP(invalidSchedulerResponse, httptest.NewRequest(http.MethodPut, "/api/v1/settings", bytes.NewReader(invalidSchedulerBody)))
+	assertAPIError(t, invalidSchedulerResponse, http.StatusBadRequest, "invalid_scheduler_settings", false)
+
+	invalidPolicyBody, _ := json.Marshal(map[string]any{
+		"defaultDownloadDirectory": selected,
+		"fileConflictPolicy":       "overwrite",
+	})
+	invalidPolicyResponse := httptest.NewRecorder()
+	server.Handler().ServeHTTP(invalidPolicyResponse, httptest.NewRequest(http.MethodPut, "/api/v1/settings", bytes.NewReader(invalidPolicyBody)))
+	assertAPIError(t, invalidPolicyResponse, http.StatusBadRequest, "invalid_file_conflict_policy", false)
 }
 
 func TestHealthRejectsWrongMethod(t *testing.T) {

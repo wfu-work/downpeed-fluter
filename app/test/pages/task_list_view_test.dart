@@ -46,7 +46,7 @@ void main() {
     final subtitleFinder = find.byKey(const ValueKey('task-toolbar-subtitle'));
     final subtitle = tester.widget<Text>(subtitleFinder);
 
-    expect(title.style?.fontSize, DownpeedThemeTokens.textTitle);
+    expect(title.style?.fontSize, DownpeedThemeTokens.textHeading);
     expect(title.style?.fontWeight, FontWeight.w600);
     expect(subtitle.style?.fontSize, DownpeedThemeTokens.textCaption);
     expect(
@@ -258,6 +258,10 @@ void main() {
     await tester.pumpWidget(const DownpeedApp());
     await tester.pumpAndSettle();
 
+    expect(
+      tester.getSize(find.byKey(const ValueKey('task-search-field'))),
+      const Size(280, 40),
+    );
     expect(find.byKey(const ValueKey('task-row-active-1')), findsOneWidget);
     expect(find.byKey(const ValueKey('task-speed-active-1')), findsOneWidget);
     expect(
@@ -273,6 +277,10 @@ void main() {
       tester.getSize(find.byKey(const ValueKey('task-row-active-1'))).height,
       inInclusiveRange(56, 76),
     );
+    expect(
+      tester.getRect(find.byKey(const ValueKey('task-row-active-1'))).left,
+      greaterThan(tester.getRect(find.byKey(const ValueKey('task-list'))).left),
+    );
     final identityRect = tester.getRect(
       find.byKey(const ValueKey('task-identity-active-1')),
     );
@@ -282,8 +290,12 @@ void main() {
     expect(transferRect.top, greaterThan(identityRect.top));
     expect(transferRect.width, greaterThan(420));
     expect(
+      tester.getSize(find.byKey(const ValueKey('task-track-active-1'))).width,
+      lessThanOrEqualTo(520),
+    );
+    expect(
       tester.getSize(find.byKey(const ValueKey('task-state-icon-active-1'))),
-      const Size.square(DownpeedThemeTokens.iconSize),
+      const Size.square(DownpeedThemeTokens.taskStatusIconSize),
     );
     expect(find.byKey(const ValueKey('task-inspector')), findsNothing);
     final fullListWidth = tester

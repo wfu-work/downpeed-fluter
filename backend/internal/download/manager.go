@@ -28,7 +28,8 @@ type Manager struct {
 	maxConcurrentTasks int
 	maxRetries         int
 	retryBaseDelay     time.Duration
-	limiter            BandwidthLimiter
+	fileConflictPolicy FileConflictPolicy
+	limiter            *bandwidthLimiter
 	retryWG            sync.WaitGroup
 
 	mu            sync.RWMutex
@@ -76,6 +77,7 @@ func newManager(parent context.Context, transfer Transfer, store TaskStore, opti
 		maxConcurrentTasks: managerConfig.maxConcurrentTasks,
 		maxRetries:         managerConfig.maxRetries,
 		retryBaseDelay:     managerConfig.retryBaseDelay,
+		fileConflictPolicy: managerConfig.fileConflictPolicy,
 		limiter:            NewBandwidthLimiter(managerConfig.downloadRateLimit),
 		tasks:              make(map[string]Task),
 		requests:           make(map[string]TransferRequest),
@@ -201,17 +203,9 @@ func (m *Manager) Create(_ context.Context, input CreateTaskRequest) (Task, erro
 	if err != nil || !info.IsDir() {
 		return Task{}, fmt.Errorf("%w: save directory is unavailable", ErrInvalidDestination)
 	}
-	destination := filepath.Join(directory, fileName)
-	if _, err = os.Lstat(destination); err == nil {
-		return Task{}, ErrDestinationExists
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return Task{}, fmt.Errorf("%w: destination cannot be checked", ErrInvalidDestination)
-	}
-	workPath := temporaryPath(destination)
-	if _, err = os.Lstat(workPath); err == nil {
-		return Task{}, ErrDestinationExists
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return Task{}, fmt.Errorf("%w: temporary destination cannot be checked", ErrInvalidDestination)
+	fileName, destination, workPath, err := m.selectHTTPDestination(directory, fileName)
+	if err != nil {
+		return Task{}, err
 	}
 
 	now := time.Now().UTC()
@@ -242,16 +236,6 @@ func (m *Manager) Create(_ context.Context, input CreateTaskRequest) (Task, erro
 		task.ID = fmt.Sprintf("%x-%x", now.UnixMilli(), m.sequence.Add(1))
 		task.CreatedAt = now
 		task.UpdatedAt = now
-	}
-	for _, existing := range m.tasks {
-		if existing.FilePath == destination &&
-			(existing.State == TaskStateQueued ||
-				existing.State == TaskStateDownloading ||
-				existing.State == TaskStateRetrying ||
-				existing.State == TaskStatePaused) {
-			m.mu.Unlock()
-			return Task{}, ErrDestinationExists
-		}
 	}
 	request := TransferRequest{
 		URL:           task.URL,

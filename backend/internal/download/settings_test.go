@@ -16,21 +16,38 @@ func TestSettingsManagerUsesUpdatesAndPersistsDefaultDirectory(t *testing.T) {
 		t.Fatal(err)
 	}
 	store := &memorySettingsStore{}
-	manager, err := NewSettingsManager(context.Background(), store, defaultDirectory)
+	defaultScheduler := SchedulerSettings{
+		MaxConcurrentTasks: 5,
+		DownloadRateLimit:  5 * 1024 * 1024,
+		MaxRetries:         4,
+	}
+	manager, err := NewSettingsManager(
+		context.Background(),
+		store,
+		defaultDirectory,
+		WithDefaultSchedulerSettings(defaultScheduler),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	settings, err := manager.GetSettings(context.Background())
-	if err != nil || settings.DefaultDownloadDirectory != defaultDirectory || settings.BitTorrent != DefaultBTPolicySettings() {
+	if err != nil || settings.DefaultDownloadDirectory != defaultDirectory || settings.FileConflictPolicy != DefaultFileConflictPolicy || settings.Scheduler != defaultScheduler || settings.BitTorrent != DefaultBTPolicySettings() {
 		t.Fatalf("defaults = %#v, error = %v", settings, err)
 	}
 	policy := DefaultBTPolicySettings()
 	policy.MaxPeerConnections = 20
+	updatedScheduler := SchedulerSettings{
+		MaxConcurrentTasks: 2,
+		DownloadRateLimit:  1024 * 1024,
+		MaxRetries:         1,
+	}
 	updated, err := manager.UpdateSettings(context.Background(), EngineSettings{
 		DefaultDownloadDirectory: selectedDirectory,
+		FileConflictPolicy:       FileConflictPolicyUniquify,
+		Scheduler:                updatedScheduler,
 		BitTorrent:               policy,
 	})
-	if err != nil || updated.DefaultDownloadDirectory != selectedDirectory || updated.BitTorrent.MaxPeerConnections != 20 {
+	if err != nil || updated.DefaultDownloadDirectory != selectedDirectory || updated.FileConflictPolicy != FileConflictPolicyUniquify || updated.Scheduler != updatedScheduler || updated.BitTorrent.MaxPeerConnections != 20 {
 		t.Fatalf("updated = %#v, error = %v", updated, err)
 	}
 	restored, err := NewSettingsManager(context.Background(), store, defaultDirectory)
@@ -38,8 +55,56 @@ func TestSettingsManagerUsesUpdatesAndPersistsDefaultDirectory(t *testing.T) {
 		t.Fatal(err)
 	}
 	settings, _ = restored.GetSettings(context.Background())
-	if settings.DefaultDownloadDirectory != selectedDirectory || settings.BitTorrent.MaxPeerConnections != 20 {
+	if settings.DefaultDownloadDirectory != selectedDirectory || settings.FileConflictPolicy != FileConflictPolicyUniquify || settings.Scheduler != updatedScheduler || settings.BitTorrent.MaxPeerConnections != 20 {
 		t.Fatalf("restored = %#v", settings)
+	}
+}
+
+func TestSettingsManagerAppliesSchedulerSettingsAfterPersistence(t *testing.T) {
+	directory := t.TempDir()
+	store := &memorySettingsStore{}
+	manager, err := NewSettingsManager(context.Background(), store, directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	applied := make([]SchedulerSettings, 0, 2)
+	manager.SetSchedulerSettingsApplier(func(settings SchedulerSettings) {
+		applied = append(applied, settings)
+	})
+	updated := SchedulerSettings{MaxConcurrentTasks: 1, DownloadRateLimit: 2048, MaxRetries: 0}
+	if _, err = manager.UpdateSettings(context.Background(), EngineSettings{
+		DefaultDownloadDirectory: directory,
+		FileConflictPolicy:       DefaultFileConflictPolicy,
+		Scheduler:                updated,
+		BitTorrent:               DefaultBTPolicySettings(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if len(applied) != 2 || applied[0] != DefaultSchedulerSettings() || applied[1] != updated {
+		t.Fatalf("applied scheduler settings = %#v", applied)
+	}
+}
+
+func TestSettingsManagerAppliesFileConflictPolicyAfterPersistence(t *testing.T) {
+	directory := t.TempDir()
+	manager, err := NewSettingsManager(context.Background(), &memorySettingsStore{}, directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	applied := make([]FileConflictPolicy, 0, 2)
+	manager.SetFileConflictPolicyApplier(func(policy FileConflictPolicy) {
+		applied = append(applied, policy)
+	})
+	if _, err = manager.UpdateSettings(context.Background(), EngineSettings{
+		DefaultDownloadDirectory: directory,
+		FileConflictPolicy:       FileConflictPolicyUniquify,
+		Scheduler:                DefaultSchedulerSettings(),
+		BitTorrent:               DefaultBTPolicySettings(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if len(applied) != 2 || applied[0] != FileConflictPolicyFail || applied[1] != FileConflictPolicyUniquify {
+		t.Fatalf("applied file conflict policies = %#v", applied)
 	}
 }
 
@@ -53,6 +118,8 @@ func TestSettingsManagerRejectsUnsafeBTPolicyAndKeepsPreviousValue(t *testing.T)
 	unsafe.TrackersEnabled = true
 	_, err = manager.UpdateSettings(context.Background(), EngineSettings{
 		DefaultDownloadDirectory: directory,
+		FileConflictPolicy:       DefaultFileConflictPolicy,
+		Scheduler:                DefaultSchedulerSettings(),
 		BitTorrent:               unsafe,
 	})
 	if !errors.Is(err, ErrInvalidBTPolicy) {
@@ -74,6 +141,8 @@ func TestSettingsManagerRejectsOutOfRangeBTPeerBudget(t *testing.T) {
 	policy.MaxPeerConnections = MaxBTPeerConnections + 1
 	_, err = manager.UpdateSettings(context.Background(), EngineSettings{
 		DefaultDownloadDirectory: directory,
+		FileConflictPolicy:       DefaultFileConflictPolicy,
+		Scheduler:                DefaultSchedulerSettings(),
 		BitTorrent:               policy,
 	})
 	if !errors.Is(err, ErrInvalidBTPolicy) {
@@ -91,8 +160,37 @@ func TestSettingsManagerMigratesLegacySettingsToRestrictedBTDefaults(t *testing.
 		t.Fatal(err)
 	}
 	settings, _ := manager.GetSettings(context.Background())
-	if settings.BitTorrent != DefaultBTPolicySettings() || store.settings.BitTorrent != DefaultBTPolicySettings() {
+	if settings.FileConflictPolicy != DefaultFileConflictPolicy || store.settings.FileConflictPolicy != DefaultFileConflictPolicy || settings.Scheduler != DefaultSchedulerSettings() || store.settings.Scheduler != DefaultSchedulerSettings() || settings.BitTorrent != DefaultBTPolicySettings() || store.settings.BitTorrent != DefaultBTPolicySettings() {
 		t.Fatalf("legacy settings were not migrated: manager %#v, store %#v", settings, store.settings)
+	}
+}
+
+func TestSettingsManagerRejectsInvalidSchedulerSettings(t *testing.T) {
+	directory := t.TempDir()
+	manager, err := NewSettingsManager(context.Background(), nil, directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := []SchedulerSettings{
+		{MaxConcurrentTasks: 0, MaxRetries: DefaultMaxRetries},
+		{MaxConcurrentTasks: MaxConcurrentTasks + 1, MaxRetries: DefaultMaxRetries},
+		{MaxConcurrentTasks: DefaultMaxConcurrentTasks, DownloadRateLimit: -1, MaxRetries: DefaultMaxRetries},
+		{MaxConcurrentTasks: DefaultMaxConcurrentTasks, MaxRetries: MaxAutomaticRetries + 1},
+	}
+	for _, scheduler := range tests {
+		_, err = manager.UpdateSettings(context.Background(), EngineSettings{
+			DefaultDownloadDirectory: directory,
+			FileConflictPolicy:       DefaultFileConflictPolicy,
+			Scheduler:                scheduler,
+			BitTorrent:               DefaultBTPolicySettings(),
+		})
+		if !errors.Is(err, ErrInvalidSchedulerSettings) {
+			t.Fatalf("scheduler %#v error = %v, want ErrInvalidSchedulerSettings", scheduler, err)
+		}
+	}
+	settings, _ := manager.GetSettings(context.Background())
+	if settings.Scheduler != DefaultSchedulerSettings() {
+		t.Fatalf("settings changed after rejection: %#v", settings)
 	}
 }
 
@@ -104,12 +202,36 @@ func TestSettingsManagerRejectsUnavailableDirectoryAndKeepsPreviousValue(t *test
 	}
 	_, err = manager.UpdateSettings(context.Background(), EngineSettings{
 		DefaultDownloadDirectory: filepath.Join(defaultDirectory, "missing"),
+		FileConflictPolicy:       DefaultFileConflictPolicy,
+		Scheduler:                DefaultSchedulerSettings(),
+		BitTorrent:               DefaultBTPolicySettings(),
 	})
 	if !errors.Is(err, ErrInvalidSettings) {
 		t.Fatalf("error = %v, want ErrInvalidSettings", err)
 	}
 	settings, _ := manager.GetSettings(context.Background())
 	if settings.DefaultDownloadDirectory != defaultDirectory {
+		t.Fatalf("settings changed after rejection: %#v", settings)
+	}
+}
+
+func TestSettingsManagerRejectsInvalidFileConflictPolicy(t *testing.T) {
+	directory := t.TempDir()
+	manager, err := NewSettingsManager(context.Background(), nil, directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = manager.UpdateSettings(context.Background(), EngineSettings{
+		DefaultDownloadDirectory: directory,
+		FileConflictPolicy:       FileConflictPolicy("overwrite"),
+		Scheduler:                DefaultSchedulerSettings(),
+		BitTorrent:               DefaultBTPolicySettings(),
+	})
+	if !errors.Is(err, ErrInvalidFileConflictPolicy) {
+		t.Fatalf("error = %v, want ErrInvalidFileConflictPolicy", err)
+	}
+	settings, _ := manager.GetSettings(context.Background())
+	if settings.FileConflictPolicy != DefaultFileConflictPolicy {
 		t.Fatalf("settings changed after rejection: %#v", settings)
 	}
 }

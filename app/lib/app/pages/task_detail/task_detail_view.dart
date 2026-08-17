@@ -19,6 +19,7 @@ class TaskDetailView extends GetView<TaskDetailController> {
   @override
   Widget build(BuildContext context) {
     return DownpeedAppShell(
+      selectedDestination: AppDestination.tasks,
       child: SafeArea(
         left: false,
         child: Column(

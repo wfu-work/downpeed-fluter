@@ -2,6 +2,9 @@ class L10nKeys {
   const L10nKeys._();
 
   static const appName = 'app.name';
+  static const navOverview = 'nav.overview';
+  static const navTasks = 'nav.tasks';
+  static const navNetwork = 'nav.network';
   static const navAll = 'nav.all';
   static const navActive = 'nav.active';
   static const navCompleted = 'nav.completed';
@@ -11,6 +14,69 @@ class L10nKeys {
   static const sidebarExpand = 'sidebar.expand';
   static const sidebarThemeToLight = 'sidebar.theme.toLight';
   static const sidebarThemeToDark = 'sidebar.theme.toDark';
+  static const overviewTitle = 'overview.title';
+  static const overviewSubtitle = 'overview.subtitle';
+  static const overviewCurrentSpeed = 'overview.currentSpeed';
+  static const overviewActive = 'overview.active';
+  static const overviewQueued = 'overview.queued';
+  static const overviewCompleted = 'overview.completed';
+  static const overviewIssues = 'overview.issues';
+  static const overviewCurrentTransfers = 'overview.currentTransfers';
+  static const overviewCurrentTransfersSubtitle =
+      'overview.currentTransfers.subtitle';
+  static const overviewRecent = 'overview.recent';
+  static const overviewRecentSubtitle = 'overview.recent.subtitle';
+  static const overviewViewAll = 'overview.viewAll';
+  static const overviewNewDownload = 'overview.newDownload';
+  static const overviewPasteLink = 'overview.pasteLink';
+  static const overviewRefresh = 'overview.refresh';
+  static const overviewNoActiveTitle = 'overview.noActive.title';
+  static const overviewNoActiveBody = 'overview.noActive.body';
+  static const overviewNoRecentTitle = 'overview.noRecent.title';
+  static const overviewNoRecentBody = 'overview.noRecent.body';
+  static const networkTitle = 'network.title';
+  static const networkSubtitle = 'network.subtitle';
+  static const networkRefresh = 'network.refresh';
+  static const networkOpenSettings = 'network.openSettings';
+  static const networkEngine = 'network.engine';
+  static const networkEngineSubtitle = 'network.engine.subtitle';
+  static const networkEngineName = 'network.engine.name';
+  static const networkEngineVersion = 'network.engine.version';
+  static const networkApi = 'network.engine.api';
+  static const networkRuntime = 'network.engine.runtime';
+  static const networkPlatform = 'network.engine.platform';
+  static const networkScheduler = 'network.scheduler';
+  static const networkSchedulerSubtitle = 'network.scheduler.subtitle';
+  static const networkMaxConcurrentTasks =
+      'network.scheduler.maxConcurrentTasks';
+  static const networkConcurrentTasksValue =
+      'network.scheduler.maxConcurrentTasks.value';
+  static const networkDownloadRateLimit = 'network.scheduler.downloadRateLimit';
+  static const networkAutomaticRetries = 'network.scheduler.automaticRetries';
+  static const networkRetriesValue = 'network.scheduler.automaticRetries.value';
+  static const networkUnlimited = 'network.unlimited';
+  static const networkDownloads = 'network.downloads';
+  static const networkDownloadsSubtitle = 'network.downloads.subtitle';
+  static const networkDefaultDirectory = 'network.downloads.directory';
+  static const networkPeerBudget = 'network.downloads.peerBudget';
+  static const networkPeerBudgetValue = 'network.downloads.peerBudget.value';
+  static const networkPolicy = 'network.policy';
+  static const networkPolicySubtitle = 'network.policy.subtitle';
+  static const networkPolicyRestricted = 'network.policy.restricted';
+  static const networkPolicyUnexpected = 'network.policy.unexpected';
+  static const networkExplicitPeers = 'network.policy.explicitPeers';
+  static const networkTrackers = 'network.policy.trackers';
+  static const networkDht = 'network.policy.dht';
+  static const networkPex = 'network.policy.pex';
+  static const networkWebSeeds = 'network.policy.webSeeds';
+  static const networkIpv6 = 'network.policy.ipv6';
+  static const networkInbound = 'network.policy.inbound';
+  static const networkUpload = 'network.policy.upload';
+  static const networkSeeding = 'network.policy.seeding';
+  static const networkEnabled = 'network.enabled';
+  static const networkDisabled = 'network.disabled';
+  static const networkLoading = 'network.loading';
+  static const networkUnavailable = 'network.unavailable';
   static const settingsTitle = 'settings.title';
   static const settingsSubtitle = 'settings.subtitle';
   static const settingsBackToTasks = 'settings.backToTasks';
@@ -107,8 +173,63 @@ class L10nKeys {
       'settings.downloads.defaultDirectory.error.picker';
   static const settingsDownloadDirectoryErrorTitle =
       'settings.downloads.defaultDirectory.error.title';
+  static const settingsFileConflictPolicy =
+      'settings.downloads.fileConflictPolicy';
+  static const settingsFileConflictPolicyDescription =
+      'settings.downloads.fileConflictPolicy.description';
+  static const settingsFileConflictPolicyRename =
+      'settings.downloads.fileConflictPolicy.rename';
+  static const settingsFileConflictPolicyStop =
+      'settings.downloads.fileConflictPolicy.stop';
+  static const settingsFileConflictPolicyErrorTitle =
+      'settings.downloads.fileConflictPolicy.error.title';
+  static const settingsFileConflictPolicyInvalid =
+      'settings.downloads.fileConflictPolicy.error.invalid';
+  static const settingsFileConflictPolicyOffline =
+      'settings.downloads.fileConflictPolicy.error.offline';
+  static const settingsFileConflictPolicySaveError =
+      'settings.downloads.fileConflictPolicy.error.save';
+  static const settingsDownloadCompletionAction =
+      'settings.downloads.completionAction';
+  static const settingsDownloadCompletionActionDescription =
+      'settings.downloads.completionAction.description';
+  static const settingsDownloadCompletionActionNone =
+      'settings.downloads.completionAction.none';
+  static const settingsDownloadCompletionActionReveal =
+      'settings.downloads.completionAction.reveal';
   static const settingsDownloadsNoteTitle = 'settings.downloads.note.title';
   static const settingsDownloadsNoteBody = 'settings.downloads.note.body';
+  static const settingsScheduler = 'settings.scheduler';
+  static const settingsSchedulerDescription = 'settings.scheduler.description';
+  static const settingsSchedulerMaxConcurrentTasks =
+      'settings.scheduler.maxConcurrentTasks';
+  static const settingsSchedulerMaxConcurrentTasksDescription =
+      'settings.scheduler.maxConcurrentTasks.description';
+  static const settingsSchedulerDownloadRateLimit =
+      'settings.scheduler.downloadRateLimit';
+  static const settingsSchedulerDownloadRateLimitDescription =
+      'settings.scheduler.downloadRateLimit.description';
+  static const settingsSchedulerAutomaticRetries =
+      'settings.scheduler.automaticRetries';
+  static const settingsSchedulerAutomaticRetriesDescription =
+      'settings.scheduler.automaticRetries.description';
+  static const settingsSchedulerUnlimited = 'settings.scheduler.unlimited';
+  static const settingsSchedulerRateMenu =
+      'settings.scheduler.downloadRateLimit.menu';
+  static const settingsSchedulerDecreaseConcurrency =
+      'settings.scheduler.maxConcurrentTasks.decrease';
+  static const settingsSchedulerIncreaseConcurrency =
+      'settings.scheduler.maxConcurrentTasks.increase';
+  static const settingsSchedulerDecreaseRetries =
+      'settings.scheduler.automaticRetries.decrease';
+  static const settingsSchedulerIncreaseRetries =
+      'settings.scheduler.automaticRetries.increase';
+  static const settingsSchedulerNoteTitle = 'settings.scheduler.note.title';
+  static const settingsSchedulerNoteBody = 'settings.scheduler.note.body';
+  static const settingsSchedulerErrorTitle = 'settings.scheduler.error.title';
+  static const settingsSchedulerInvalid = 'settings.scheduler.error.invalid';
+  static const settingsSchedulerOffline = 'settings.scheduler.error.offline';
+  static const settingsSchedulerSaveError = 'settings.scheduler.error.save';
   static const settingsBT = 'settings.bt';
   static const settingsBTDescription = 'settings.bt.description';
   static const settingsBTPeerBudget = 'settings.bt.peerBudget';
@@ -134,6 +255,60 @@ class L10nKeys {
       'settings.engine.sectionDescription';
   static const settingsEngineNoteTitle = 'settings.engine.note.title';
   static const settingsEngineNoteBody = 'settings.engine.note.body';
+  static const settingsDiagnostics = 'settings.diagnostics';
+  static const settingsDiagnosticsDescription =
+      'settings.diagnostics.description';
+  static const settingsDiagnosticsDataDirectory =
+      'settings.diagnostics.dataDirectory';
+  static const settingsDiagnosticsDataDirectoryDescription =
+      'settings.diagnostics.dataDirectory.description';
+  static const settingsDiagnosticsDatabase = 'settings.diagnostics.database';
+  static const settingsDiagnosticsDatabaseDescription =
+      'settings.diagnostics.database.description';
+  static const settingsDiagnosticsDatabaseUnavailable =
+      'settings.diagnostics.database.unavailable';
+  static const settingsDiagnosticsLogs = 'settings.diagnostics.logs';
+  static const settingsDiagnosticsLogsDescription =
+      'settings.diagnostics.logs.description';
+  static const settingsDiagnosticsLogsUnavailable =
+      'settings.diagnostics.logs.unavailable';
+  static const settingsDiagnosticsTasks = 'settings.diagnostics.tasks';
+  static const settingsDiagnosticsTasksDescription =
+      'settings.diagnostics.tasks.description';
+  static const settingsDiagnosticsTasksValue =
+      'settings.diagnostics.tasks.value';
+  static const settingsDiagnosticsExport = 'settings.diagnostics.export';
+  static const settingsDiagnosticsExportDescription =
+      'settings.diagnostics.export.description';
+  static const settingsDiagnosticsExportAction =
+      'settings.diagnostics.export.action';
+  static const settingsDiagnosticsExporting =
+      'settings.diagnostics.export.exporting';
+  static const settingsDiagnosticsLoading = 'settings.diagnostics.loading';
+  static const settingsDiagnosticsUnavailable =
+      'settings.diagnostics.unavailable';
+  static const settingsDiagnosticsRefresh = 'settings.diagnostics.refresh';
+  static const settingsDiagnosticsOffline =
+      'settings.diagnostics.error.offline';
+  static const settingsDiagnosticsLoadErrorTitle =
+      'settings.diagnostics.error.load.title';
+  static const settingsDiagnosticsLoadError = 'settings.diagnostics.error.load';
+  static const settingsDiagnosticsExportErrorTitle =
+      'settings.diagnostics.error.export.title';
+  static const settingsDiagnosticsExportError =
+      'settings.diagnostics.error.export';
+  static const settingsDiagnosticsSaveError = 'settings.diagnostics.error.save';
+  static const settingsDiagnosticsRevealError =
+      'settings.diagnostics.error.reveal';
+  static const settingsDiagnosticsExportSuccessTitle =
+      'settings.diagnostics.export.success.title';
+  static const settingsDiagnosticsExportSuccessBody =
+      'settings.diagnostics.export.success.body';
+  static const settingsDiagnosticsReveal = 'settings.diagnostics.export.reveal';
+  static const settingsDiagnosticsPrivacyTitle =
+      'settings.diagnostics.privacy.title';
+  static const settingsDiagnosticsPrivacyBody =
+      'settings.diagnostics.privacy.body';
   static const settingsAbout = 'settings.about';
   static const settingsAboutDescription = 'settings.about.description';
   static const settingsAboutAppVersion = 'settings.about.appVersion';
@@ -152,6 +327,10 @@ class L10nKeys {
   static const settingsAboutNoteBody = 'settings.about.note.body';
   static const tasksTitle = 'tasks.title';
   static const tasksSubtitle = 'tasks.subtitle';
+  static const tasksFilterAll = 'tasks.filter.all';
+  static const tasksFilterActive = 'tasks.filter.active';
+  static const tasksFilterCompleted = 'tasks.filter.completed';
+  static const tasksFilterIssues = 'tasks.filter.issues';
   static const tasksAdd = 'tasks.add';
   static const tasksSearch = 'tasks.search';
   static const tasksSort = 'tasks.sort';

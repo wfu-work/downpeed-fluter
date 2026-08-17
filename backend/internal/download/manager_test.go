@@ -498,6 +498,110 @@ func TestManagerRejectsExistingTemporaryFileBeforeStarting(t *testing.T) {
 	}
 }
 
+func TestManagerUniquifiesExistingDestinationAndTemporaryFile(t *testing.T) {
+	directory := t.TempDir()
+	originalPath := filepath.Join(directory, "keep.bin")
+	if err := os.WriteFile(originalPath, []byte("keep"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(temporaryPath(filepath.Join(directory, "keep (1).bin")), []byte("partial"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	requests := make(chan TransferRequest, 1)
+	manager := NewManager(context.Background(), transferFunc(func(
+		_ context.Context,
+		request TransferRequest,
+		_ func(TransferProgress),
+	) (TransferResult, error) {
+		requests <- request
+		return TransferResult{FinalURL: request.URL, Size: 1}, nil
+	}), WithFileConflictPolicy(FileConflictPolicyUniquify))
+	defer manager.Close()
+
+	task, err := manager.Create(context.Background(), CreateTaskRequest{
+		URL: "https://example.com/keep.bin", FileName: "keep.bin", SaveDirectory: directory,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := <-requests
+	wantPath := filepath.Join(directory, "keep (2).bin")
+	if task.FileName != "keep (2).bin" || task.FilePath != wantPath || request.Destination != wantPath || request.WorkPath != temporaryPath(wantPath) {
+		t.Fatalf("task = %#v, request = %#v", task, request)
+	}
+	contents, err := os.ReadFile(originalPath)
+	if err != nil || string(contents) != "keep" {
+		t.Fatalf("original file changed: contents=%q error=%v", contents, err)
+	}
+}
+
+func TestManagerUniquifiesDestinationUsedByActiveTask(t *testing.T) {
+	directory := t.TempDir()
+	started := make(chan string, 1)
+	release := make(chan struct{})
+	manager := NewManager(context.Background(), transferFunc(func(
+		ctx context.Context,
+		request TransferRequest,
+		_ func(TransferProgress),
+	) (TransferResult, error) {
+		started <- filepath.Base(request.Destination)
+		select {
+		case <-release:
+			return TransferResult{FinalURL: request.URL, Size: 1}, nil
+		case <-ctx.Done():
+			return TransferResult{}, ctx.Err()
+		}
+	}), WithMaxConcurrentTasks(1), WithFileConflictPolicy(FileConflictPolicyUniquify))
+	defer manager.Close()
+	defer close(release)
+
+	if _, err := manager.Create(context.Background(), CreateTaskRequest{
+		URL: "https://example.com/report.zip", FileName: "report.zip", SaveDirectory: directory,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if name := <-started; name != "report.zip" {
+		t.Fatalf("started task = %q", name)
+	}
+	second, err := manager.Create(context.Background(), CreateTaskRequest{
+		URL: "https://mirror.example.com/report.zip", FileName: "report.zip", SaveDirectory: directory,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.FileName != "report (1).zip" || second.State != TaskStateQueued {
+		t.Fatalf("second task = %#v", second)
+	}
+}
+
+func TestManagerKeepsBTConflictHandlingStrictWhenHTTPUniquifyIsEnabled(t *testing.T) {
+	directory := t.TempDir()
+	if err := os.Mkdir(filepath.Join(directory, "archive"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	transfer := &stubBTTransfer{prepare: func(_ context.Context, input CreateBTTaskRequest) (BTTransferRequest, error) {
+		return BTTransferRequest{
+			Metadata: []byte("metadata"), SaveDirectory: input.SaveDirectory,
+			Name: "archive", Identity: "0123456789abcdef", Total: 8,
+			SelectedFileIndexes: []int{0}, ExplicitPeers: []string{"8.8.8.8:6881"},
+			Files: []BTFile{{Index: 0, Path: "archive/file.bin", Size: 8}},
+		}, nil
+	}}
+	manager := NewManager(
+		context.Background(), nil,
+		WithBTTransfer(transfer),
+		WithFileConflictPolicy(FileConflictPolicyUniquify),
+	)
+	defer manager.Close()
+	_, err := manager.CreateBT(context.Background(), CreateBTTaskRequest{
+		Metadata: []byte("metadata"), SaveDirectory: directory,
+		SelectedFileIndexes: []int{0}, ExplicitPeers: []string{"8.8.8.8:6881"},
+	})
+	if !errors.Is(err, ErrDestinationExists) {
+		t.Fatalf("CreateBT() error = %v, want ErrDestinationExists", err)
+	}
+}
+
 func TestPersistentManagerRestoresInterruptedTaskAsPausedAndResumes(t *testing.T) {
 	directory := t.TempDir()
 	store := newMemoryTaskStore()
@@ -921,6 +1025,103 @@ func TestManagerLimitsConcurrencyAndPreservesFIFOQueueOrder(t *testing.T) {
 	close(releases["three.bin"])
 	for _, task := range tasks {
 		waitForTaskState(t, manager, task.ID, TaskStateCompleted)
+	}
+}
+
+func TestManagerAppliesSchedulerSettingsWithoutInterruptingRunningTasks(t *testing.T) {
+	directory := t.TempDir()
+	started := make(chan string, 3)
+	releases := map[string]chan struct{}{
+		"one.bin":   make(chan struct{}),
+		"two.bin":   make(chan struct{}),
+		"three.bin": make(chan struct{}),
+	}
+	manager := NewManager(context.Background(), transferFunc(func(
+		ctx context.Context,
+		request TransferRequest,
+		_ func(TransferProgress),
+	) (TransferResult, error) {
+		name := filepath.Base(request.Destination)
+		started <- name
+		select {
+		case <-releases[name]:
+			return TransferResult{FinalURL: request.URL, Size: 1}, nil
+		case <-ctx.Done():
+			return TransferResult{}, ctx.Err()
+		}
+	}), WithMaxConcurrentTasks(1), WithRetryPolicy(2, time.Millisecond))
+	defer manager.Close()
+
+	tasks := make([]Task, 0, 3)
+	for _, name := range []string{"one.bin", "two.bin", "three.bin"} {
+		task, err := manager.Create(context.Background(), CreateTaskRequest{
+			URL: "https://example.com/" + name, FileName: name, SaveDirectory: directory,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		tasks = append(tasks, task)
+	}
+	if first := <-started; first != "one.bin" {
+		t.Fatalf("first task = %q", first)
+	}
+	manager.ApplySchedulerSettings(SchedulerSettings{
+		MaxConcurrentTasks: 2,
+		DownloadRateLimit:  0,
+		MaxRetries:         2,
+	})
+	if second := <-started; second != "two.bin" {
+		t.Fatalf("second task after expanding slots = %q", second)
+	}
+	manager.ApplySchedulerSettings(SchedulerSettings{
+		MaxConcurrentTasks: 1,
+		DownloadRateLimit:  0,
+		MaxRetries:         2,
+	})
+	close(releases["one.bin"])
+	select {
+	case unexpected := <-started:
+		t.Fatalf("queued task started while one existing run still occupied the reduced limit: %q", unexpected)
+	case <-time.After(30 * time.Millisecond):
+	}
+	close(releases["two.bin"])
+	if third := <-started; third != "three.bin" {
+		t.Fatalf("third task = %q", third)
+	}
+	close(releases["three.bin"])
+	for _, task := range tasks {
+		waitForTaskState(t, manager, task.ID, TaskStateCompleted)
+	}
+}
+
+func TestManagerAppliesUpdatedRetryBudget(t *testing.T) {
+	started := make(chan struct{})
+	release := make(chan struct{})
+	manager := NewManager(context.Background(), transferFunc(func(
+		context.Context,
+		TransferRequest,
+		func(TransferProgress),
+	) (TransferResult, error) {
+		close(started)
+		<-release
+		return TransferResult{}, ErrRemoteTemporary
+	}), WithRetryPolicy(2, time.Millisecond))
+	defer manager.Close()
+	task, err := manager.Create(context.Background(), CreateTaskRequest{
+		URL: "https://example.com/retry.bin", FileName: "retry.bin", SaveDirectory: t.TempDir(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	<-started
+	manager.ApplySchedulerSettings(SchedulerSettings{
+		MaxConcurrentTasks: DefaultMaxConcurrentTasks,
+		MaxRetries:         0,
+	})
+	close(release)
+	failed := waitForTaskState(t, manager, task.ID, TaskStateFailed)
+	if failed.RetryCount != 0 || failed.NextRetryAt != nil {
+		t.Fatalf("task retried after the runtime budget was disabled: %#v", failed)
 	}
 }
 

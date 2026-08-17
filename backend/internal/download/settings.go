@@ -11,16 +11,36 @@ import (
 )
 
 var (
-	ErrInvalidSettings     = errors.New("invalid engine settings")
-	ErrInvalidBTPolicy     = errors.New("invalid BitTorrent policy")
-	ErrSettingsPersistence = errors.New("engine settings persistence failed")
+	ErrInvalidSettings           = errors.New("invalid engine settings")
+	ErrInvalidSchedulerSettings  = errors.New("invalid scheduler settings")
+	ErrInvalidBTPolicy           = errors.New("invalid BitTorrent policy")
+	ErrInvalidFileConflictPolicy = errors.New("invalid file conflict policy")
+	ErrSettingsPersistence       = errors.New("engine settings persistence failed")
 )
 
 const (
 	MinBTPeerConnections     = 1
 	MaxBTPeerConnections     = 80
 	DefaultBTPeerConnections = 80
+	MinConcurrentTasks       = 1
+	MaxConcurrentTasks       = 64
+	MinAutomaticRetries      = 0
+	MaxAutomaticRetries      = 10
 )
+
+type FileConflictPolicy string
+
+const (
+	FileConflictPolicyFail     FileConflictPolicy = "fail"
+	FileConflictPolicyUniquify FileConflictPolicy = "uniquify"
+	DefaultFileConflictPolicy                     = FileConflictPolicyFail
+)
+
+type SchedulerSettings struct {
+	MaxConcurrentTasks int   `json:"maxConcurrentTasks"`
+	DownloadRateLimit  int64 `json:"downloadRateLimit"`
+	MaxRetries         int   `json:"maxRetries"`
+}
 
 type BTPolicySettings struct {
 	MaxPeerConnections int  `json:"maxPeerConnections"`
@@ -36,8 +56,10 @@ type BTPolicySettings struct {
 }
 
 type EngineSettings struct {
-	DefaultDownloadDirectory string           `json:"defaultDownloadDirectory"`
-	BitTorrent               BTPolicySettings `json:"bitTorrent"`
+	DefaultDownloadDirectory string             `json:"defaultDownloadDirectory"`
+	FileConflictPolicy       FileConflictPolicy `json:"fileConflictPolicy"`
+	Scheduler                SchedulerSettings  `json:"scheduler"`
+	BitTorrent               BTPolicySettings   `json:"bitTorrent"`
 }
 
 type SettingsStore interface {
@@ -51,13 +73,37 @@ type SettingsService interface {
 }
 
 type SettingsManager struct {
-	store    SettingsStore
-	mu       sync.RWMutex
-	settings EngineSettings
+	store                     SettingsStore
+	mu                        sync.RWMutex
+	settings                  EngineSettings
+	applySchedulerSettingsFn  func(SchedulerSettings)
+	applyFileConflictPolicyFn func(FileConflictPolicy)
 }
 
-func NewSettingsManager(ctx context.Context, store SettingsStore, defaultDirectory string) (*SettingsManager, error) {
-	defaults, err := validateEngineSettings(EngineSettings{DefaultDownloadDirectory: defaultDirectory})
+type SettingsManagerOption func(*settingsManagerConfig)
+
+type settingsManagerConfig struct {
+	defaultScheduler SchedulerSettings
+}
+
+func WithDefaultSchedulerSettings(settings SchedulerSettings) SettingsManagerOption {
+	return func(config *settingsManagerConfig) {
+		config.defaultScheduler = settings
+	}
+}
+
+func NewSettingsManager(ctx context.Context, store SettingsStore, defaultDirectory string, options ...SettingsManagerOption) (*SettingsManager, error) {
+	config := settingsManagerConfig{defaultScheduler: DefaultSchedulerSettings()}
+	for _, option := range options {
+		if option != nil {
+			option(&config)
+		}
+	}
+	defaults, err := validateEngineSettings(EngineSettings{
+		DefaultDownloadDirectory: defaultDirectory,
+		FileConflictPolicy:       DefaultFileConflictPolicy,
+		Scheduler:                config.defaultScheduler,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -76,6 +122,12 @@ func NewSettingsManager(ctx context.Context, store SettingsStore, defaultDirecto
 		return manager, nil
 	}
 	storedInput := stored
+	if stored.FileConflictPolicy == "" {
+		stored.FileConflictPolicy = defaults.FileConflictPolicy
+	}
+	if stored.Scheduler == (SchedulerSettings{}) {
+		stored.Scheduler = defaults.Scheduler
+	}
 	stored, err = validateEngineSettings(stored)
 	if err != nil {
 		if err = store.SaveSettings(ctx, defaults); err != nil {
@@ -90,6 +142,26 @@ func NewSettingsManager(ctx context.Context, store SettingsStore, defaultDirecto
 	}
 	manager.settings = stored
 	return manager, nil
+}
+
+func (m *SettingsManager) SetFileConflictPolicyApplier(apply func(FileConflictPolicy)) {
+	m.mu.Lock()
+	m.applyFileConflictPolicyFn = apply
+	policy := m.settings.FileConflictPolicy
+	m.mu.Unlock()
+	if apply != nil {
+		apply(policy)
+	}
+}
+
+func (m *SettingsManager) SetSchedulerSettingsApplier(apply func(SchedulerSettings)) {
+	m.mu.Lock()
+	m.applySchedulerSettingsFn = apply
+	settings := m.settings.Scheduler
+	m.mu.Unlock()
+	if apply != nil {
+		apply(settings)
+	}
 }
 
 func (m *SettingsManager) GetSettings(ctx context.Context) (EngineSettings, error) {
@@ -117,6 +189,12 @@ func (m *SettingsManager) UpdateSettings(ctx context.Context, input EngineSettin
 			return EngineSettings{}, err
 		}
 	}
+	if m.applySchedulerSettingsFn != nil {
+		m.applySchedulerSettingsFn(settings.Scheduler)
+	}
+	if m.applyFileConflictPolicyFn != nil {
+		m.applyFileConflictPolicyFn(settings.FileConflictPolicy)
+	}
 	m.settings = settings
 	return settings, nil
 }
@@ -130,14 +208,53 @@ func validateEngineSettings(input EngineSettings) (EngineSettings, error) {
 	if err != nil || !info.IsDir() {
 		return EngineSettings{}, fmt.Errorf("%w: default download directory is unavailable", ErrInvalidSettings)
 	}
+	fileConflictPolicy, err := validateFileConflictPolicy(input.FileConflictPolicy)
+	if err != nil {
+		return EngineSettings{}, err
+	}
 	policy, err := normalizeBTPolicySettings(input.BitTorrent)
+	if err != nil {
+		return EngineSettings{}, err
+	}
+	scheduler, err := validateSchedulerSettings(input.Scheduler)
 	if err != nil {
 		return EngineSettings{}, err
 	}
 	return EngineSettings{
 		DefaultDownloadDirectory: directory,
+		FileConflictPolicy:       fileConflictPolicy,
+		Scheduler:                scheduler,
 		BitTorrent:               policy,
 	}, nil
+}
+
+func validateFileConflictPolicy(input FileConflictPolicy) (FileConflictPolicy, error) {
+	switch input {
+	case FileConflictPolicyFail, FileConflictPolicyUniquify:
+		return input, nil
+	default:
+		return "", fmt.Errorf("%w: unsupported policy", ErrInvalidFileConflictPolicy)
+	}
+}
+
+func DefaultSchedulerSettings() SchedulerSettings {
+	return SchedulerSettings{
+		MaxConcurrentTasks: DefaultMaxConcurrentTasks,
+		MaxRetries:         DefaultMaxRetries,
+	}
+}
+
+func validateSchedulerSettings(input SchedulerSettings) (SchedulerSettings, error) {
+	if input.MaxConcurrentTasks < MinConcurrentTasks || input.MaxConcurrentTasks > MaxConcurrentTasks {
+		return SchedulerSettings{}, fmt.Errorf("%w: maximum concurrent tasks must be between %d and %d", ErrInvalidSchedulerSettings, MinConcurrentTasks, MaxConcurrentTasks)
+	}
+	if input.DownloadRateLimit < 0 {
+		return SchedulerSettings{}, fmt.Errorf("%w: download rate limit cannot be negative", ErrInvalidSchedulerSettings)
+	}
+	if input.MaxRetries < MinAutomaticRetries || input.MaxRetries > MaxAutomaticRetries {
+		return SchedulerSettings{}, fmt.Errorf("%w: automatic retries must be between %d and %d", ErrInvalidSchedulerSettings, MinAutomaticRetries, MaxAutomaticRetries)
+	}
+	return input, nil
 }
 
 func DefaultBTPolicySettings() BTPolicySettings {

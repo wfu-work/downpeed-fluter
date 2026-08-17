@@ -145,7 +145,12 @@ func TestBoltTaskStorePersistsEngineSettingsAcrossReopen(t *testing.T) {
 		t.Fatal(err)
 	}
 	directory := filepath.Join(filepath.Dir(path), "downloads")
-	settings := download.EngineSettings{DefaultDownloadDirectory: directory}
+	settings := download.EngineSettings{
+		DefaultDownloadDirectory: directory,
+		FileConflictPolicy:       download.FileConflictPolicyUniquify,
+		Scheduler:                download.SchedulerSettings{MaxConcurrentTasks: 5, DownloadRateLimit: 1024, MaxRetries: 4},
+		BitTorrent:               download.DefaultBTPolicySettings(),
+	}
 	if err = store.SaveSettings(context.Background(), settings); err != nil {
 		t.Fatal(err)
 	}

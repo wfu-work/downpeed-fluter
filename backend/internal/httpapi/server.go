@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/wfu-work/downpeed-fluter/backend/internal/buildinfo"
+	enginediagnostics "github.com/wfu-work/downpeed-fluter/backend/internal/diagnostics"
 	"github.com/wfu-work/downpeed-fluter/backend/internal/download"
 	btprotocol "github.com/wfu-work/downpeed-fluter/backend/internal/protocol/bt"
 	httpprotocol "github.com/wfu-work/downpeed-fluter/backend/internal/protocol/http"
@@ -35,6 +36,7 @@ type Server struct {
 	btDiagnostics download.BTDiagnosticsService
 	tasks         download.TaskService
 	settings      download.SettingsService
+	diagnostics   enginediagnostics.Provider
 	closer        interface{ Close() error }
 	handler       http.Handler
 }
@@ -84,6 +86,14 @@ func WithSettingsService(settings download.SettingsService) Option {
 	}
 }
 
+func WithDiagnosticsService(diagnostics enginediagnostics.Provider) Option {
+	return func(server *Server) {
+		if diagnostics != nil {
+			server.diagnostics = diagnostics
+		}
+	}
+}
+
 type Health struct {
 	Status     string `json:"status"`
 	APIVersion string `json:"apiVersion"`
@@ -123,9 +133,17 @@ func New(startedAt time.Time, options ...Option) *Server {
 		server.tasks = manager
 		server.closer = manager
 	}
+	if server.diagnostics == nil {
+		server.diagnostics = enginediagnostics.New(enginediagnostics.Config{
+			DataDirectory: os.TempDir(),
+			StartedAt:     startedAt,
+		}, server.tasks, server.settings)
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/health", server.health)
 	mux.HandleFunc("GET /api/v1/info", server.info)
+	mux.HandleFunc("GET /api/v1/diagnostics", server.getDiagnostics)
+	mux.HandleFunc("POST /api/v1/diagnostics/export", server.exportDiagnostics)
 	mux.HandleFunc("GET /api/v1/settings", server.getSettings)
 	mux.HandleFunc("PUT /api/v1/settings", server.updateSettings)
 	mux.HandleFunc("POST /api/v1/tasks/resolve", server.resolveDownload)
