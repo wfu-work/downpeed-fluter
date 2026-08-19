@@ -205,6 +205,7 @@ class DownpeedNumberStepper extends StatelessWidget {
     required this.incrementTooltip,
     this.decrementKey,
     this.incrementKey,
+    this.suffix,
   });
 
   final int value;
@@ -215,6 +216,7 @@ class DownpeedNumberStepper extends StatelessWidget {
   final String incrementTooltip;
   final Key? decrementKey;
   final Key? incrementKey;
+  final String? suffix;
 
   @override
   Widget build(BuildContext context) {
@@ -225,7 +227,7 @@ class DownpeedNumberStepper extends StatelessWidget {
     );
     final enabled = onChanged != null;
     return Semantics(
-      value: '$value',
+      value: suffix == null ? '$value' : '$value $suffix',
       enabled: enabled,
       child: Opacity(
         opacity: enabled ? 1 : 0.46,
@@ -251,9 +253,9 @@ class DownpeedNumberStepper extends StatelessWidget {
               ),
               VerticalDivider(width: 1, thickness: 1, color: colors.border),
               SizedBox(
-                width: 44,
+                width: suffix == null ? 44 : 54,
                 child: Text(
-                  '$value',
+                  suffix == null ? '$value' : '$value $suffix',
                   maxLines: 1,
                   textAlign: TextAlign.center,
                   overflow: TextOverflow.ellipsis,

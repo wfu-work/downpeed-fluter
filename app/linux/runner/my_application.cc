@@ -1,6 +1,7 @@
 #include "my_application.h"
 
 #include <flutter_linux/flutter_linux.h>
+#include <cstring>
 #ifdef GDK_WINDOWING_X11
 #include <gdk/gdkx.h>
 #endif
@@ -11,6 +12,10 @@ struct _MyApplication {
   GtkApplication parent_instance;
   char** dart_entrypoint_arguments;
   FlMethodChannel* desktop_actions_channel;
+  FlMethodChannel* secure_storage_channel;
+  FlMethodChannel* app_links_channel;
+  GPtrArray* pending_app_links;
+  gboolean app_links_ready;
   gboolean start_hidden;
 };
 
@@ -19,6 +24,11 @@ G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
 static FlMethodResponse* desktop_action_error(const gchar* code,
                                               const gchar* message) {
   return FL_METHOD_RESPONSE(fl_method_error_response_new(code, message, nullptr));
+}
+
+static FlMethodResponse* secure_storage_error(const gchar* code) {
+  return FL_METHOD_RESPONSE(fl_method_error_response_new(
+      code, "The system credential vault operation failed.", nullptr));
 }
 
 static gboolean read_absolute_file_path(FlMethodCall* method_call,
@@ -97,6 +107,123 @@ static const gchar* string_argument(FlMethodCall* method_call,
   return fl_value_get_string(value);
 }
 
+static gboolean is_supported_secure_key(FlMethodCall* method_call) {
+  const gchar* key = string_argument(method_call, "key");
+  return g_strcmp0(key, "proxy-password") == 0;
+}
+
+static GSubprocess* create_secret_tool(const gchar* executable,
+                                      const gchar* operation,
+                                      GSubprocessFlags flags,
+                                      GError** error) {
+  if (g_strcmp0(operation, "store") == 0) {
+    return g_subprocess_new(flags, error, executable, "store",
+                            "--label=Downpeed proxy credential",
+                            "application", "downpeed", "key",
+                            "proxy-password", nullptr);
+  }
+  return g_subprocess_new(flags, error, executable, operation, "application",
+                          "downpeed", "key", "proxy-password", nullptr);
+}
+
+static void secure_storage_method_call_cb(FlMethodChannel* channel,
+                                          FlMethodCall* method_call,
+                                          gpointer user_data) {
+  (void)channel;
+  (void)user_data;
+  g_autoptr(FlMethodResponse) response = nullptr;
+  if (!is_supported_secure_key(method_call)) {
+    response = FL_METHOD_RESPONSE(fl_method_error_response_new(
+        "invalid_argument", "A supported secure storage key is required.",
+        nullptr));
+    fl_method_call_respond(method_call, response, nullptr);
+    return;
+  }
+  g_autofree gchar* executable = g_find_program_in_path("secret-tool");
+  if (executable == nullptr) {
+    response = FL_METHOD_RESPONSE(fl_method_error_response_new(
+        "unavailable", "The system credential vault is unavailable.",
+        nullptr));
+    fl_method_call_respond(method_call, response, nullptr);
+    return;
+  }
+
+  const gchar* method = fl_method_call_get_name(method_call);
+  g_autoptr(GError) error = nullptr;
+  if (g_strcmp0(method, "read") == 0) {
+    g_autoptr(GSubprocess) process = create_secret_tool(
+        executable, "lookup",
+        static_cast<GSubprocessFlags>(G_SUBPROCESS_FLAGS_STDOUT_PIPE |
+                                      G_SUBPROCESS_FLAGS_STDERR_SILENCE),
+        &error);
+    g_autofree gchar* output = nullptr;
+    if (process == nullptr ||
+        !g_subprocess_communicate_utf8(process, nullptr, nullptr, &output,
+                                       nullptr, &error)) {
+      response = secure_storage_error("read_failed");
+    } else if (!g_subprocess_get_successful(process)) {
+      response = g_subprocess_get_exit_status(process) == 1
+                     ? FL_METHOD_RESPONSE(
+                           fl_method_success_response_new(nullptr))
+                     : secure_storage_error("read_failed");
+    } else {
+      if (output != nullptr) {
+        gsize length = strlen(output);
+        if (length > 0 && output[length - 1] == '\n') {
+          output[length - 1] = '\0';
+        }
+      }
+      response = FL_METHOD_RESPONSE(fl_method_success_response_new(
+          output == nullptr ? nullptr : fl_value_new_string(output)));
+    }
+    fl_method_call_respond(method_call, response, nullptr);
+    return;
+  }
+
+  if (g_strcmp0(method, "write") == 0) {
+    const gchar* value = string_argument(method_call, "value");
+    if (value == nullptr) {
+      response = FL_METHOD_RESPONSE(fl_method_error_response_new(
+          "invalid_argument", "A valid secure value is required.", nullptr));
+    } else {
+      g_autoptr(GSubprocess) process = create_secret_tool(
+          executable, "store",
+          static_cast<GSubprocessFlags>(G_SUBPROCESS_FLAGS_STDIN_PIPE |
+                                        G_SUBPROCESS_FLAGS_STDERR_SILENCE),
+          &error);
+      if (process == nullptr ||
+          !g_subprocess_communicate_utf8(process, value, nullptr, nullptr,
+                                         nullptr, &error) ||
+          !g_subprocess_get_successful(process)) {
+        response = secure_storage_error("write_failed");
+      } else {
+        response = FL_METHOD_RESPONSE(fl_method_success_response_new(nullptr));
+      }
+    }
+    fl_method_call_respond(method_call, response, nullptr);
+    return;
+  }
+
+  if (g_strcmp0(method, "delete") == 0) {
+    g_autoptr(GSubprocess) process = create_secret_tool(
+        executable, "clear", G_SUBPROCESS_FLAGS_STDERR_SILENCE, &error);
+    if (process == nullptr || !g_subprocess_wait_check(process, nullptr, &error)) {
+      if (process != nullptr && g_subprocess_get_exit_status(process) == 1) {
+        response = FL_METHOD_RESPONSE(fl_method_success_response_new(nullptr));
+      } else {
+        response = secure_storage_error("delete_failed");
+      }
+    } else {
+      response = FL_METHOD_RESPONSE(fl_method_success_response_new(nullptr));
+    }
+    fl_method_call_respond(method_call, response, nullptr);
+    return;
+  }
+
+  response = FL_METHOD_RESPONSE(fl_method_not_implemented_response_new());
+  fl_method_call_respond(method_call, response, nullptr);
+}
+
 static void desktop_actions_method_call_cb(FlMethodChannel* channel,
                                            FlMethodCall* method_call,
                                            gpointer user_data) {
@@ -153,6 +280,40 @@ static void desktop_actions_method_call_cb(FlMethodChannel* channel,
   fl_method_call_respond(method_call, response, nullptr);
 }
 
+static void dispatch_app_link(MyApplication* self, const gchar* uri) {
+  if (!self->app_links_ready || self->app_links_channel == nullptr) {
+    g_ptr_array_add(self->pending_app_links, g_strdup(uri));
+    return;
+  }
+  g_autoptr(FlValue) argument = fl_value_new_string(uri);
+  fl_method_channel_invoke_method(self->app_links_channel, "openUri", argument,
+                                  nullptr, nullptr, nullptr);
+}
+
+static void app_links_method_call_cb(FlMethodChannel* channel,
+                                     FlMethodCall* method_call,
+                                     gpointer user_data) {
+  (void)channel;
+  MyApplication* self = MY_APPLICATION(user_data);
+  const gchar* method = fl_method_call_get_name(method_call);
+  if (g_strcmp0(method, "ready") != 0) {
+    g_autoptr(FlMethodResponse) response =
+        FL_METHOD_RESPONSE(fl_method_not_implemented_response_new());
+    fl_method_call_respond(method_call, response, nullptr);
+    return;
+  }
+  self->app_links_ready = TRUE;
+  for (guint index = 0; index < self->pending_app_links->len; index++) {
+    const gchar* uri = static_cast<const gchar*>(
+        g_ptr_array_index(self->pending_app_links, index));
+    dispatch_app_link(self, uri);
+  }
+  g_ptr_array_set_size(self->pending_app_links, 0);
+  g_autoptr(FlMethodResponse) response =
+      FL_METHOD_RESPONSE(fl_method_success_response_new(nullptr));
+  fl_method_call_respond(method_call, response, nullptr);
+}
+
 // Called when first Flutter frame received.
 static void first_frame_cb(MyApplication* self, FlView* view) {
   if (!self->start_hidden) {
@@ -181,6 +342,14 @@ static void set_window_icon(GtkWindow* window) {
 // Implements GApplication::activate.
 static void my_application_activate(GApplication* application) {
   MyApplication* self = MY_APPLICATION(application);
+  GList* windows =
+      gtk_application_get_windows(GTK_APPLICATION(application));
+  if (windows != nullptr) {
+    GtkWindow* existing = GTK_WINDOW(windows->data);
+    gtk_widget_show(GTK_WIDGET(existing));
+    gtk_window_present(existing);
+    return;
+  }
   GtkWindow* window =
       GTK_WINDOW(gtk_application_window_new(GTK_APPLICATION(application)));
 
@@ -242,8 +411,34 @@ static void my_application_activate(GApplication* application) {
   fl_method_channel_set_method_call_handler(
       self->desktop_actions_channel, desktop_actions_method_call_cb, self,
       nullptr);
+  self->secure_storage_channel = fl_method_channel_new(
+      fl_engine_get_binary_messenger(fl_view_get_engine(view)),
+      "com.xiaoxi.downpeed/secure_storage", FL_METHOD_CODEC(codec));
+  fl_method_channel_set_method_call_handler(
+      self->secure_storage_channel, secure_storage_method_call_cb, self,
+      nullptr);
+  self->app_links_channel = fl_method_channel_new(
+      fl_engine_get_binary_messenger(fl_view_get_engine(view)),
+      "com.xiaoxi.downpeed/app_links", FL_METHOD_CODEC(codec));
+  fl_method_channel_set_method_call_handler(
+      self->app_links_channel, app_links_method_call_cb, self, nullptr);
 
   gtk_widget_grab_focus(GTK_WIDGET(view));
+}
+
+// Implements GApplication::open.
+static void my_application_open(GApplication* application, GFile** files,
+                                gint file_count, const gchar* hint) {
+  (void)hint;
+  my_application_activate(application);
+  MyApplication* self = MY_APPLICATION(application);
+  for (gint index = 0; index < file_count; index++) {
+    g_autofree gchar* uri = g_file_get_uri(files[index]);
+    if (uri != nullptr && g_str_has_prefix(uri, "downpeed://") &&
+        strlen(uri) <= 8192) {
+      dispatch_app_link(self, uri);
+    }
+  }
 }
 
 // Implements GApplication::local_command_line.
@@ -252,14 +447,24 @@ static gboolean my_application_local_command_line(GApplication* application,
                                                   int* exit_status) {
   MyApplication* self = MY_APPLICATION(application);
   // Strip out the first argument as it is the binary name.
-  self->dart_entrypoint_arguments = g_strdupv(*arguments + 1);
+  g_clear_pointer(&self->dart_entrypoint_arguments, g_strfreev);
+  g_autoptr(GPtrArray) dart_arguments = g_ptr_array_new();
+  g_autoptr(GPtrArray) app_links = g_ptr_array_new_with_free_func(g_object_unref);
   self->start_hidden = FALSE;
   for (gchar** argument = *arguments + 1; *argument != nullptr; argument++) {
     if (g_strcmp0(*argument, "--downpeed-startup") == 0) {
       self->start_hidden = TRUE;
-      break;
+    }
+    if (g_str_has_prefix(*argument, "downpeed://") &&
+        strlen(*argument) <= 8192) {
+      g_ptr_array_add(app_links, g_file_new_for_uri(*argument));
+    } else {
+      g_ptr_array_add(dart_arguments, *argument);
     }
   }
+  g_ptr_array_add(dart_arguments, nullptr);
+  self->dart_entrypoint_arguments =
+      g_strdupv(reinterpret_cast<gchar**>(dart_arguments->pdata));
 
   g_autoptr(GError) error = nullptr;
   if (!g_application_register(application, nullptr, &error)) {
@@ -268,7 +473,13 @@ static gboolean my_application_local_command_line(GApplication* application,
     return TRUE;
   }
 
-  g_application_activate(application);
+  if (app_links->len > 0) {
+    g_application_open(
+        application, reinterpret_cast<GFile**>(app_links->pdata),
+        static_cast<gint>(app_links->len), "");
+  } else {
+    g_application_activate(application);
+  }
   *exit_status = 0;
 
   return TRUE;
@@ -296,12 +507,16 @@ static void my_application_shutdown(GApplication* application) {
 static void my_application_dispose(GObject* object) {
   MyApplication* self = MY_APPLICATION(object);
   g_clear_object(&self->desktop_actions_channel);
+  g_clear_object(&self->secure_storage_channel);
+  g_clear_object(&self->app_links_channel);
+  g_clear_pointer(&self->pending_app_links, g_ptr_array_unref);
   g_clear_pointer(&self->dart_entrypoint_arguments, g_strfreev);
   G_OBJECT_CLASS(my_application_parent_class)->dispose(object);
 }
 
 static void my_application_class_init(MyApplicationClass* klass) {
   G_APPLICATION_CLASS(klass)->activate = my_application_activate;
+  G_APPLICATION_CLASS(klass)->open = my_application_open;
   G_APPLICATION_CLASS(klass)->local_command_line =
       my_application_local_command_line;
   G_APPLICATION_CLASS(klass)->startup = my_application_startup;
@@ -309,7 +524,9 @@ static void my_application_class_init(MyApplicationClass* klass) {
   G_OBJECT_CLASS(klass)->dispose = my_application_dispose;
 }
 
-static void my_application_init(MyApplication* self) {}
+static void my_application_init(MyApplication* self) {
+  self->pending_app_links = g_ptr_array_new_with_free_func(g_free);
+}
 
 MyApplication* my_application_new() {
   // Set the program name to the application ID, which helps various systems
@@ -320,5 +537,5 @@ MyApplication* my_application_new() {
 
   return MY_APPLICATION(g_object_new(my_application_get_type(),
                                      "application-id", APPLICATION_ID, "flags",
-                                     G_APPLICATION_NON_UNIQUE, nullptr));
+                                     G_APPLICATION_HANDLES_OPEN, nullptr));
 }

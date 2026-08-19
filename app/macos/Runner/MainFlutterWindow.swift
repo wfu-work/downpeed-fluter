@@ -1,12 +1,20 @@
 import Cocoa
 import FlutterMacOS
 import ServiceManagement
+import Security
 import UserNotifications
 
 class MainFlutterWindow: NSWindow {
   private static let desktopActionsChannel = "com.xiaoxi.downpeed/desktop_actions"
   private static let startupChannel = "com.xiaoxi.downpeed/startup"
+  private static let secureStorageChannel = "com.xiaoxi.downpeed/secure_storage"
+  private static let appLinksChannel = "com.xiaoxi.downpeed/app_links"
+  private static let secureStorageKey = "proxy-password"
+  private static let keychainService = "com.xiaoxi.downpeed.proxy"
   private static let startupArgument = "--downpeed-startup"
+  private var appLinkChannel: FlutterMethodChannel?
+  private var pendingAppLinks: [String] = []
+  private var appLinksReady = false
 
   override func awakeFromNib() {
     let launchedAtLogin = Self.wasLaunchedAsLoginItem
@@ -23,10 +31,50 @@ class MainFlutterWindow: NSWindow {
     RegisterGeneratedPlugins(registry: flutterViewController)
     registerDesktopActions(with: flutterViewController)
     registerStartupActions(with: flutterViewController)
+    registerSecureStorage(with: flutterViewController)
+    registerAppLinks(with: flutterViewController)
 
     super.awakeFromNib()
+    for uri in AppDelegate.takePendingAppLinks() {
+      acceptAppLink(uri)
+    }
     if launchedAtLogin {
       orderOut(nil)
+    }
+  }
+
+  func acceptAppLink(_ uri: String) {
+    if appLinksReady, let channel = appLinkChannel {
+      channel.invokeMethod("openUri", arguments: uri)
+    } else {
+      pendingAppLinks.append(uri)
+    }
+    makeKeyAndOrderFront(nil)
+    NSApp.activate(ignoringOtherApps: true)
+  }
+
+  private func registerAppLinks(with controller: FlutterViewController) {
+    let channel = FlutterMethodChannel(
+      name: Self.appLinksChannel,
+      binaryMessenger: controller.engine.binaryMessenger
+    )
+    appLinkChannel = channel
+    channel.setMethodCallHandler { [weak self] call, result in
+      guard let self else {
+        result(FlutterError(code: "unavailable", message: "App links are unavailable.", details: nil))
+        return
+      }
+      guard call.method == "ready" else {
+        result(FlutterMethodNotImplemented)
+        return
+      }
+      self.appLinksReady = true
+      let queued = self.pendingAppLinks
+      self.pendingAppLinks.removeAll(keepingCapacity: false)
+      for uri in queued {
+        channel.invokeMethod("openUri", arguments: uri)
+      }
+      result(nil)
     }
   }
 
@@ -125,6 +173,114 @@ class MainFlutterWindow: NSWindow {
         result(FlutterMethodNotImplemented)
       }
     }
+  }
+
+  private func registerSecureStorage(with controller: FlutterViewController) {
+    let channel = FlutterMethodChannel(
+      name: Self.secureStorageChannel,
+      binaryMessenger: controller.engine.binaryMessenger
+    )
+    channel.setMethodCallHandler { call, result in
+      guard
+        let values = call.arguments as? [String: Any],
+        let key = values["key"] as? String,
+        key == Self.secureStorageKey
+      else {
+        result(FlutterError(
+          code: "invalid_argument",
+          message: "A supported secure storage key is required.",
+          details: nil
+        ))
+        return
+      }
+      switch call.method {
+      case "read":
+        Self.readSecureValue(key: key, result: result)
+      case "write":
+        guard let value = values["value"] as? String, !value.contains("\0") else {
+          result(FlutterError(
+            code: "invalid_argument",
+            message: "A valid secure value is required.",
+            details: nil
+          ))
+          return
+        }
+        Self.writeSecureValue(key: key, value: value, result: result)
+      case "delete":
+        Self.deleteSecureValue(key: key, result: result)
+      default:
+        result(FlutterMethodNotImplemented)
+      }
+    }
+  }
+
+  private static func keychainQuery(key: String) -> [String: Any] {
+    return [
+      kSecClass as String: kSecClassGenericPassword,
+      kSecAttrService as String: keychainService,
+      kSecAttrAccount as String: key,
+    ]
+  }
+
+  private static func readSecureValue(key: String, result: @escaping FlutterResult) {
+    var query = keychainQuery(key: key)
+    query[kSecReturnData as String] = true
+    query[kSecMatchLimit as String] = kSecMatchLimitOne
+    var item: CFTypeRef?
+    let status = SecItemCopyMatching(query as CFDictionary, &item)
+    if status == errSecItemNotFound {
+      result(nil)
+      return
+    }
+    guard status == errSecSuccess,
+          let data = item as? Data,
+          let value = String(data: data, encoding: .utf8) else {
+      result(secureStorageError(code: "read_failed"))
+      return
+    }
+    result(value)
+  }
+
+  private static func writeSecureValue(
+    key: String,
+    value: String,
+    result: @escaping FlutterResult
+  ) {
+    guard let data = value.data(using: .utf8) else {
+      result(secureStorageError(code: "write_failed"))
+      return
+    }
+    let query = keychainQuery(key: key)
+    let update = [kSecValueData as String: data]
+    var status = SecItemUpdate(query as CFDictionary, update as CFDictionary)
+    if status == errSecItemNotFound {
+      var item = query
+      item[kSecValueData as String] = data
+      item[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+      status = SecItemAdd(item as CFDictionary, nil)
+    }
+    guard status == errSecSuccess else {
+      result(secureStorageError(code: "write_failed"))
+      return
+    }
+    result(nil)
+  }
+
+  private static func deleteSecureValue(key: String, result: @escaping FlutterResult) {
+    let status = SecItemDelete(keychainQuery(key: key) as CFDictionary)
+    guard status == errSecSuccess || status == errSecItemNotFound else {
+      result(secureStorageError(code: "delete_failed"))
+      return
+    }
+    result(nil)
+  }
+
+  private static func secureStorageError(code: String) -> FlutterError {
+    return FlutterError(
+      code: code,
+      message: "The system credential vault operation failed.",
+      details: nil
+    )
   }
 
   private func fileURL(from arguments: Any?) throws -> URL {

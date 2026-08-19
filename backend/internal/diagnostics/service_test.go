@@ -123,7 +123,7 @@ func TestExportExcludesTaskAndRequestSecrets(t *testing.T) {
 		}
 	}
 	text := contents.String()
-	for _, secret := range []string{secretURL, "password", "token=private", secretFileName, secretIdentifier, root} {
+	for _, secret := range []string{secretURL, "password", "token=private", secretFileName, secretIdentifier, "internal-proxy.example", "private-user", root} {
 		if strings.Contains(text, secret) {
 			t.Fatalf("diagnostic archive contains secret %q", secret)
 		}
@@ -146,6 +146,14 @@ func safeTestSettings(directory string) download.EngineSettings {
 			MaxConcurrentTasks: 3,
 			DownloadRateLimit:  0,
 			MaxRetries:         2,
+		},
+		Proxy: download.ProxySettings{
+			Mode:                         download.ProxyModeHTTP,
+			Host:                         "internal-proxy.example",
+			Port:                         8080,
+			Username:                     "private-user",
+			ConnectTimeoutSeconds:        10,
+			ResponseHeaderTimeoutSeconds: 30,
 		},
 		BitTorrent: download.DefaultBTPolicySettings(),
 	}

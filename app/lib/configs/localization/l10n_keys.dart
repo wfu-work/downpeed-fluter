@@ -133,6 +133,15 @@ class L10nKeys {
   static const settingsNewDownloadShortcut = 'settings.shortcuts.newDownload';
   static const settingsNewDownloadShortcutDescription =
       'settings.shortcuts.newDownload.description';
+  static const settingsSearchShortcut = 'settings.shortcuts.search';
+  static const settingsSearchShortcutDescription =
+      'settings.shortcuts.search.description';
+  static const settingsOpenSettingsShortcut = 'settings.shortcuts.openSettings';
+  static const settingsOpenSettingsShortcutDescription =
+      'settings.shortcuts.openSettings.description';
+  static const settingsRefreshShortcut = 'settings.shortcuts.refresh';
+  static const settingsRefreshShortcutDescription =
+      'settings.shortcuts.refresh.description';
   static const settingsCloseToTray = 'settings.tray.closeToTray';
   static const settingsCloseToTrayDescription =
       'settings.tray.closeToTray.description';
@@ -239,6 +248,61 @@ class L10nKeys {
   static const settingsSchedulerInvalid = 'settings.scheduler.error.invalid';
   static const settingsSchedulerOffline = 'settings.scheduler.error.offline';
   static const settingsSchedulerSaveError = 'settings.scheduler.error.save';
+  static const settingsProxy = 'settings.proxy';
+  static const settingsProxyDescription = 'settings.proxy.description';
+  static const settingsProxyMode = 'settings.proxy.mode';
+  static const settingsProxyModeDescription = 'settings.proxy.mode.description';
+  static const settingsProxyModeDirect = 'settings.proxy.mode.direct';
+  static const settingsProxyModeSystem = 'settings.proxy.mode.system';
+  static const settingsProxyEndpoint = 'settings.proxy.endpoint';
+  static const settingsProxyEndpointDescription =
+      'settings.proxy.endpoint.description';
+  static const settingsProxyHostHint = 'settings.proxy.endpoint.hostHint';
+  static const settingsProxyPortHint = 'settings.proxy.endpoint.portHint';
+  static const settingsProxyAuthentication = 'settings.proxy.authentication';
+  static const settingsProxyAuthenticationDescription =
+      'settings.proxy.authentication.description';
+  static const settingsProxyUsernameHint =
+      'settings.proxy.authentication.usernameHint';
+  static const settingsProxyPasswordHint =
+      'settings.proxy.authentication.passwordHint';
+  static const settingsProxyPasswordStored =
+      'settings.proxy.authentication.passwordStored';
+  static const settingsProxyPasswordClear =
+      'settings.proxy.authentication.passwordClear';
+  static const settingsProxyConnectTimeout = 'settings.proxy.connectTimeout';
+  static const settingsProxyConnectTimeoutDescription =
+      'settings.proxy.connectTimeout.description';
+  static const settingsProxyResponseTimeout = 'settings.proxy.responseTimeout';
+  static const settingsProxyResponseTimeoutDescription =
+      'settings.proxy.responseTimeout.description';
+  static const settingsProxyDecreaseTimeout = 'settings.proxy.timeout.decrease';
+  static const settingsProxyIncreaseTimeout = 'settings.proxy.timeout.increase';
+  static const settingsProxyActions = 'settings.proxy.actions';
+  static const settingsProxyActionsDescription =
+      'settings.proxy.actions.description';
+  static const settingsProxyTest = 'settings.proxy.test';
+  static const settingsProxyTesting = 'settings.proxy.testing';
+  static const settingsProxySave = 'settings.proxy.save';
+  static const settingsProxySaving = 'settings.proxy.saving';
+  static const settingsProxyErrorTitle = 'settings.proxy.error.title';
+  static const settingsProxyInvalid = 'settings.proxy.error.invalid';
+  static const settingsProxyOffline = 'settings.proxy.error.offline';
+  static const settingsProxySaveError = 'settings.proxy.error.save';
+  static const settingsProxyCredentialUnavailable =
+      'settings.proxy.error.credentialUnavailable';
+  static const settingsProxyTestErrorTitle = 'settings.proxy.test.error.title';
+  static const settingsProxyTestAuthenticationFailed =
+      'settings.proxy.test.error.authentication';
+  static const settingsProxyTestTimeout = 'settings.proxy.test.error.timeout';
+  static const settingsProxyTestConnectionFailed =
+      'settings.proxy.test.error.connection';
+  static const settingsProxyTestSuccessTitle =
+      'settings.proxy.test.success.title';
+  static const settingsProxyTestSuccessBody =
+      'settings.proxy.test.success.body';
+  static const settingsProxyNoteTitle = 'settings.proxy.note.title';
+  static const settingsProxyNoteBody = 'settings.proxy.note.body';
   static const settingsBT = 'settings.bt';
   static const settingsBTDescription = 'settings.bt.description';
   static const settingsBTPeerBudget = 'settings.bt.peerBudget';
@@ -323,6 +387,9 @@ class L10nKeys {
   static const settingsAboutAppVersion = 'settings.about.appVersion';
   static const settingsAboutAppVersionDescription =
       'settings.about.appVersion.description';
+  static const settingsAboutBuild = 'settings.about.build';
+  static const settingsAboutBuildDescription =
+      'settings.about.build.description';
   static const settingsAboutEngineVersion = 'settings.about.engineVersion';
   static const settingsAboutEngineVersionDescription =
       'settings.about.engineVersion.description';

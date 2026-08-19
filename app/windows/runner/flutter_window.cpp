@@ -3,9 +3,11 @@
 #include <shellapi.h>
 #include <shlobj.h>
 #include <shlwapi.h>
+#include <wincred.h>
 
 #include <optional>
 #include <string>
+#include <utility>
 
 #include "flutter/generated_plugin_registrant.h"
 #include "resource.h"
@@ -14,7 +16,14 @@ namespace {
 
 constexpr char kDesktopActionsChannel[] =
     "com.xiaoxi.downpeed/desktop_actions";
+constexpr char kSecureStorageChannel[] =
+    "com.xiaoxi.downpeed/secure_storage";
+constexpr char kAppLinksChannel[] = "com.xiaoxi.downpeed/app_links";
+constexpr char kSecureStorageKey[] = "proxy-password";
+constexpr wchar_t kProxyCredentialTarget[] = L"Downpeed/proxy-password";
 constexpr UINT_PTR kCompletionNotificationTimer = 0xD0A1;
+constexpr ULONG_PTR kAppLinkCopyDataId = 0x44504C4B;
+constexpr size_t kMaxAppLinkBytes = 8192;
 
 std::wstring Utf16FromUtf8(const std::string& value) {
   if (value.empty() || value.find('\0') != std::string::npos) {
@@ -92,6 +101,32 @@ bool FlutterWindow::OnCreate() {
       [this](const auto& call, auto result) {
         HandleDesktopAction(call, std::move(result));
       });
+  secure_storage_channel_ =
+      std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
+          flutter_controller_->engine()->messenger(), kSecureStorageChannel,
+          &flutter::StandardMethodCodec::GetInstance());
+  secure_storage_channel_->SetMethodCallHandler(
+      [this](const auto& call, auto result) {
+        HandleSecureStorage(call, std::move(result));
+      });
+  app_links_channel_ =
+      std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
+          flutter_controller_->engine()->messenger(), kAppLinksChannel,
+          &flutter::StandardMethodCodec::GetInstance());
+  app_links_channel_->SetMethodCallHandler(
+      [this](const auto& call, auto result) {
+        if (call.method_name() != "ready") {
+          result->NotImplemented();
+          return;
+        }
+        app_links_ready_ = true;
+        const auto queued = std::move(pending_app_links_);
+        pending_app_links_.clear();
+        for (const auto& uri : queued) {
+          DispatchAppLink(uri);
+        }
+        result->Success();
+      });
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
@@ -111,6 +146,8 @@ bool FlutterWindow::OnCreate() {
 void FlutterWindow::OnDestroy() {
   ClearCompletionNotification();
   desktop_actions_channel_.reset();
+  secure_storage_channel_.reset();
+  app_links_channel_.reset();
   if (flutter_controller_) {
     flutter_controller_ = nullptr;
   }
@@ -118,10 +155,104 @@ void FlutterWindow::OnDestroy() {
   Win32Window::OnDestroy();
 }
 
+void FlutterWindow::HandleSecureStorage(
+    const flutter::MethodCall<flutter::EncodableValue>& method_call,
+    std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
+  const std::string* key = StringArgument(method_call.arguments(), "key");
+  if (key == nullptr || *key != kSecureStorageKey) {
+    result->Error("invalid_argument",
+                  "A supported secure storage key is required.");
+    return;
+  }
+
+  if (method_call.method_name() == "read") {
+    PCREDENTIALW credential = nullptr;
+    if (!CredReadW(kProxyCredentialTarget, CRED_TYPE_GENERIC, 0,
+                   &credential)) {
+      if (GetLastError() == ERROR_NOT_FOUND) {
+        result->Success();
+      } else {
+        result->Error("read_failed",
+                      "The system credential vault operation failed.");
+      }
+      return;
+    }
+    std::string value;
+    if (credential->CredentialBlobSize > 0 &&
+        credential->CredentialBlob != nullptr) {
+      value.assign(
+          reinterpret_cast<const char*>(credential->CredentialBlob),
+          credential->CredentialBlobSize);
+    }
+    CredFree(credential);
+    result->Success(flutter::EncodableValue(value));
+    return;
+  }
+
+  if (method_call.method_name() == "write") {
+    const std::string* value =
+        StringArgument(method_call.arguments(), "value");
+    if (value == nullptr || value->find('\0') != std::string::npos) {
+      result->Error("invalid_argument", "A valid secure value is required.");
+      return;
+    }
+    CREDENTIALW credential{};
+    credential.Type = CRED_TYPE_GENERIC;
+    credential.TargetName = const_cast<LPWSTR>(kProxyCredentialTarget);
+    credential.CredentialBlobSize = static_cast<DWORD>(value->size());
+    credential.CredentialBlob = reinterpret_cast<LPBYTE>(
+        const_cast<char*>(value->data()));
+    credential.Persist = CRED_PERSIST_LOCAL_MACHINE;
+    credential.UserName = const_cast<LPWSTR>(L"Downpeed");
+    if (!CredWriteW(&credential, 0)) {
+      result->Error("write_failed",
+                    "The system credential vault operation failed.");
+      return;
+    }
+    result->Success();
+    return;
+  }
+
+  if (method_call.method_name() == "delete") {
+    if (!CredDeleteW(kProxyCredentialTarget, CRED_TYPE_GENERIC, 0) &&
+        GetLastError() != ERROR_NOT_FOUND) {
+      result->Error("delete_failed",
+                    "The system credential vault operation failed.");
+      return;
+    }
+    result->Success();
+    return;
+  }
+
+  result->NotImplemented();
+}
+
 LRESULT
 FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
                               WPARAM const wparam,
                               LPARAM const lparam) noexcept {
+  if (message == WM_COPYDATA) {
+    const auto* data = reinterpret_cast<const COPYDATASTRUCT*>(lparam);
+    if (data == nullptr || data->dwData != kAppLinkCopyDataId ||
+        data->lpData == nullptr || data->cbData < 2 ||
+        static_cast<size_t>(data->cbData) > kMaxAppLinkBytes + 1) {
+      return FALSE;
+    }
+    const auto* bytes = static_cast<const char*>(data->lpData);
+    if (bytes[data->cbData - 1] != '\0') {
+      return FALSE;
+    }
+    std::string uri(bytes, bytes + data->cbData - 1);
+    if (uri.find('\0') != std::string::npos ||
+        uri.rfind("downpeed://", 0) != 0) {
+      return FALSE;
+    }
+    ShowWindow(hwnd, SW_RESTORE);
+    SetForegroundWindow(hwnd);
+    DispatchAppLink(uri);
+    return TRUE;
+  }
+
   // Give Flutter, including plugins, an opportunity to handle window messages.
   if (flutter_controller_) {
     std::optional<LRESULT> result =
@@ -146,6 +277,15 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
   }
 
   return Win32Window::MessageHandler(hwnd, message, wparam, lparam);
+}
+
+void FlutterWindow::DispatchAppLink(const std::string& uri) {
+  if (!app_links_ready_ || app_links_channel_ == nullptr) {
+    pending_app_links_.push_back(uri);
+    return;
+  }
+  app_links_channel_->InvokeMethod(
+      "openUri", std::make_unique<flutter::EncodableValue>(uri));
 }
 
 void FlutterWindow::HandleDesktopAction(

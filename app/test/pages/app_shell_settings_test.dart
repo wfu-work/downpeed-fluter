@@ -13,6 +13,8 @@ import 'package:downpeed_flutter/services/directory_picker.dart';
 import 'package:downpeed_flutter/services/diagnostic_archive_saver.dart';
 import 'package:downpeed_flutter/services/engine_settings_service.dart';
 import 'package:downpeed_flutter/services/preferences_service.dart';
+import 'package:downpeed_flutter/services/proxy_credential_store.dart';
+import 'package:downpeed_flutter/services/proxy_settings_service.dart';
 import 'package:downpeed_flutter/services/startup_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -343,6 +345,18 @@ void main() {
       findsOneWidget,
     );
     expect(
+      find.byKey(const ValueKey('settings-search-shortcut')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('settings-open-settings-shortcut')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('settings-refresh-shortcut')),
+      findsOneWidget,
+    );
+    expect(
       find.byKey(const ValueKey('settings-close-to-tray')),
       findsOneWidget,
     );
@@ -413,6 +427,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('settings-nav-about')));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('settings-app-version')), findsOneWidget);
+    expect(find.byKey(const ValueKey('settings-build-info')), findsOneWidget);
     expect(
       find.byKey(const ValueKey('settings-about-engine-version')),
       findsOneWidget,
@@ -570,6 +585,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('settings-nav-about')));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('settings-app-version')), findsOneWidget);
+    expect(find.byKey(const ValueKey('settings-build-info')), findsOneWidget);
     expect(find.byKey(const ValueKey('settings-about-note')), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('settings-compact-back')));
@@ -579,6 +595,109 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('settings-compact-back')));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('settings-page')), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('saves and tests an authenticated HTTP proxy', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1280, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await _registerOnlineEngine();
+
+    await tester.pumpWidget(const DownpeedApp(initialRoute: Routes.settings));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('settings-nav-connection')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('settings-proxy-mode')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('settings-proxy-connect-timeout')),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('HTTP'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('settings-proxy-host')),
+      'proxy.example',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('settings-proxy-port')),
+      '8080',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('settings-proxy-username')),
+      'downpeed',
+    );
+    await tester.enterText(
+      find.byKey(const ValueKey('settings-proxy-password')),
+      'secure-password',
+    );
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('settings-proxy-save')),
+      120,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.tap(find.byKey(const ValueKey('settings-proxy-save')));
+    await tester.pumpAndSettle();
+
+    expect(_ShellEngineClient._proxy.mode, ProxyMode.http);
+    expect(_ShellEngineClient._proxy.host, 'proxy.example');
+    expect(_ShellCredentialStore.value, 'secure-password');
+    expect(
+      find.byKey(const ValueKey('settings-proxy-password-clear')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const ValueKey('settings-proxy-test')));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('settings-proxy-test-success')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('manual proxy settings fit compact 200 percent text', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await _registerOnlineEngine();
+
+    await tester.pumpWidget(
+      MediaQuery(
+        data: const MediaQueryData(
+          size: Size(390, 844),
+          textScaler: TextScaler.linear(2),
+        ),
+        child: const DownpeedApp(initialRoute: Routes.settings),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('settings-nav-connection')),
+      100,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.tap(find.byKey(const ValueKey('settings-nav-connection')));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+
+    await tester.tap(find.text('HTTP'));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('settings-proxy-save')),
+      120,
+      scrollable: find.byType(Scrollable).last,
+    );
+
+    expect(find.byKey(const ValueKey('settings-proxy-host')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('settings-proxy-password')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('settings-proxy-save')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -897,12 +1016,24 @@ Future<void> _registerOnlineEngine() async {
   _ShellEngineClient._directory = '/tmp/Downloads';
   _ShellEngineClient._fileConflictPolicy = FileConflictPolicy.fail;
   _ShellEngineClient._scheduler = _defaultScheduler;
+  _ShellEngineClient._proxy = _defaultProxy;
   _ShellEngineClient._btPolicy = _restrictedBTPolicy;
   const client = _ShellEngineClient();
   final engine = EngineService(client: client);
   Get.put<EngineService>(engine, permanent: true);
   final settings = EngineSettingsService(client: client);
   Get.put<EngineSettingsService>(settings, permanent: true);
+  _ShellCredentialStore.value = null;
+  final credentialStore = _ShellCredentialStore();
+  Get.put<ProxyCredentialStore>(credentialStore, permanent: true);
+  Get.put<ProxySettingsService>(
+    ProxySettingsService(
+      client: client,
+      engineSettings: settings,
+      credentialStore: credentialStore,
+    ),
+    permanent: true,
+  );
   Get.put<DirectoryPicker>(
     const StubDirectoryPicker(result: '/tmp/downpeed-selected'),
     permanent: true,
@@ -918,6 +1049,23 @@ Future<void> _registerOnlineEngine() async {
   await startup.initialize();
   await engine.refresh();
   await settings.load();
+}
+
+class _ShellCredentialStore implements ProxyCredentialStore {
+  static String? value;
+
+  @override
+  Future<String?> read() async => value;
+
+  @override
+  Future<void> write(String newValue) async {
+    value = newValue;
+  }
+
+  @override
+  Future<void> delete() async {
+    value = null;
+  }
 }
 
 class _ShellStartupHost implements StartupHost {
@@ -944,7 +1092,15 @@ class _ShellEngineClient extends StubEngineClient {
   static String _directory = '/tmp/Downloads';
   static FileConflictPolicy _fileConflictPolicy = FileConflictPolicy.fail;
   static SchedulerSettings _scheduler = _defaultScheduler;
+  static ProxySettings _proxy = _defaultProxy;
   static BTPolicySettings _btPolicy = _restrictedBTPolicy;
+
+  @override
+  Future<void> updateProxyCredential(String password) async {}
+
+  @override
+  Future<ProxyTestResult> testProxy() async =>
+      const ProxyTestResult(mode: ProxyMode.direct, latencyMs: 12);
 
   @override
   Future<EngineInfo> fetchInfo() async => const EngineInfo(
@@ -1000,6 +1156,7 @@ class _ShellEngineClient extends StubEngineClient {
     defaultDownloadDirectory: _directory,
     fileConflictPolicy: _fileConflictPolicy,
     scheduler: _scheduler,
+    proxy: _proxy,
     bitTorrent: _btPolicy,
   );
 
@@ -1008,16 +1165,19 @@ class _ShellEngineClient extends StubEngineClient {
     required String defaultDownloadDirectory,
     required FileConflictPolicy fileConflictPolicy,
     required SchedulerSettings scheduler,
+    required ProxySettings proxy,
     required BTPolicySettings bitTorrent,
   }) async {
     _directory = defaultDownloadDirectory;
     _fileConflictPolicy = fileConflictPolicy;
     _scheduler = scheduler;
+    _proxy = proxy;
     _btPolicy = bitTorrent;
     return EngineSettings(
       defaultDownloadDirectory: _directory,
       fileConflictPolicy: _fileConflictPolicy,
       scheduler: _scheduler,
+      proxy: _proxy,
       bitTorrent: _btPolicy,
     );
   }
@@ -1042,6 +1202,15 @@ const _defaultScheduler = SchedulerSettings(
   maxConcurrentTasks: 3,
   downloadRateLimit: 0,
   maxRetries: 2,
+);
+
+const _defaultProxy = ProxySettings(
+  mode: ProxyMode.direct,
+  host: '',
+  port: 0,
+  username: '',
+  connectTimeoutSeconds: 10,
+  responseHeaderTimeoutSeconds: 30,
 );
 
 const _restrictedBTPolicy = BTPolicySettings(

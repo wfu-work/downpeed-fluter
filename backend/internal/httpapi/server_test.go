@@ -108,6 +108,9 @@ func TestSettingsAPIReadsUpdatesAndRejectsInvalidDirectory(t *testing.T) {
 	if getEnvelope.Data.Scheduler != download.DefaultSchedulerSettings() {
 		t.Fatalf("scheduler = %#v", getEnvelope.Data.Scheduler)
 	}
+	if getEnvelope.Data.Proxy != download.DefaultProxySettings() {
+		t.Fatalf("proxy = %#v", getEnvelope.Data.Proxy)
+	}
 	if getEnvelope.Data.FileConflictPolicy != download.DefaultFileConflictPolicy {
 		t.Fatalf("file conflict policy = %q", getEnvelope.Data.FileConflictPolicy)
 	}
@@ -115,7 +118,8 @@ func TestSettingsAPIReadsUpdatesAndRejectsInvalidDirectory(t *testing.T) {
 	policy := download.DefaultBTPolicySettings()
 	policy.MaxPeerConnections = 20
 	scheduler := download.SchedulerSettings{MaxConcurrentTasks: 5, DownloadRateLimit: 5 * 1024 * 1024, MaxRetries: 4}
-	updateBody, _ := json.Marshal(download.EngineSettings{DefaultDownloadDirectory: selected, FileConflictPolicy: download.FileConflictPolicyUniquify, Scheduler: scheduler, BitTorrent: policy})
+	proxySettings := download.ProxySettings{Mode: download.ProxyModeHTTP, Host: "proxy.example", Port: 8080, Username: "user", ConnectTimeoutSeconds: 8, ResponseHeaderTimeoutSeconds: 20}
+	updateBody, _ := json.Marshal(download.EngineSettings{DefaultDownloadDirectory: selected, FileConflictPolicy: download.FileConflictPolicyUniquify, Scheduler: scheduler, Proxy: proxySettings, BitTorrent: policy})
 	putResponse := httptest.NewRecorder()
 	server.Handler().ServeHTTP(putResponse, httptest.NewRequest(http.MethodPut, "/api/v1/settings", bytes.NewReader(updateBody)))
 	if putResponse.Code != http.StatusOK {
@@ -125,7 +129,7 @@ func TestSettingsAPIReadsUpdatesAndRejectsInvalidDirectory(t *testing.T) {
 	if err = json.NewDecoder(putResponse.Body).Decode(&putEnvelope); err != nil {
 		t.Fatal(err)
 	}
-	if putEnvelope.Data.DefaultDownloadDirectory != selected || putEnvelope.Data.FileConflictPolicy != download.FileConflictPolicyUniquify || putEnvelope.Data.Scheduler != scheduler || putEnvelope.Data.BitTorrent.MaxPeerConnections != 20 {
+	if putEnvelope.Data.DefaultDownloadDirectory != selected || putEnvelope.Data.FileConflictPolicy != download.FileConflictPolicyUniquify || putEnvelope.Data.Scheduler != scheduler || putEnvelope.Data.Proxy != proxySettings || putEnvelope.Data.BitTorrent.MaxPeerConnections != 20 {
 		t.Fatalf("updated settings = %#v", putEnvelope.Data)
 	}
 
@@ -140,7 +144,7 @@ func TestSettingsAPIReadsUpdatesAndRejectsInvalidDirectory(t *testing.T) {
 	if err = json.NewDecoder(legacyResponse.Body).Decode(&legacyEnvelope); err != nil {
 		t.Fatal(err)
 	}
-	if legacyEnvelope.Data.DefaultDownloadDirectory != legacyDirectory || legacyEnvelope.Data.FileConflictPolicy != download.FileConflictPolicyUniquify || legacyEnvelope.Data.Scheduler != scheduler || legacyEnvelope.Data.BitTorrent.MaxPeerConnections != 20 {
+	if legacyEnvelope.Data.DefaultDownloadDirectory != legacyDirectory || legacyEnvelope.Data.FileConflictPolicy != download.FileConflictPolicyUniquify || legacyEnvelope.Data.Scheduler != scheduler || legacyEnvelope.Data.Proxy != proxySettings || legacyEnvelope.Data.BitTorrent.MaxPeerConnections != 20 {
 		t.Fatalf("legacy update reset policy: %#v", legacyEnvelope.Data)
 	}
 
@@ -171,6 +175,78 @@ func TestSettingsAPIReadsUpdatesAndRejectsInvalidDirectory(t *testing.T) {
 	invalidPolicyResponse := httptest.NewRecorder()
 	server.Handler().ServeHTTP(invalidPolicyResponse, httptest.NewRequest(http.MethodPut, "/api/v1/settings", bytes.NewReader(invalidPolicyBody)))
 	assertAPIError(t, invalidPolicyResponse, http.StatusBadRequest, "invalid_file_conflict_policy", false)
+
+	invalidProxyBody, _ := json.Marshal(map[string]any{
+		"defaultDownloadDirectory": selected,
+		"proxy": map[string]any{
+			"mode":                         "http",
+			"host":                         "https://proxy.example",
+			"port":                         8080,
+			"username":                     "",
+			"connectTimeoutSeconds":        10,
+			"responseHeaderTimeoutSeconds": 30,
+		},
+	})
+	invalidProxyResponse := httptest.NewRecorder()
+	server.Handler().ServeHTTP(invalidProxyResponse, httptest.NewRequest(http.MethodPut, "/api/v1/settings", bytes.NewReader(invalidProxyBody)))
+	assertAPIError(t, invalidProxyResponse, http.StatusBadRequest, "invalid_proxy_settings", false)
+}
+
+func TestProxyCredentialAndConnectionTestUseSanitizedContracts(t *testing.T) {
+	proxy := &stubProxyService{testResult: download.ProxyTestResult{
+		Mode:      download.ProxyModeSOCKS5,
+		LatencyMS: 42,
+	}}
+	server := New(time.Now(), WithProxyService(proxy))
+	credentialResponse := httptest.NewRecorder()
+	server.Handler().ServeHTTP(
+		credentialResponse,
+		httptest.NewRequest(http.MethodPut, "/api/v1/settings/proxy/credential", bytes.NewBufferString(`{"password":"top-secret"}`)),
+	)
+	if credentialResponse.Code != http.StatusOK || proxy.password != "top-secret" {
+		t.Fatalf("credential status = %d, body = %s", credentialResponse.Code, credentialResponse.Body.String())
+	}
+	if strings.Contains(credentialResponse.Body.String(), "top-secret") {
+		t.Fatal("credential response exposed proxy password")
+	}
+
+	testResponse := httptest.NewRecorder()
+	server.Handler().ServeHTTP(
+		testResponse,
+		httptest.NewRequest(http.MethodPost, "/api/v1/settings/proxy/test", nil),
+	)
+	if testResponse.Code != http.StatusOK {
+		t.Fatalf("test status = %d, body = %s", testResponse.Code, testResponse.Body.String())
+	}
+	var envelope api.Envelope[download.ProxyTestResult]
+	if err := json.NewDecoder(testResponse.Body).Decode(&envelope); err != nil {
+		t.Fatal(err)
+	}
+	if envelope.Data != proxy.testResult {
+		t.Fatalf("test result = %#v", envelope.Data)
+	}
+}
+
+func TestProxyConnectionTestMapsStableErrors(t *testing.T) {
+	tests := []struct {
+		err       error
+		status    int
+		code      string
+		retryable bool
+	}{
+		{err: download.ErrProxyAuthenticationFailed, status: http.StatusBadGateway, code: "proxy_authentication_failed"},
+		{err: download.ErrProxyTestTimeout, status: http.StatusGatewayTimeout, code: "proxy_test_timeout", retryable: true},
+		{err: errors.New("dial tcp 192.0.2.10:8080: refused"), status: http.StatusBadGateway, code: "proxy_connection_failed", retryable: true},
+	}
+	for _, test := range tests {
+		server := New(time.Now(), WithProxyService(&stubProxyService{testError: test.err}))
+		response := httptest.NewRecorder()
+		server.Handler().ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/v1/settings/proxy/test", nil))
+		assertAPIError(t, response, test.status, test.code, test.retryable)
+		if strings.Contains(response.Body.String(), "192.0.2.10") {
+			t.Fatal("proxy error response exposed connection details")
+		}
+	}
 }
 
 func TestHealthRejectsWrongMethod(t *testing.T) {
@@ -1577,6 +1653,21 @@ func getTaskFromAPI(t *testing.T, server *Server, id string) download.Task {
 
 type stubResolver struct {
 	resolve func(context.Context, download.ResolveRequest) (download.Resolution, error)
+}
+
+type stubProxyService struct {
+	password   string
+	testResult download.ProxyTestResult
+	testError  error
+}
+
+func (service *stubProxyService) SetPassword(password string) error {
+	service.password = password
+	return nil
+}
+
+func (service *stubProxyService) Test(context.Context) (download.ProxyTestResult, error) {
+	return service.testResult, service.testError
 }
 
 type stubBTResolver struct {

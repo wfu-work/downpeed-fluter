@@ -73,9 +73,15 @@ func (a *App) RunWithReady(ctx context.Context, ready func(address string)) erro
 		_ = store.Close()
 		return err
 	}
+	proxyRuntime, err := httpprotocol.NewProxyRuntime(engineSettings.Proxy)
+	if err != nil {
+		_ = store.Close()
+		return err
+	}
+	httpClient := &http.Client{Transport: proxyRuntime}
 	manager, err := download.NewPersistentManager(
 		context.Background(),
-		httpprotocol.NewDownloader(nil),
+		httpprotocol.NewDownloader(httpClient),
 		store,
 		download.WithMaxConcurrentTasks(engineSettings.Scheduler.MaxConcurrentTasks),
 		download.WithRetryPolicy(engineSettings.Scheduler.MaxRetries, a.cfg.RetryBaseDelay),
@@ -89,11 +95,14 @@ func (a *App) RunWithReady(ctx context.Context, ready func(address string)) erro
 	}
 	settings.SetSchedulerSettingsApplier(manager.ApplySchedulerSettings)
 	settings.SetFileConflictPolicyApplier(manager.ApplyFileConflictPolicy)
+	settings.SetProxySettingsApplier(proxyRuntime.ApplySettings)
 	startedAt := time.Now().UTC()
 	apiServer := httpapi.New(
 		startedAt,
 		httpapi.WithTaskService(manager),
 		httpapi.WithSettingsService(settings),
+		httpapi.WithProxyService(proxyRuntime),
+		httpapi.WithResolver(httpprotocol.NewResolver(httpClient)),
 		httpapi.WithDiagnosticsService(enginediagnostics.New(enginediagnostics.Config{
 			DataDirectory: a.cfg.DataDir,
 			DatabasePath:  databasePath,

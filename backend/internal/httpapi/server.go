@@ -36,6 +36,7 @@ type Server struct {
 	btDiagnostics download.BTDiagnosticsService
 	tasks         download.TaskService
 	settings      download.SettingsService
+	proxy         download.ProxyService
 	diagnostics   enginediagnostics.Provider
 	closer        interface{ Close() error }
 	handler       http.Handler
@@ -82,6 +83,14 @@ func WithSettingsService(settings download.SettingsService) Option {
 	return func(server *Server) {
 		if settings != nil {
 			server.settings = settings
+		}
+	}
+}
+
+func WithProxyService(proxy download.ProxyService) Option {
+	return func(server *Server) {
+		if proxy != nil {
+			server.proxy = proxy
 		}
 	}
 }
@@ -146,6 +155,8 @@ func New(startedAt time.Time, options ...Option) *Server {
 	mux.HandleFunc("POST /api/v1/diagnostics/export", server.exportDiagnostics)
 	mux.HandleFunc("GET /api/v1/settings", server.getSettings)
 	mux.HandleFunc("PUT /api/v1/settings", server.updateSettings)
+	mux.HandleFunc("PUT /api/v1/settings/proxy/credential", server.updateProxyCredential)
+	mux.HandleFunc("POST /api/v1/settings/proxy/test", server.testProxy)
 	mux.HandleFunc("POST /api/v1/tasks/resolve", server.resolveDownload)
 	mux.HandleFunc("POST /api/v1/bt/resolve/magnet", server.resolveMagnet)
 	mux.HandleFunc("POST /api/v1/bt/resolve/torrent", server.resolveTorrent)

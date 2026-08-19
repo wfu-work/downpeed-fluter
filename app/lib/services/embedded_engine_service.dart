@@ -20,6 +20,10 @@ const _configuredEngineAddress = String.fromEnvironment(
   'DOWNPEED_ENGINE_ADDRESS',
   defaultValue: '127.0.0.1:17680',
 );
+const _packageSmokeFlag = 'DOWNPEED_PACKAGE_SMOKE';
+const _packageSmokeAddress = 'DOWNPEED_SMOKE_ENGINE_ADDRESS';
+const _packageSmokeDataDirectory = 'DOWNPEED_SMOKE_DATA_DIR';
+const _packageSmokeDownloadDirectory = 'DOWNPEED_SMOKE_DOWNLOAD_DIR';
 
 enum EmbeddedEngineMode { auto, embedded, external }
 
@@ -154,6 +158,22 @@ class EmbeddedEngineService extends GetxService with WidgetsBindingObserver {
 }
 
 Future<Map<String, Object?>> _defaultEmbeddedConfiguration() async {
+  if (Platform.environment[_packageSmokeFlag] == '1') {
+    final address = Platform.environment[_packageSmokeAddress]?.trim() ?? '';
+    final dataDirectory =
+        Platform.environment[_packageSmokeDataDirectory]?.trim() ?? '';
+    final downloadDirectory =
+        Platform.environment[_packageSmokeDownloadDirectory]?.trim() ?? '';
+    if (address.isNotEmpty &&
+        dataDirectory.isNotEmpty &&
+        downloadDirectory.isNotEmpty) {
+      return <String, Object?>{
+        'address': address,
+        'dataDir': dataDirectory,
+        'defaultDownloadDirectory': downloadDirectory,
+      };
+    }
+  }
   final applicationSupport = await getApplicationSupportDirectory();
   final downloads = await getDownloadsDirectory();
   return <String, Object?>{

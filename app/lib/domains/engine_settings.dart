@@ -3,6 +3,7 @@ class EngineSettings {
     required this.defaultDownloadDirectory,
     required this.fileConflictPolicy,
     required this.scheduler,
+    required this.proxy,
     required this.bitTorrent,
   });
 
@@ -19,6 +20,10 @@ class EngineSettings {
     if (bitTorrent is! Map) {
       throw const FormatException('Invalid BitTorrent policy.');
     }
+    final proxy = json['proxy'];
+    if (proxy is! Map) {
+      throw const FormatException('Invalid proxy settings.');
+    }
     return EngineSettings(
       defaultDownloadDirectory: directory,
       fileConflictPolicy: FileConflictPolicy.fromJson(
@@ -27,6 +32,7 @@ class EngineSettings {
       scheduler: SchedulerSettings.fromJson(
         Map<String, dynamic>.from(scheduler),
       ),
+      proxy: ProxySettings.fromJson(Map<String, dynamic>.from(proxy)),
       bitTorrent: BTPolicySettings.fromJson(
         Map<String, dynamic>.from(bitTorrent),
       ),
@@ -36,6 +42,7 @@ class EngineSettings {
   final String defaultDownloadDirectory;
   final FileConflictPolicy fileConflictPolicy;
   final SchedulerSettings scheduler;
+  final ProxySettings proxy;
   final BTPolicySettings bitTorrent;
 }
 
@@ -109,6 +116,123 @@ class SchedulerSettings {
     downloadRateLimit: downloadRateLimit ?? this.downloadRateLimit,
     maxRetries: maxRetries ?? this.maxRetries,
   );
+}
+
+enum ProxyMode {
+  direct('direct'),
+  system('system'),
+  http('http'),
+  socks5('socks5');
+
+  const ProxyMode(this.apiValue);
+
+  static ProxyMode fromJson(Object? value) => switch (value) {
+    'direct' => ProxyMode.direct,
+    'system' => ProxyMode.system,
+    'http' => ProxyMode.http,
+    'socks5' => ProxyMode.socks5,
+    _ => throw const FormatException('Invalid proxy mode.'),
+  };
+
+  final String apiValue;
+
+  bool get isManual => this == ProxyMode.http || this == ProxyMode.socks5;
+}
+
+class ProxySettings {
+  const ProxySettings({
+    required this.mode,
+    required this.host,
+    required this.port,
+    required this.username,
+    required this.connectTimeoutSeconds,
+    required this.responseHeaderTimeoutSeconds,
+  });
+
+  static const minimumTimeoutSeconds = 1;
+  static const maximumTimeoutSeconds = 120;
+
+  factory ProxySettings.fromJson(Map<String, dynamic> json) {
+    final host = json['host'];
+    final port = json['port'];
+    final username = json['username'];
+    final connectTimeout = json['connectTimeoutSeconds'];
+    final responseTimeout = json['responseHeaderTimeoutSeconds'];
+    if (host is! String || username is! String || port is! int) {
+      throw const FormatException('Invalid proxy endpoint.');
+    }
+    if (connectTimeout is! int ||
+        connectTimeout < minimumTimeoutSeconds ||
+        connectTimeout > maximumTimeoutSeconds ||
+        responseTimeout is! int ||
+        responseTimeout < minimumTimeoutSeconds ||
+        responseTimeout > maximumTimeoutSeconds) {
+      throw const FormatException('Invalid proxy timeout.');
+    }
+    final mode = ProxyMode.fromJson(json['mode']);
+    if (mode.isManual && (host.trim().isEmpty || port < 1 || port > 65535)) {
+      throw const FormatException('Invalid manual proxy endpoint.');
+    }
+    return ProxySettings(
+      mode: mode,
+      host: host,
+      port: port,
+      username: username,
+      connectTimeoutSeconds: connectTimeout,
+      responseHeaderTimeoutSeconds: responseTimeout,
+    );
+  }
+
+  final ProxyMode mode;
+  final String host;
+  final int port;
+  final String username;
+  final int connectTimeoutSeconds;
+  final int responseHeaderTimeoutSeconds;
+
+  Map<String, dynamic> toJson() => <String, dynamic>{
+    'mode': mode.apiValue,
+    'host': host,
+    'port': port,
+    'username': username,
+    'connectTimeoutSeconds': connectTimeoutSeconds,
+    'responseHeaderTimeoutSeconds': responseHeaderTimeoutSeconds,
+  };
+
+  ProxySettings copyWith({
+    ProxyMode? mode,
+    String? host,
+    int? port,
+    String? username,
+    int? connectTimeoutSeconds,
+    int? responseHeaderTimeoutSeconds,
+  }) => ProxySettings(
+    mode: mode ?? this.mode,
+    host: host ?? this.host,
+    port: port ?? this.port,
+    username: username ?? this.username,
+    connectTimeoutSeconds: connectTimeoutSeconds ?? this.connectTimeoutSeconds,
+    responseHeaderTimeoutSeconds:
+        responseHeaderTimeoutSeconds ?? this.responseHeaderTimeoutSeconds,
+  );
+}
+
+class ProxyTestResult {
+  const ProxyTestResult({required this.mode, required this.latencyMs});
+
+  factory ProxyTestResult.fromJson(Map<String, dynamic> json) {
+    final latency = json['latencyMs'];
+    if (latency is! int || latency < 0) {
+      throw const FormatException('Invalid proxy test result.');
+    }
+    return ProxyTestResult(
+      mode: ProxyMode.fromJson(json['mode']),
+      latencyMs: latency,
+    );
+  }
+
+  final ProxyMode mode;
+  final int latencyMs;
 }
 
 class BTPolicySettings {

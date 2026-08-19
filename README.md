@@ -2,7 +2,7 @@
 
 Downpeed 是一款桌面优先、本地优先的跨平台下载管理器。项目采用 **Go 下载内核 + Flutter 客户端**：Go 负责协议、调度、持久化和文件操作，Flutter 负责原生感界面与桌面交互，两端通过版本化 REST API 和事件流通信。
 
-> 当前状态：M0、M1、M2 与 M3 已完成，M4 已完成 Go 动态库与 Flutter FFI 生命周期桥接，并完成三平台系统托盘、关闭到托盘、开机启动、按偏好静默进入托盘和优雅退出闭环。桌面发布构建会将 Go 内核作为 `c-shared` 动态库嵌入应用，由 Flutter 负责启动、就绪探测与安全停止；开发模式仍可连接独立 Go 进程。BT/Magnet 已形成组件审查、安全解析、`.torrent + 显式公网 IPv4 Peer` 受限下载、按需连接诊断和内核策略闭环。用户可设置新 BT 任务的 Peer 连接预算；Tracker、DHT、PEX、WebSeed、IPv6、入站、上传和做种在完成各自安全门禁前由 Go 内核强制关闭。Magnet 当前仍只解析身份，不获取元数据或创建传输任务。
+> 当前状态：M0、M1、M2 与 M3 已完成，M4 已完成 Go 动态库与 Flutter FFI 生命周期桥接，并完成三平台系统托盘、关闭到托盘、开机启动、按偏好静默进入托盘、优雅退出、应用内固定快捷键、`downpeed://` 浏览器接管入口和连接代理设置闭环。发布质量链已增加真实 FFI 下载生命周期集成测试、构建信息注入、运行时依赖许可证生成、发布 Manifest、SHA256 和三平台原生 CI 配置；macOS Ad-hoc DMG 已在本机验证，Windows/Linux 仍需各自 Runner 首次构建验收。桌面发布构建会将 Go 内核作为 `c-shared` 动态库嵌入应用，由 Flutter 负责启动、就绪探测与安全停止；开发模式仍可连接独立 Go 进程。BT/Magnet 已形成组件审查、安全解析、`.torrent + 显式公网 IPv4 Peer` 受限下载、按需连接诊断和内核策略闭环。用户可设置新 BT 任务的 Peer 连接预算；Tracker、DHT、PEX、WebSeed、IPv6、入站、上传和做种在完成各自安全门禁前由 Go 内核强制关闭。Magnet 当前仍只解析身份，不获取元数据或创建传输任务。
 
 ## 产品定位
 
@@ -331,6 +331,8 @@ POST   /api/v1/diagnostics/export
 
 `GET /api/v1/settings` 返回 Go 引擎持久化的业务设置，`PUT /api/v1/settings` 更新并回读引擎已接受的最终值。`defaultDownloadDirectory` 首次启动时使用操作系统的用户下载目录；用户后续选择的目录必须是已存在的绝对本地目录。`fileConflictPolicy` 只接受 `fail` 与 `uniquify`：默认 `fail` 在冲突时停止创建，`uniquify` 为之后新建的 HTTP 任务选择 `名称 (1).扩展名` 一类未占用副本名；非法值返回 `invalid_file_conflict_policy`。两种策略都不会覆盖最终文件，BT 多文件任务仍保持冲突即停止。`scheduler.maxConcurrentTasks` 允许 1–64，`scheduler.downloadRateLimit` 使用 bytes/s 且 `0` 表示不限速，`scheduler.maxRetries` 允许 0–10；非法值返回 `invalid_scheduler_settings`。`bitTorrent.maxPeerConnections` 允许 1–80，设置页提供 12/24/40/80 四档；新建 BT 任务快照当时策略，修改不会热切换已有任务。`explicitPeersOnly` 必须为 `true`，Tracker、DHT、PEX、WebSeed、IPv6、入站、上传和做种必须为 `false`；任何试图开启的请求都返回 `invalid_bt_policy`。旧数据库缺少 `fileConflictPolicy` 时迁移为 `fail`，缺少 `scheduler` 时迁移为当次启动配置的安全默认值，缺少 BT 策略时迁移为 80 连接的受限默认值；旧版客户端在 PUT 中省略任一新增分组或重名策略时保留对应当前值。Flutter 不复制业务设置。
 
+`settings.proxy` 支持 `direct`、`system`、`http` 与 `socks5`，手动代理只持久化主机、端口和可选用户名；连接超时与响应头超时均允许 1–120 秒。设置保存后共享动态 `RoundTripper` 会让新的链接解析、下载连接和自动重试立即采用新路由，已建立的响应流继续完成。`PUT /api/v1/settings/proxy/credential` 只把密码写入引擎内存，响应不会回显密码；Flutter 在 macOS Keychain、Windows Credential Manager 或 Linux Secret Service 中保存密码，并在引擎启动后重新注入，不可用时不降级为明文。`POST /api/v1/settings/proxy/test` 使用固定 HTTPS 目标并只返回模式与耗时，失败映射为脱敏的认证、超时或连接错误。诊断摘要只包含代理模式和超时，不包含代理端点、用户名或密码。
+
 `GET /api/v1/diagnostics` 返回引擎版本与运行时、经过缩写的数据目录和数据库路径、数据库大小、日志保留状态、安全设置摘要以及按状态和协议聚合的任务计数。`POST /api/v1/diagnostics/export` 返回不超过客户端 8 MiB 接收上限的 ZIP，由桌面保存对话框选择最终位置。导出包不包含任务 URL、请求 Header、Cookie、代理凭据、Magnet、Torrent 元数据、文件名、单个任务保存路径或任务标识；默认下载目录等必要路径只保留缩写值。当前版本不持久保存引擎日志，因此只报告“未落盘”，不会虚构日志文件。响应使用 `Cache-Control: no-store`，路径中的用户主目录和临时目录会被缩写。
 
 批量粘贴按非空行解析、按首次出现顺序去重，一次最多 100 个 URL；客户端逐项解析远端元数据后，以共同保存目录调用 `POST /api/v1/tasks/batch`。批量创建和 `POST /api/v1/tasks/batch/actions` 都返回带原始索引的逐项结果，允许部分成功并明确暴露失败项；批量操作只接受 `pause`、`resume`、`cancel`。内核仍是每个任务状态的唯一事实源，批量端点按顺序复用单任务安全操作，FIFO 调度器继续决定实际启动顺序。
@@ -347,11 +349,15 @@ POST   /api/v1/diagnostics/export
 
 取消下载使用 `PUT /api/v1/tasks/{id}/cancel`；原 `DELETE /api/v1/tasks/{id}` 只作为 API v1 兼容路径保留。完成、失败或已取消任务可通过 `DELETE /api/v1/tasks/{id}/record` 删除记录，批量删除使用 `POST /api/v1/tasks/batch/delete`，清空已完成使用 `DELETE /api/v1/tasks/completed`。删除记录默认保留本地文件；只有用户在确认框明确选择 `deleteFiles=true` 时，Go 内核才会检查并删除已完成任务对应的普通文件。正在排队、下载、重试或暂停的任务必须先取消，不能直接删除。清空已完成端点始终保留文件，即使调用方附带文件删除参数也不会执行；批量部分失败按项返回并保留在列表中。
 
-桌面应用首次启动使用 `1280 × 800` 的默认窗口尺寸，为任务名称、速度和操作区保留更充足的可视空间；窗口仍可自由缩放，空间不足时自动切换响应式布局。桌面侧栏支持展开、图标化收起和鼠标拖拽调节宽度，展开状态与宽度作为本机界面偏好保存；窗口空间不足时自动切换为紧凑底部导航。顶层菜单固定为概览、下载任务、网络和设置，下载状态收进下载页的分段筛选，不再占用主导航。展开菜单使用统一的 40px 行高、整块圆角选中底色，并提供桌面悬停反馈。展开侧栏的设置入口右侧提供浅色与深色主题快速切换，修改会立即生效并保存在本机。设置内容继续使用统一应用外壳，并在内容区显示单行摘要和分组菜单：宽屏采用左侧分组导航与右侧单分组内容，窄屏采用菜单到详情的主从导航；当前可管理主题、语言、侧栏偏好、完成通知、完成后文件动作、新建下载快捷键、关闭到托盘、系统登录启动、登录后静默运行、本机引擎状态、脱敏诊断导出和版本许可信息。外观页明确说明偏好立即生效、仅保存在本机且不影响任务数据，并同时预览 Logo 在浅色与深色界面中的固定效果；工作区页说明宽窄窗口间的响应式切换和布局偏好恢复规则；本机引擎页说明引擎职责与刷新连接的影响边界；数据与诊断页明确导出内容和隐私边界。Flutter 不复制下载业务配置。
+桌面应用首次启动使用 `1280 × 800` 的默认窗口尺寸，为任务名称、速度和操作区保留更充足的可视空间；窗口仍可自由缩放，空间不足时自动切换响应式布局。桌面侧栏支持展开、图标化收起和鼠标拖拽调节宽度，展开状态与宽度作为本机界面偏好保存；窗口空间不足时自动切换为紧凑底部导航。顶层菜单固定为概览、下载任务、网络和设置，下载状态收进下载页的分段筛选，不再占用主导航。展开菜单使用统一的 40px 行高、整块圆角选中底色，并提供桌面悬停反馈。展开侧栏的设置入口右侧提供浅色与深色主题快速切换，修改会立即生效并保存在本机。设置内容继续使用统一应用外壳，并在内容区显示单行摘要和分组菜单：宽屏采用左侧分组导航与右侧单分组内容，窄屏采用菜单到详情的主从导航；当前可管理主题、语言、侧栏偏好、完成通知、完成后文件动作、应用内固定快捷键、关闭到托盘、系统登录启动、登录后静默运行、本机引擎状态、脱敏诊断导出和版本许可信息。外观页明确说明偏好立即生效、仅保存在本机且不影响任务数据，并同时预览 Logo 在浅色与深色界面中的固定效果；工作区页说明宽窄窗口间的响应式切换和布局偏好恢复规则；本机引擎页说明引擎职责与刷新连接的影响边界；数据与诊断页明确导出内容和隐私边界。Flutter 不复制下载业务配置。
 
 macOS、Windows 和 Linux 桌面构建会创建系统托盘入口，支持显示主窗口、新建下载和完整退出。默认关闭主窗口只隐藏到托盘，下载任务与内嵌 Go 引擎继续运行；用户可在“通知与快捷键”中关闭该行为。托盘初始化失败时，关闭窗口安全回退为停止内嵌引擎并退出，避免留下没有界面入口的后台进程。托盘“退出”会先解除窗口关闭拦截、移除托盘，再等待 `DownpeedStop` 完成后终止应用。Linux 需要 AppIndicator 运行库；未提供托盘区域的 GNOME 环境可能还需启用 AppIndicator 扩展。
 
 “登录时启动 Downpeed”直接管理操作系统登录项，系统读回结果是界面状态的唯一事实源，Flutter 不把该开关复制到 GetStorage。macOS 13 及以上使用 `SMAppService.mainApp`，Windows 使用当前用户 Run 注册表项，Linux 使用 XDG autostart `.desktop` 文件；macOS 旧版本会在设置中明确显示不可用。系统登录项以内部参数 `--downpeed-startup` 唤起应用，只有该启动来源且用户另行开启“登录启动时静默运行”时才隐藏主窗口并留在托盘；手动打开应用始终显示窗口。静默偏好仅作为本机 UI 偏好保存，托盘初始化或窗口隐藏失败时会强制显示并聚焦主窗口，避免产生没有可恢复入口的后台进程。
+
+应用根节点统一处理固定快捷键：`⌘/Ctrl + N` 打开新建下载，`⌘/Ctrl + F` 切换到下载任务并聚焦搜索，`⌘/Ctrl + ,` 打开设置，`⌘/Ctrl + R` 刷新当前内容。托盘入口、键盘入口和外部链接共享同一命令服务；启动期间收到的命令会等待导航就绪后按顺序执行。输入框编辑、弹窗关闭等局部键盘行为仍由对应组件处理。本阶段不注册 OS 全局热键，也不提供自定义快捷键和冲突检测。
+
+三平台注册 `downpeed://download?url=<percent-encoded-http-or-https-url>`。完整 URI 不得超过 8 KiB，只允许一个 `url` 参数且不允许未知参数或 fragment；目标必须是带主机的 HTTP/HTTPS URL，并拒绝 userinfo。外部入口只恢复主窗口并把目标预填到新建下载弹窗，绝不自动解析或创建任务；无效 URI 静默拒绝，错误和日志不回显目标 URL。详见 [桌面输入契约](docs/desktop-input.md)。
 
 分段请求必须逐一返回与请求起止位置、总大小完全匹配的 `206 Partial Content`、`Content-Range`，并在提供 `Content-Length` 时保持一致。内核以各段已确认写入的字节数聚合进度，不使用预分配临时文件的表面大小；完成前再次校验分段边界、各段长度和文件总大小，随后 `Sync` 并原子发布。畸形 Range、响应截断或大小变化不会发布最终文件。`PUT /api/v1/tasks/{id}/pause` 停止传输并保留检查点，`PUT /api/v1/tasks/{id}/resume` 只请求每个未完成分段的剩余区间；单连接旧任务继续使用原有尾部 Range 续传。`PUT /api/v1/tasks/{id}/cancel` 可取消下载中或已暂停任务并清理未完成文件。
 
@@ -427,14 +433,17 @@ Flutter 只在已知任务通过 SSE 从非完成态切换为 `completed` 时发
 ### M4：桌面产品化
 
 - [x] Go 动态库与 Flutter FFI 生命周期桥接
-- [ ] 系统托盘、开机启动、快捷键和浏览器接管
+- [x] 系统托盘、开机启动、快捷键和浏览器接管
   - [x] macOS/Windows/Linux 系统托盘、关闭到托盘、窗口恢复和优雅退出
   - [x] 开机启动与静默进入托盘
-  - [ ] 完整应用内快捷键与可选全局快捷键
-  - [ ] `downpeed://` 浏览器接管入口与 URL 安全校验
+  - [x] 应用内固定快捷键
+  - [ ] 快捷键自定义、冲突检查与可选 OS 全局热键
+  - [x] `downpeed://` 浏览器接管入口与 URL 安全校验
 - [ ] Windows 签名、macOS 公证、Linux 包
-- [ ] 自动更新、崩溃诊断和第三方许可证生成
-- [ ] 完整集成测试与性能基准
+- [x] 发布 Manifest、SHA256、构建信息注入和第三方许可证生成
+- [ ] 自动更新和崩溃诊断
+- [x] 内嵌引擎真实下载、暂停、恢复、完成和重启恢复集成测试
+- [ ] Windows/Linux 原生 CI 首次运行验收和桌面性能基准
 
 ### M5：远程与多端
 
@@ -485,8 +494,11 @@ make engine          # 只启动 Go 引擎，阻塞当前终端
 make app             # 只启动 Flutter 客户端，需要另一终端运行 make engine
 make build-engine-library # 构建并嵌入当前平台 Go 动态库
 make check           # 格式、静态分析、Go/Flutter 测试、竞态检测和 Go 构建
+make integration-test # 当前平台运行内嵌引擎真实下载生命周期测试
 make build           # 构建当前宿主平台 Release 客户端和内嵌 Go 引擎
-make package         # 打包当前平台发布物
+make package         # 打包并生成 Manifest、SHA256 与第三方许可证
+make verify-package  # 校验包内容、签名状态、Manifest 与 SHA256
+make smoke-package   # 启动 Release 包并在隔离目录完成本地下载冒烟测试
 ```
 
 默认开发端口为 `17680`。参数可以在调用 Make 时覆盖：
@@ -509,12 +521,12 @@ make dev ENGINE_ADDRESS=127.0.0.1:17681 \
 Flutter 桌面应用不能跨平台编译，因此发布目标必须在对应操作系统执行：
 
 ```bash
-make package-macos    # macOS：生成未签名、未公证的 DMG
+make package-macos    # macOS：生成 Ad-hoc 签名、未公证的 DMG
 make package-windows  # Windows：生成便携 ZIP
 make package-linux    # Linux：生成便携 tar.gz
 ```
 
-产物写入 `dist/`。发布构建会分别嵌入 `libdownpeed.dylib`、`downpeed.dll` 或 `libdownpeed.so`，用户直接启动 Downpeed 客户端即可，不再携带临时双进程启动器。`c-shared` 构建依赖目标系统可用的 CGO/C 编译工具链，并使用 `nosqlite` 构建标签保持 BT 分片完成状态沿用已审查的 bbolt 路径，避免因 CGO 自动切换到未审查的 SQLite 依赖；Flutter 桌面客户端和动态库都应在对应系统原生构建。签名、公证、Windows 安装器和 Linux DEB/RPM 仍属于 M4 后续工作，不把当前未签名产物冒充最终商店安装包。
+产物写入 `dist/`，同时生成发布 Manifest、SHA256 和从实际运行时依赖图提取的第三方许可证文件。发布构建会分别嵌入 `libdownpeed.dylib`、`downpeed.dll` 或 `libdownpeed.so`，用户直接启动 Downpeed 客户端即可，不再携带临时双进程启动器。`c-shared` 构建依赖目标系统可用的 CGO/C 编译工具链，并使用 `nosqlite` 构建标签保持 BT 分片完成状态沿用已审查的 bbolt 路径，避免因 CGO 自动切换到未审查的 SQLite 依赖；Flutter 桌面客户端和动态库都应在对应系统原生构建。当前 macOS 包使用 Ad-hoc 签名且未公证，Windows/Linux 包未做可信发布签名；Windows 安装器和 Linux DEB/RPM 仍属于 M4 后续工作，不能把这些产物冒充最终商店安装包。详细流程与信任边界见 [桌面发布说明](docs/desktop-release.md)。
 
 也可以不用 Makefile，分别启动两端：
 

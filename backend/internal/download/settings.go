@@ -14,8 +14,12 @@ var (
 	ErrInvalidSettings           = errors.New("invalid engine settings")
 	ErrInvalidSchedulerSettings  = errors.New("invalid scheduler settings")
 	ErrInvalidBTPolicy           = errors.New("invalid BitTorrent policy")
+	ErrInvalidProxySettings      = errors.New("invalid proxy settings")
 	ErrInvalidFileConflictPolicy = errors.New("invalid file conflict policy")
 	ErrSettingsPersistence       = errors.New("engine settings persistence failed")
+	ErrProxyConnectionFailed     = errors.New("proxy connection failed")
+	ErrProxyAuthenticationFailed = errors.New("proxy authentication failed")
+	ErrProxyTestTimeout          = errors.New("proxy test timed out")
 )
 
 const (
@@ -26,6 +30,10 @@ const (
 	MaxConcurrentTasks       = 64
 	MinAutomaticRetries      = 0
 	MaxAutomaticRetries      = 10
+	MinProxyTimeoutSeconds   = 1
+	MaxProxyTimeoutSeconds   = 120
+	DefaultConnectTimeout    = 10
+	DefaultResponseTimeout   = 30
 )
 
 type FileConflictPolicy string
@@ -40,6 +48,35 @@ type SchedulerSettings struct {
 	MaxConcurrentTasks int   `json:"maxConcurrentTasks"`
 	DownloadRateLimit  int64 `json:"downloadRateLimit"`
 	MaxRetries         int   `json:"maxRetries"`
+}
+
+type ProxyMode string
+
+const (
+	ProxyModeDirect  ProxyMode = "direct"
+	ProxyModeSystem  ProxyMode = "system"
+	ProxyModeHTTP    ProxyMode = "http"
+	ProxyModeSOCKS5  ProxyMode = "socks5"
+	DefaultProxyMode           = ProxyModeDirect
+)
+
+type ProxySettings struct {
+	Mode                         ProxyMode `json:"mode"`
+	Host                         string    `json:"host"`
+	Port                         int       `json:"port"`
+	Username                     string    `json:"username"`
+	ConnectTimeoutSeconds        int       `json:"connectTimeoutSeconds"`
+	ResponseHeaderTimeoutSeconds int       `json:"responseHeaderTimeoutSeconds"`
+}
+
+type ProxyTestResult struct {
+	Mode      ProxyMode `json:"mode"`
+	LatencyMS int64     `json:"latencyMs"`
+}
+
+type ProxyService interface {
+	SetPassword(string) error
+	Test(context.Context) (ProxyTestResult, error)
 }
 
 type BTPolicySettings struct {
@@ -59,6 +96,7 @@ type EngineSettings struct {
 	DefaultDownloadDirectory string             `json:"defaultDownloadDirectory"`
 	FileConflictPolicy       FileConflictPolicy `json:"fileConflictPolicy"`
 	Scheduler                SchedulerSettings  `json:"scheduler"`
+	Proxy                    ProxySettings      `json:"proxy"`
 	BitTorrent               BTPolicySettings   `json:"bitTorrent"`
 }
 
@@ -78,6 +116,7 @@ type SettingsManager struct {
 	settings                  EngineSettings
 	applySchedulerSettingsFn  func(SchedulerSettings)
 	applyFileConflictPolicyFn func(FileConflictPolicy)
+	applyProxySettingsFn      func(ProxySettings)
 }
 
 type SettingsManagerOption func(*settingsManagerConfig)
@@ -103,6 +142,7 @@ func NewSettingsManager(ctx context.Context, store SettingsStore, defaultDirecto
 		DefaultDownloadDirectory: defaultDirectory,
 		FileConflictPolicy:       DefaultFileConflictPolicy,
 		Scheduler:                config.defaultScheduler,
+		Proxy:                    DefaultProxySettings(),
 	})
 	if err != nil {
 		return nil, err
@@ -127,6 +167,9 @@ func NewSettingsManager(ctx context.Context, store SettingsStore, defaultDirecto
 	}
 	if stored.Scheduler == (SchedulerSettings{}) {
 		stored.Scheduler = defaults.Scheduler
+	}
+	if stored.Proxy == (ProxySettings{}) {
+		stored.Proxy = defaults.Proxy
 	}
 	stored, err = validateEngineSettings(stored)
 	if err != nil {
@@ -164,6 +207,16 @@ func (m *SettingsManager) SetSchedulerSettingsApplier(apply func(SchedulerSettin
 	}
 }
 
+func (m *SettingsManager) SetProxySettingsApplier(apply func(ProxySettings)) {
+	m.mu.Lock()
+	m.applyProxySettingsFn = apply
+	settings := m.settings.Proxy
+	m.mu.Unlock()
+	if apply != nil {
+		apply(settings)
+	}
+}
+
 func (m *SettingsManager) GetSettings(ctx context.Context) (EngineSettings, error) {
 	if err := ctx.Err(); err != nil {
 		return EngineSettings{}, err
@@ -195,6 +248,9 @@ func (m *SettingsManager) UpdateSettings(ctx context.Context, input EngineSettin
 	if m.applyFileConflictPolicyFn != nil {
 		m.applyFileConflictPolicyFn(settings.FileConflictPolicy)
 	}
+	if m.applyProxySettingsFn != nil {
+		m.applyProxySettingsFn(settings.Proxy)
+	}
 	m.settings = settings
 	return settings, nil
 }
@@ -220,12 +276,64 @@ func validateEngineSettings(input EngineSettings) (EngineSettings, error) {
 	if err != nil {
 		return EngineSettings{}, err
 	}
+	proxySettings, err := validateProxySettings(input.Proxy)
+	if err != nil {
+		return EngineSettings{}, err
+	}
 	return EngineSettings{
 		DefaultDownloadDirectory: directory,
 		FileConflictPolicy:       fileConflictPolicy,
 		Scheduler:                scheduler,
+		Proxy:                    proxySettings,
 		BitTorrent:               policy,
 	}, nil
+}
+
+func DefaultProxySettings() ProxySettings {
+	return ProxySettings{
+		Mode:                         DefaultProxyMode,
+		ConnectTimeoutSeconds:        DefaultConnectTimeout,
+		ResponseHeaderTimeoutSeconds: DefaultResponseTimeout,
+	}
+}
+
+func validateProxySettings(input ProxySettings) (ProxySettings, error) {
+	if input == (ProxySettings{}) {
+		return DefaultProxySettings(), nil
+	}
+	if input.Mode != ProxyModeDirect && input.Mode != ProxyModeSystem && input.Mode != ProxyModeHTTP && input.Mode != ProxyModeSOCKS5 {
+		return ProxySettings{}, fmt.Errorf("%w: unsupported proxy mode", ErrInvalidProxySettings)
+	}
+	host := strings.TrimSpace(input.Host)
+	username := strings.TrimSpace(input.Username)
+	if len(host) > 253 || strings.ContainsAny(host, "/?#@") || strings.Contains(host, "://") || hasControlCharacter(host) {
+		return ProxySettings{}, fmt.Errorf("%w: proxy host is invalid", ErrInvalidProxySettings)
+	}
+	if len(username) > 256 || hasControlCharacter(username) {
+		return ProxySettings{}, fmt.Errorf("%w: proxy username is invalid", ErrInvalidProxySettings)
+	}
+	if input.Mode == ProxyModeHTTP || input.Mode == ProxyModeSOCKS5 {
+		if host == "" || input.Port < 1 || input.Port > 65535 {
+			return ProxySettings{}, fmt.Errorf("%w: a proxy host and port are required", ErrInvalidProxySettings)
+		}
+	} else if input.Port < 0 || input.Port > 65535 {
+		return ProxySettings{}, fmt.Errorf("%w: proxy port is invalid", ErrInvalidProxySettings)
+	}
+	if input.ConnectTimeoutSeconds < MinProxyTimeoutSeconds || input.ConnectTimeoutSeconds > MaxProxyTimeoutSeconds {
+		return ProxySettings{}, fmt.Errorf("%w: connection timeout must be between %d and %d seconds", ErrInvalidProxySettings, MinProxyTimeoutSeconds, MaxProxyTimeoutSeconds)
+	}
+	if input.ResponseHeaderTimeoutSeconds < MinProxyTimeoutSeconds || input.ResponseHeaderTimeoutSeconds > MaxProxyTimeoutSeconds {
+		return ProxySettings{}, fmt.Errorf("%w: response timeout must be between %d and %d seconds", ErrInvalidProxySettings, MinProxyTimeoutSeconds, MaxProxyTimeoutSeconds)
+	}
+	input.Host = host
+	input.Username = username
+	return input, nil
+}
+
+func hasControlCharacter(value string) bool {
+	return strings.IndexFunc(value, func(character rune) bool {
+		return character < 0x20 || character == 0x7f
+	}) >= 0
 }
 
 func validateFileConflictPolicy(input FileConflictPolicy) (FileConflictPolicy, error) {

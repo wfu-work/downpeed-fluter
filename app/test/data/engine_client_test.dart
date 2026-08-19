@@ -105,6 +105,9 @@ void main() {
               'scheduler': request.method == 'PUT'
                   ? (body as Map<String, dynamic>)['scheduler']
                   : _schedulerJson(),
+              'proxy': request.method == 'PUT'
+                  ? (body as Map<String, dynamic>)['proxy']
+                  : _proxyJson(),
               'bitTorrent': _btPolicyJson(
                 request.method == 'PUT'
                     ? ((body as Map<String, dynamic>)['bitTorrent']
@@ -131,6 +134,11 @@ void main() {
         maxConcurrentTasks: 4,
         downloadRateLimit: 5 * 1024 * 1024,
       ),
+      proxy: initial.proxy.copyWith(
+        mode: ProxyMode.http,
+        host: 'proxy.example',
+        port: 8080,
+      ),
       bitTorrent: initial.bitTorrent.copyWith(maxPeerConnections: 24),
     );
 
@@ -140,6 +148,8 @@ void main() {
     expect(updated.fileConflictPolicy, FileConflictPolicy.uniquify);
     expect(updated.scheduler.maxConcurrentTasks, 4);
     expect(updated.scheduler.downloadRateLimit, 5 * 1024 * 1024);
+    expect(updated.proxy.mode, ProxyMode.http);
+    expect(updated.proxy.host, 'proxy.example');
     expect(updated.bitTorrent.maxPeerConnections, 24);
     expect(requests, <Map<String, dynamic>>[
       <String, dynamic>{'method': 'GET', 'path': '/api/v1/settings'},
@@ -153,10 +163,57 @@ void main() {
             maxConcurrentTasks: 4,
             downloadRateLimit: 5 * 1024 * 1024,
           ),
+          'proxy': _proxyJson(mode: 'http', host: 'proxy.example', port: 8080),
           'bitTorrent': _btPolicyJson(24),
         },
       },
     ]);
+  });
+
+  test('updates proxy credential and reads a sanitized test result', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(() => server.close(force: true));
+    String? credential;
+    server.listen((request) async {
+      if (request.uri.path.endsWith('/credential')) {
+        final body =
+            jsonDecode(await utf8.decoder.bind(request).join())
+                as Map<String, dynamic>;
+        credential = body['password'] as String?;
+        request.response
+          ..statusCode = HttpStatus.ok
+          ..headers.contentType = ContentType.json
+          ..write(
+            jsonEncode(<String, dynamic>{
+              'data': <String, dynamic>{'configured': true},
+              'error': null,
+              'requestId': 'credential',
+            }),
+          );
+      } else {
+        request.response
+          ..statusCode = HttpStatus.ok
+          ..headers.contentType = ContentType.json
+          ..write(
+            jsonEncode(<String, dynamic>{
+              'data': <String, dynamic>{'mode': 'socks5', 'latencyMs': 37},
+              'error': null,
+              'requestId': 'proxy-test',
+            }),
+          );
+      }
+      await request.response.close();
+    });
+    final client = DioEngineClient(
+      baseUrl: 'http://${server.address.address}:${server.port}',
+    );
+
+    await client.updateProxyCredential('secure-password');
+    final result = await client.testProxy();
+
+    expect(credential, 'secure-password');
+    expect(result.mode, ProxyMode.socks5);
+    expect(result.latencyMs, 37);
   });
 
   test('reads diagnostics and downloads the bounded ZIP archive', () async {
@@ -834,4 +891,17 @@ Map<String, dynamic> _schedulerJson({
   'maxConcurrentTasks': maxConcurrentTasks,
   'downloadRateLimit': downloadRateLimit,
   'maxRetries': maxRetries,
+};
+
+Map<String, dynamic> _proxyJson({
+  String mode = 'direct',
+  String host = '',
+  int port = 0,
+}) => <String, dynamic>{
+  'mode': mode,
+  'host': host,
+  'port': port,
+  'username': '',
+  'connectTimeoutSeconds': 10,
+  'responseHeaderTimeoutSeconds': 30,
 };

@@ -137,7 +137,14 @@ class LocalizationService extends Translations {
           '当运行中的任务首次进入完成状态时，发送一次系统通知。',
       L10nKeys.settingsNewDownloadShortcut: '新建下载快捷键',
       L10nKeys.settingsNewDownloadShortcutDescription:
-          '在任务工作区按下快捷键，可直接打开新建下载窗口。',
+          '在应用任意主界面按下快捷键，可直接打开新建下载窗口。',
+      L10nKeys.settingsSearchShortcut: '搜索下载任务',
+      L10nKeys.settingsSearchShortcutDescription: '切换到下载任务并聚焦搜索框，已有关键词会自动选中。',
+      L10nKeys.settingsOpenSettingsShortcut: '打开设置',
+      L10nKeys.settingsOpenSettingsShortcutDescription: '从任意主界面直接进入设置。',
+      L10nKeys.settingsRefreshShortcut: '刷新当前界面',
+      L10nKeys.settingsRefreshShortcutDescription:
+          '重新读取当前界面的任务、引擎或设置状态，不改变下载任务。',
       L10nKeys.settingsCloseToTray: '关闭窗口时保留在托盘',
       L10nKeys.settingsCloseToTrayDescription: '关闭主窗口后继续运行下载；可从系统托盘恢复窗口或完整退出。',
       L10nKeys.settingsLaunchAtLogin: '登录时启动 Downpeed',
@@ -211,6 +218,54 @@ class LocalizationService extends Translations {
       L10nKeys.settingsSchedulerInvalid: '调度值超出当前引擎支持的范围。',
       L10nKeys.settingsSchedulerOffline: '本机引擎未连接，暂时无法更改调度设置。',
       L10nKeys.settingsSchedulerSaveError: '无法保存调度设置，请稍后重试。',
+      L10nKeys.settingsProxy: '连接与代理',
+      L10nKeys.settingsProxyDescription: '选择 HTTP 下载的连接路径、超时策略并检查当前路由是否可用。',
+      L10nKeys.settingsProxyMode: '连接方式',
+      L10nKeys.settingsProxyModeDescription: '直连不使用代理；系统模式采用本机引擎可读取的系统与环境代理配置。',
+      L10nKeys.settingsProxyModeDirect: '直连',
+      L10nKeys.settingsProxyModeSystem: '系统',
+      L10nKeys.settingsProxyEndpoint: '代理服务器',
+      L10nKeys.settingsProxyEndpointDescription:
+          '填写主机名或 IP 地址和端口，不要包含协议、路径或账号信息。',
+      L10nKeys.settingsProxyHostHint: '主机名或 IP',
+      L10nKeys.settingsProxyPortHint: '端口',
+      L10nKeys.settingsProxyAuthentication: '代理认证',
+      L10nKeys.settingsProxyAuthenticationDescription:
+          '用户名由引擎保存；密码只存入当前系统的安全凭据库，不写入任务数据库。',
+      L10nKeys.settingsProxyUsernameHint: '用户名（可选）',
+      L10nKeys.settingsProxyPasswordHint: '密码（可选）',
+      L10nKeys.settingsProxyPasswordStored: '已安全保存，留空则保留',
+      L10nKeys.settingsProxyPasswordClear: '清除',
+      L10nKeys.settingsProxyConnectTimeout: '连接超时',
+      L10nKeys.settingsProxyConnectTimeoutDescription:
+          '限制建立 TCP、TLS 或代理连接可等待的时间，范围 1–120 秒。',
+      L10nKeys.settingsProxyResponseTimeout: '响应头超时',
+      L10nKeys.settingsProxyResponseTimeoutDescription:
+          '连接成功后等待远端开始响应的最长时间，范围 1–120 秒。',
+      L10nKeys.settingsProxyDecreaseTimeout: '减少超时时间',
+      L10nKeys.settingsProxyIncreaseTimeout: '增加超时时间',
+      L10nKeys.settingsProxyActions: '应用与检查',
+      L10nKeys.settingsProxyActionsDescription:
+          '先保存当前配置，再使用固定 HTTPS 目标检查该连接路径。',
+      L10nKeys.settingsProxyTest: '测试连接',
+      L10nKeys.settingsProxyTesting: '正在测试…',
+      L10nKeys.settingsProxySave: '保存设置',
+      L10nKeys.settingsProxySaving: '正在保存…',
+      L10nKeys.settingsProxyErrorTitle: '代理设置未更改',
+      L10nKeys.settingsProxyInvalid: '代理地址、端口或超时值无效，已保留原设置。',
+      L10nKeys.settingsProxyOffline: '本机引擎未连接，暂时无法保存或测试代理。',
+      L10nKeys.settingsProxySaveError: '无法保存代理设置，已尽量恢复原配置。',
+      L10nKeys.settingsProxyCredentialUnavailable:
+          '当前系统安全凭据库不可用，代理密码不会以明文方式保存。',
+      L10nKeys.settingsProxyTestErrorTitle: '连接检查未通过',
+      L10nKeys.settingsProxyTestAuthenticationFailed: '代理服务器拒绝了当前认证信息。',
+      L10nKeys.settingsProxyTestTimeout: '连接检查超时，请检查地址、网络和超时设置。',
+      L10nKeys.settingsProxyTestConnectionFailed: '当前连接路径无法访问测试服务。',
+      L10nKeys.settingsProxyTestSuccessTitle: '连接路径可用',
+      L10nKeys.settingsProxyTestSuccessBody: '固定 HTTPS 目标响应正常，耗时 @latency 毫秒。',
+      L10nKeys.settingsProxyNoteTitle: '新请求会立即采用新连接设置',
+      L10nKeys.settingsProxyNoteBody:
+          '保存成功后，新的链接解析、下载请求和自动重试会使用当前连接方式；已经建立的传输连接会继续完成。代理密码不会进入引擎数据库、日志、诊断包或 API 响应。',
       L10nKeys.settingsBT: 'BitTorrent',
       L10nKeys.settingsBTDescription: '管理受限 BT 传输的 Peer 预算，并查看引擎强制关闭的网络能力。',
       L10nKeys.settingsBTPeerBudget: 'Peer 连接上限',
@@ -279,6 +334,8 @@ class LocalizationService extends Translations {
       L10nKeys.settingsAboutDescription: '查看应用、引擎与运行环境版本，以及开源组件的许可信息。',
       L10nKeys.settingsAboutAppVersion: 'Downpeed 客户端',
       L10nKeys.settingsAboutAppVersionDescription: '当前安装的桌面客户端版本。',
+      L10nKeys.settingsAboutBuild: '构建信息',
+      L10nKeys.settingsAboutBuildDescription: '源码提交、发布通道与构建时间。',
       L10nKeys.settingsAboutEngineVersion: '本机引擎版本',
       L10nKeys.settingsAboutEngineVersionDescription: 'API @api · @platform',
       L10nKeys.settingsAboutEngineUnavailable: '连接本机引擎后显示版本与运行环境。',
@@ -665,7 +722,16 @@ class LocalizationService extends Translations {
           'Send one system notification when an active task first reaches the completed state.',
       L10nKeys.settingsNewDownloadShortcut: 'New download shortcut',
       L10nKeys.settingsNewDownloadShortcutDescription:
-          'Open the new download dialog directly from the transfer workspace.',
+          'Open the new download dialog from any primary application view.',
+      L10nKeys.settingsSearchShortcut: 'Search downloads',
+      L10nKeys.settingsSearchShortcutDescription:
+          'Open Downloads and focus its search field, selecting any existing query.',
+      L10nKeys.settingsOpenSettingsShortcut: 'Open settings',
+      L10nKeys.settingsOpenSettingsShortcutDescription:
+          'Open Settings from any primary application view.',
+      L10nKeys.settingsRefreshShortcut: 'Refresh current view',
+      L10nKeys.settingsRefreshShortcutDescription:
+          'Reload tasks, engine information, or settings for the current view without changing downloads.',
       L10nKeys.settingsCloseToTray: 'Keep running in the tray',
       L10nKeys.settingsCloseToTrayDescription:
           'Keep downloads running after the main window closes. Restore or fully quit from the system tray.',
@@ -767,6 +833,65 @@ class LocalizationService extends Translations {
           'The local engine is offline, so scheduling settings cannot be changed.',
       L10nKeys.settingsSchedulerSaveError:
           'Scheduling settings could not be saved. Try again.',
+      L10nKeys.settingsProxy: 'Connection & proxy',
+      L10nKeys.settingsProxyDescription:
+          'Choose the HTTP connection route, tune timeouts, and verify the active route.',
+      L10nKeys.settingsProxyMode: 'Connection mode',
+      L10nKeys.settingsProxyModeDescription:
+          'Direct bypasses proxies. System uses proxy configuration visible to the local engine and its environment.',
+      L10nKeys.settingsProxyModeDirect: 'Direct',
+      L10nKeys.settingsProxyModeSystem: 'System',
+      L10nKeys.settingsProxyEndpoint: 'Proxy server',
+      L10nKeys.settingsProxyEndpointDescription:
+          'Enter a hostname or IP address and port without a scheme, path, or credentials.',
+      L10nKeys.settingsProxyHostHint: 'Hostname or IP',
+      L10nKeys.settingsProxyPortHint: 'Port',
+      L10nKeys.settingsProxyAuthentication: 'Proxy authentication',
+      L10nKeys.settingsProxyAuthenticationDescription:
+          'The engine stores the username. The password stays in the operating system credential vault.',
+      L10nKeys.settingsProxyUsernameHint: 'Username (optional)',
+      L10nKeys.settingsProxyPasswordHint: 'Password (optional)',
+      L10nKeys.settingsProxyPasswordStored:
+          'Stored securely; leave blank to keep',
+      L10nKeys.settingsProxyPasswordClear: 'Clear',
+      L10nKeys.settingsProxyConnectTimeout: 'Connection timeout',
+      L10nKeys.settingsProxyConnectTimeoutDescription:
+          'Limits TCP, TLS, and proxy connection setup to 1–120 seconds.',
+      L10nKeys.settingsProxyResponseTimeout: 'Response header timeout',
+      L10nKeys.settingsProxyResponseTimeoutDescription:
+          'Limits how long an established connection waits for the remote response to begin.',
+      L10nKeys.settingsProxyDecreaseTimeout: 'Decrease timeout',
+      L10nKeys.settingsProxyIncreaseTimeout: 'Increase timeout',
+      L10nKeys.settingsProxyActions: 'Apply & verify',
+      L10nKeys.settingsProxyActionsDescription:
+          'Save this configuration first, then check the route against a fixed HTTPS target.',
+      L10nKeys.settingsProxyTest: 'Test connection',
+      L10nKeys.settingsProxyTesting: 'Testing…',
+      L10nKeys.settingsProxySave: 'Save settings',
+      L10nKeys.settingsProxySaving: 'Saving…',
+      L10nKeys.settingsProxyErrorTitle: 'Proxy settings unchanged',
+      L10nKeys.settingsProxyInvalid:
+          'The proxy address, port, or timeout is invalid. Existing settings were kept.',
+      L10nKeys.settingsProxyOffline:
+          'The local engine is offline, so proxy settings cannot be saved or tested.',
+      L10nKeys.settingsProxySaveError:
+          'Proxy settings could not be saved. The previous configuration was restored where possible.',
+      L10nKeys.settingsProxyCredentialUnavailable:
+          'The system credential vault is unavailable. Downpeed will not store the proxy password as plaintext.',
+      L10nKeys.settingsProxyTestErrorTitle: 'Connection check failed',
+      L10nKeys.settingsProxyTestAuthenticationFailed:
+          'The proxy rejected the configured credentials.',
+      L10nKeys.settingsProxyTestTimeout:
+          'The connection check timed out. Review the endpoint, network, and timeout values.',
+      L10nKeys.settingsProxyTestConnectionFailed:
+          'The active connection route could not reach the test service.',
+      L10nKeys.settingsProxyTestSuccessTitle: 'Connection route available',
+      L10nKeys.settingsProxyTestSuccessBody:
+          'The fixed HTTPS target responded in @latency ms.',
+      L10nKeys.settingsProxyNoteTitle:
+          'New requests use updated connection settings immediately',
+      L10nKeys.settingsProxyNoteBody:
+          'After saving, new link inspections, download requests, and automatic retries use this route. Existing transfer connections continue. Proxy passwords never enter the engine database, logs, diagnostics, or API responses.',
       L10nKeys.settingsBT: 'BitTorrent',
       L10nKeys.settingsBTDescription:
           'Manage the peer budget for restricted BT transfers and review capabilities locked off by the engine.',
@@ -855,6 +980,9 @@ class LocalizationService extends Translations {
       L10nKeys.settingsAboutAppVersion: 'Downpeed client',
       L10nKeys.settingsAboutAppVersionDescription:
           'The currently installed desktop client version.',
+      L10nKeys.settingsAboutBuild: 'Build information',
+      L10nKeys.settingsAboutBuildDescription:
+          'Source commit, release channel, and build time.',
       L10nKeys.settingsAboutEngineVersion: 'Local engine version',
       L10nKeys.settingsAboutEngineVersionDescription: 'API @api · @platform',
       L10nKeys.settingsAboutEngineUnavailable:

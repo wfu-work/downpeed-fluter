@@ -4,9 +4,27 @@ import UserNotifications
 
 @main
 class AppDelegate: FlutterAppDelegate, UNUserNotificationCenterDelegate {
+  private static var pendingAppLinks: [String] = []
+
   override func applicationDidFinishLaunching(_ notification: Notification) {
     UNUserNotificationCenter.current().delegate = self
     super.applicationDidFinishLaunching(notification)
+  }
+
+  override func application(_ application: NSApplication, open urls: [URL]) {
+    for url in urls where url.scheme == "downpeed" {
+      if let window = application.windows.compactMap({ $0 as? MainFlutterWindow }).first {
+        window.acceptAppLink(url.absoluteString)
+      } else {
+        Self.pendingAppLinks.append(url.absoluteString)
+      }
+    }
+  }
+
+  static func takePendingAppLinks() -> [String] {
+    let links = pendingAppLinks
+    pendingAppLinks.removeAll(keepingCapacity: false)
+    return links
   }
 
   func userNotificationCenter(

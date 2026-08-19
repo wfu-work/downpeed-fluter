@@ -36,6 +36,10 @@ class DownpeedIcons {
   static const IconData file = LucideIcons.file300;
   static const IconData server = LucideIcons.server300;
   static const IconData connections = LucideIcons.network300;
+  static const IconData proxy = LucideIcons.route300;
+  static const IconData key = LucideIcons.keyRound300;
+  static const IconData timer = LucideIcons.timer300;
+  static const IconData testConnection = LucideIcons.wifi300;
   static const IconData shield = LucideIcons.shieldCheck300;
   static const IconData locked = LucideIcons.lockKeyhole300;
   static const IconData upload = LucideIcons.upload300;

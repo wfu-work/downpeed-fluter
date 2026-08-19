@@ -1,0 +1,97 @@
+name: Desktop quality
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Core quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake libgtk-3-dev ninja-build pkg-config
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Enable Linux desktop
+        run: flutter config --enable-linux-desktop
+      - name: Run static checks and unit tests
+        run: make check
+
+  desktop-package:
+    name: ${{ matrix.platform }} package
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            platform: macos
+          - os: windows-latest
+            platform: windows
+          - os: ubuntu-24.04
+            platform: linux
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Linux build dependencies
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake libgtk-3-dev ninja-build pkg-config xvfb
+      - name: Install Make on Windows
+        if: matrix.platform == 'windows'
+        shell: pwsh
+        run: choco install make mingw --no-progress -y
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Enable desktop target
+        shell: bash
+        run: flutter config --enable-${{ matrix.platform }}-desktop
+      - name: Run embedded-engine integration test
+        if: matrix.platform != 'linux'
+        shell: bash
+        run: make integration-test RELEASE_CHANNEL=ci BUILD_NUMBER="${GITHUB_RUN_NUMBER}"
+      - name: Run embedded-engine integration test on Linux
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: xvfb-run -a make integration-test RELEASE_CHANNEL=ci BUILD_NUMBER="${GITHUB_RUN_NUMBER}"
+      - name: Build, verify, and smoke-test release package
+        if: matrix.platform != 'linux'
+        shell: bash
+        run: make smoke-package RELEASE_CHANNEL=ci BUILD_NUMBER="${GITHUB_RUN_NUMBER}"
+      - name: Build, verify, and smoke-test release package on Linux
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: xvfb-run -a make smoke-package RELEASE_CHANNEL=ci BUILD_NUMBER="${GITHUB_RUN_NUMBER}"
+      - name: Upload verified package
+        uses: actions/upload-artifact@v4
+        with:
+          name: downpeed-${{ matrix.platform }}-${{ runner.arch }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14

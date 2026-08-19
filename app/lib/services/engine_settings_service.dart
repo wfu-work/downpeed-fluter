@@ -24,6 +24,8 @@ class EngineSettingsService extends GetxService {
 
   SchedulerSettings? get scheduler => settings.value?.scheduler;
 
+  ProxySettings? get proxy => settings.value?.proxy;
+
   FileConflictPolicy? get fileConflictPolicy =>
       settings.value?.fileConflictPolicy;
 
@@ -62,6 +64,7 @@ class EngineSettingsService extends GetxService {
         defaultDownloadDirectory: directory,
         fileConflictPolicy: current.fileConflictPolicy,
         scheduler: current.scheduler,
+        proxy: current.proxy,
         bitTorrent: current.bitTorrent,
       );
       return true;
@@ -88,6 +91,7 @@ class EngineSettingsService extends GetxService {
         defaultDownloadDirectory: current.defaultDownloadDirectory,
         fileConflictPolicy: policy,
         scheduler: current.scheduler,
+        proxy: current.proxy,
         bitTorrent: current.bitTorrent,
       );
       return true;
@@ -119,6 +123,7 @@ class EngineSettingsService extends GetxService {
         defaultDownloadDirectory: current.defaultDownloadDirectory,
         fileConflictPolicy: current.fileConflictPolicy,
         scheduler: scheduler,
+        proxy: current.proxy,
         bitTorrent: current.bitTorrent,
       );
       return true;
@@ -148,6 +153,7 @@ class EngineSettingsService extends GetxService {
         defaultDownloadDirectory: current.defaultDownloadDirectory,
         fileConflictPolicy: current.fileConflictPolicy,
         scheduler: current.scheduler,
+        proxy: current.proxy,
         bitTorrent: current.bitTorrent.copyWith(
           maxPeerConnections: maxPeerConnections,
         ),
@@ -162,6 +168,27 @@ class EngineSettingsService extends GetxService {
       return false;
     } on Object {
       btPolicyErrorMessage.value = L10nKeys.settingsBTPolicySaveError.tr;
+      return false;
+    } finally {
+      isSaving.value = false;
+    }
+  }
+
+  Future<bool> updateProxySettings(ProxySettings proxy) async {
+    if (isSaving.value) return false;
+    final current = settings.value;
+    if (current == null) return false;
+    isSaving.value = true;
+    try {
+      settings.value = await client.updateSettings(
+        defaultDownloadDirectory: current.defaultDownloadDirectory,
+        fileConflictPolicy: current.fileConflictPolicy,
+        scheduler: current.scheduler,
+        proxy: proxy,
+        bitTorrent: current.bitTorrent,
+      );
+      return true;
+    } on Object {
       return false;
     } finally {
       isSaving.value = false;

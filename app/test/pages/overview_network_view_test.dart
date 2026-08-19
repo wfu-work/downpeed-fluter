@@ -261,6 +261,14 @@ const _settings = EngineSettings(
     downloadRateLimit: 5 * 1024 * 1024,
     maxRetries: 3,
   ),
+  proxy: ProxySettings(
+    mode: ProxyMode.direct,
+    host: '',
+    port: 0,
+    username: '',
+    connectTimeoutSeconds: 10,
+    responseHeaderTimeoutSeconds: 30,
+  ),
   bitTorrent: BTPolicySettings(
     maxPeerConnections: 24,
     explicitPeersOnly: true,

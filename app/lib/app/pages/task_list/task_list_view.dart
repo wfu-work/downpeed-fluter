@@ -1,7 +1,4 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 
@@ -31,45 +28,34 @@ class TaskListView extends GetView<TaskListController> {
   Widget build(BuildContext context) {
     return Obx(() {
       final currentFilter = controller.filter.value;
-      return CallbackShortcuts(
-        bindings: <ShortcutActivator, VoidCallback>{
-          const SingleActivator(LogicalKeyboardKey.keyN, meta: true): () =>
-              unawaited(controller.openCreateDownload()),
-          const SingleActivator(LogicalKeyboardKey.keyN, control: true): () =>
-              unawaited(controller.openCreateDownload()),
-        },
-        child: Focus(
-          autofocus: true,
-          child: DownpeedAppShell(
-            selectedDestination: AppDestination.tasks,
-            child: SafeArea(
-              left: false,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _TaskToolbar(controller: controller),
-                  _TaskFilterBar(
-                    controller: controller,
-                    selected: currentFilter,
-                    counts: TaskListFilter.values
-                        .map(controller.countForFilter)
-                        .toList(growable: false),
-                    onSelected: controller.setFilter,
-                  ),
-                  Expanded(
-                    child: switch (controller.engineService.state.value) {
-                      EngineConnectionState.checking => const _CheckingState(),
-                      EngineConnectionState.online => _ReadyState(
-                        controller: controller,
-                      ),
-                      EngineConnectionState.offline => _OfflineState(
-                        controller: controller,
-                      ),
-                    },
-                  ),
-                ],
+      return DownpeedAppShell(
+        selectedDestination: AppDestination.tasks,
+        child: SafeArea(
+          left: false,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _TaskToolbar(controller: controller),
+              _TaskFilterBar(
+                controller: controller,
+                selected: currentFilter,
+                counts: TaskListFilter.values
+                    .map(controller.countForFilter)
+                    .toList(growable: false),
+                onSelected: controller.setFilter,
               ),
-            ),
+              Expanded(
+                child: switch (controller.engineService.state.value) {
+                  EngineConnectionState.checking => const _CheckingState(),
+                  EngineConnectionState.online => _ReadyState(
+                    controller: controller,
+                  ),
+                  EngineConnectionState.offline => _OfflineState(
+                    controller: controller,
+                  ),
+                },
+              ),
+            ],
           ),
         ),
       );
@@ -391,6 +377,7 @@ class _TaskSearchField extends StatelessWidget {
       child: TextField(
         key: const ValueKey('task-search-field'),
         controller: controller.searchController,
+        focusNode: controller.searchFocusNode,
         onChanged: controller.updateSearch,
         textInputAction: TextInputAction.search,
         cursorColor: colors.accent,

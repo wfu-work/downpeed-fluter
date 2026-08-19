@@ -1,12 +1,14 @@
 import 'package:flutter/widgets.dart';
 
 import '../domains/engine_info.dart';
+import '../services/app_link_service.dart';
 import '../services/app_service.dart';
 import '../services/desktop_integration_service.dart';
 import '../services/embedded_engine_service.dart';
 import '../services/engine_service.dart';
 import '../services/engine_settings_service.dart';
 import '../services/preferences_service.dart';
+import '../services/proxy_settings_service.dart';
 import '../services/startup_service.dart';
 import 'dependency_registrar.dart';
 
@@ -23,9 +25,11 @@ class AppInitializer {
     await DesktopIntegrationService.to.initialize(
       launchArguments: launchArguments,
     );
+    await AppLinkService.to.initialize(launchArguments: launchArguments);
     await EngineService.to.refresh();
     if (EngineService.to.state.value == EngineConnectionState.online) {
       await EngineSettingsService.to.load();
+      await ProxySettingsService.to.initialize();
     }
   }
 }

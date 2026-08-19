@@ -76,7 +76,14 @@ type SettingsSummary struct {
 	DefaultDownloadDirectory string                      `json:"defaultDownloadDirectory"`
 	FileConflictPolicy       download.FileConflictPolicy `json:"fileConflictPolicy"`
 	Scheduler                download.SchedulerSettings  `json:"scheduler"`
+	Proxy                    ProxySettingsSummary        `json:"proxy"`
 	BitTorrent               download.BTPolicySettings   `json:"bitTorrent"`
+}
+
+type ProxySettingsSummary struct {
+	Mode                         download.ProxyMode `json:"mode"`
+	ConnectTimeoutSeconds        int                `json:"connectTimeoutSeconds"`
+	ResponseHeaderTimeoutSeconds int                `json:"responseHeaderTimeoutSeconds"`
 }
 
 type TaskSummary struct {
@@ -163,7 +170,12 @@ func (s *Service) Snapshot(ctx context.Context) (Snapshot, error) {
 			DefaultDownloadDirectory: redactPath(settings.DefaultDownloadDirectory),
 			FileConflictPolicy:       settings.FileConflictPolicy,
 			Scheduler:                settings.Scheduler,
-			BitTorrent:               settings.BitTorrent,
+			Proxy: ProxySettingsSummary{
+				Mode:                         settings.Proxy.Mode,
+				ConnectTimeoutSeconds:        settings.Proxy.ConnectTimeoutSeconds,
+				ResponseHeaderTimeoutSeconds: settings.Proxy.ResponseHeaderTimeoutSeconds,
+			},
+			BitTorrent: settings.BitTorrent,
 		},
 		Tasks: summarizeTasks(tasks),
 		Privacy: PrivacyInfo{

@@ -396,6 +396,9 @@ class _SettingsContent extends StatelessWidget {
       final engineInfo = controller.engineService.info.value;
       final scheduler = controller.engineSettingsService.scheduler;
       final schedulerSaving = controller.engineSettingsService.isSaving.value;
+      final proxySettings = controller.engineSettingsService.proxy;
+      final proxySaving = controller.proxySettingsService.isSaving.value;
+      final proxyTesting = controller.proxySettingsService.isTesting.value;
       final fileConflictPolicy =
           controller.engineSettingsService.fileConflictPolicy;
       final diagnostics = controller.diagnosticsService.diagnostics.value;
@@ -551,9 +554,39 @@ class _SettingsContent extends StatelessWidget {
                             L10nKeys.settingsNewDownloadShortcutDescription.tr,
                         control: _SettingsValue(
                           key: const ValueKey('settings-new-download-shortcut'),
-                          value: defaultTargetPlatform == TargetPlatform.macOS
-                              ? '⌘ N'
-                              : 'Ctrl N',
+                          value: _shortcutLabel('N'),
+                        ),
+                      ),
+                      _SettingsRow(
+                        icon: DownpeedIcons.search,
+                        title: L10nKeys.settingsSearchShortcut.tr,
+                        description:
+                            L10nKeys.settingsSearchShortcutDescription.tr,
+                        control: _SettingsValue(
+                          key: const ValueKey('settings-search-shortcut'),
+                          value: _shortcutLabel('F'),
+                        ),
+                      ),
+                      _SettingsRow(
+                        icon: DownpeedIcons.settings,
+                        title: L10nKeys.settingsOpenSettingsShortcut.tr,
+                        description:
+                            L10nKeys.settingsOpenSettingsShortcutDescription.tr,
+                        control: _SettingsValue(
+                          key: const ValueKey(
+                            'settings-open-settings-shortcut',
+                          ),
+                          value: _shortcutLabel(','),
+                        ),
+                      ),
+                      _SettingsRow(
+                        icon: DownpeedIcons.retry,
+                        title: L10nKeys.settingsRefreshShortcut.tr,
+                        description:
+                            L10nKeys.settingsRefreshShortcutDescription.tr,
+                        control: _SettingsValue(
+                          key: const ValueKey('settings-refresh-shortcut'),
+                          value: _shortcutLabel('R'),
                         ),
                       ),
                       _SettingsRow(
@@ -951,6 +984,152 @@ class _SettingsContent extends StatelessWidget {
                               ),
                       ),
                     ],
+                    SettingsSection.connection => [
+                      _SettingsRow(
+                        icon: DownpeedIcons.proxy,
+                        title: L10nKeys.settingsProxyMode.tr,
+                        description: L10nKeys.settingsProxyModeDescription.tr,
+                        control: proxySettings == null
+                            ? _SettingsValue(
+                                key: const ValueKey(
+                                  'settings-proxy-mode-loading',
+                                ),
+                                value: L10nKeys
+                                    .settingsDownloadDirectoryLoading
+                                    .tr,
+                              )
+                            : _ProxyModeControl(
+                                key: const ValueKey('settings-proxy-mode'),
+                                selected: controller.proxyMode.value,
+                                onSelected: proxySaving
+                                    ? null
+                                    : controller.selectProxyMode,
+                              ),
+                      ),
+                      if (controller.proxyMode.value.isManual) ...[
+                        _SettingsRow(
+                          icon: DownpeedIcons.server,
+                          title: L10nKeys.settingsProxyEndpoint.tr,
+                          description:
+                              L10nKeys.settingsProxyEndpointDescription.tr,
+                          control: _ProxyEndpointControl(
+                            hostController: controller.proxyHostController,
+                            portController: controller.proxyPortController,
+                            enabled: !proxySaving,
+                          ),
+                        ),
+                        _SettingsRow(
+                          icon: DownpeedIcons.key,
+                          title: L10nKeys.settingsProxyAuthentication.tr,
+                          description: L10nKeys
+                              .settingsProxyAuthenticationDescription
+                              .tr,
+                          control: _ProxyAuthenticationControl(
+                            usernameController:
+                                controller.proxyUsernameController,
+                            passwordController:
+                                controller.proxyPasswordController,
+                            hasStoredPassword: controller
+                                .proxySettingsService
+                                .hasStoredPassword
+                                .value,
+                            enabled: !proxySaving,
+                            onClear: controller.clearProxyCredential,
+                          ),
+                        ),
+                      ],
+                      _SettingsRow(
+                        icon: DownpeedIcons.timer,
+                        title: L10nKeys.settingsProxyConnectTimeout.tr,
+                        description:
+                            L10nKeys.settingsProxyConnectTimeoutDescription.tr,
+                        control: DownpeedNumberStepper(
+                          key: const ValueKey('settings-proxy-connect-timeout'),
+                          decrementKey: const ValueKey(
+                            'settings-proxy-connect-timeout-decrement',
+                          ),
+                          incrementKey: const ValueKey(
+                            'settings-proxy-connect-timeout-increment',
+                          ),
+                          value: controller.proxyConnectTimeoutSeconds.value,
+                          minimum: ProxySettings.minimumTimeoutSeconds,
+                          maximum: ProxySettings.maximumTimeoutSeconds,
+                          suffix: 's',
+                          onChanged: proxySaving
+                              ? null
+                              : controller.setProxyConnectTimeout,
+                          decrementTooltip:
+                              L10nKeys.settingsProxyDecreaseTimeout.tr,
+                          incrementTooltip:
+                              L10nKeys.settingsProxyIncreaseTimeout.tr,
+                        ),
+                      ),
+                      _SettingsRow(
+                        icon: DownpeedIcons.timer,
+                        title: L10nKeys.settingsProxyResponseTimeout.tr,
+                        description:
+                            L10nKeys.settingsProxyResponseTimeoutDescription.tr,
+                        control: DownpeedNumberStepper(
+                          key: const ValueKey(
+                            'settings-proxy-response-timeout',
+                          ),
+                          decrementKey: const ValueKey(
+                            'settings-proxy-response-timeout-decrement',
+                          ),
+                          incrementKey: const ValueKey(
+                            'settings-proxy-response-timeout-increment',
+                          ),
+                          value: controller.proxyResponseTimeoutSeconds.value,
+                          minimum: ProxySettings.minimumTimeoutSeconds,
+                          maximum: ProxySettings.maximumTimeoutSeconds,
+                          suffix: 's',
+                          onChanged: proxySaving
+                              ? null
+                              : controller.setProxyResponseTimeout,
+                          decrementTooltip:
+                              L10nKeys.settingsProxyDecreaseTimeout.tr,
+                          incrementTooltip:
+                              L10nKeys.settingsProxyIncreaseTimeout.tr,
+                        ),
+                      ),
+                      _SettingsRow(
+                        icon: DownpeedIcons.testConnection,
+                        title: L10nKeys.settingsProxyActions.tr,
+                        description:
+                            L10nKeys.settingsProxyActionsDescription.tr,
+                        control: Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          alignment: WrapAlignment.end,
+                          children: [
+                            OutlinedButton.icon(
+                              key: const ValueKey('settings-proxy-test'),
+                              onPressed: proxySaving || proxyTesting
+                                  ? null
+                                  : controller.testProxy,
+                              icon: const Icon(DownpeedIcons.testConnection),
+                              label: Text(
+                                proxyTesting
+                                    ? L10nKeys.settingsProxyTesting.tr
+                                    : L10nKeys.settingsProxyTest.tr,
+                              ),
+                            ),
+                            FilledButton.icon(
+                              key: const ValueKey('settings-proxy-save'),
+                              onPressed: proxySaving || proxyTesting
+                                  ? null
+                                  : controller.saveProxySettings,
+                              icon: const Icon(DownpeedIcons.completed),
+                              label: Text(
+                                proxySaving
+                                    ? L10nKeys.settingsProxySaving.tr
+                                    : L10nKeys.settingsProxySave.tr,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                     SettingsSection.bitTorrent => [
                       _SettingsRow(
                         icon: DownpeedIcons.connections,
@@ -1159,6 +1338,15 @@ class _SettingsContent extends StatelessWidget {
                         ),
                       ),
                       _SettingsRow(
+                        icon: DownpeedIcons.info,
+                        title: L10nKeys.settingsAboutBuild.tr,
+                        description: L10nKeys.settingsAboutBuildDescription.tr,
+                        control: _SettingsValue(
+                          key: const ValueKey('settings-build-info'),
+                          value: DownpeedBuildInfo.displayBuild,
+                        ),
+                      ),
+                      _SettingsRow(
                         icon: DownpeedIcons.engine,
                         title: L10nKeys.settingsAboutEngineVersion.tr,
                         description: engineInfo == null
@@ -1288,6 +1476,47 @@ class _SettingsContent extends StatelessWidget {
                     key: const ValueKey('settings-scheduler-note'),
                     title: L10nKeys.settingsSchedulerNoteTitle.tr,
                     body: L10nKeys.settingsSchedulerNoteBody.tr,
+                  ),
+                ],
+                if (section == SettingsSection.connection) ...[
+                  if (controller.proxySettingsService.errorMessage.value !=
+                      null) ...[
+                    const SizedBox(height: 14),
+                    _SettingsPreferenceNote(
+                      key: const ValueKey('settings-proxy-error'),
+                      title: L10nKeys.settingsProxyErrorTitle.tr,
+                      body: controller.proxySettingsService.errorMessage.value!,
+                    ),
+                  ],
+                  if (controller.proxySettingsService.testErrorMessage.value !=
+                      null) ...[
+                    const SizedBox(height: 14),
+                    _SettingsPreferenceNote(
+                      key: const ValueKey('settings-proxy-test-error'),
+                      title: L10nKeys.settingsProxyTestErrorTitle.tr,
+                      body: controller
+                          .proxySettingsService
+                          .testErrorMessage
+                          .value!,
+                    ),
+                  ],
+                  if (controller.proxySettingsService.testResult.value !=
+                      null) ...[
+                    const SizedBox(height: 14),
+                    _SettingsPreferenceNote(
+                      key: const ValueKey('settings-proxy-test-success'),
+                      title: L10nKeys.settingsProxyTestSuccessTitle.tr,
+                      body: L10nKeys.settingsProxyTestSuccessBody.trParams({
+                        'latency':
+                            '${controller.proxySettingsService.testResult.value!.latencyMs}',
+                      }),
+                    ),
+                  ],
+                  const SizedBox(height: 14),
+                  _SettingsPreferenceNote(
+                    key: const ValueKey('settings-proxy-note'),
+                    title: L10nKeys.settingsProxyNoteTitle.tr,
+                    body: L10nKeys.settingsProxyNoteBody.tr,
                   ),
                 ],
                 if (section == SettingsSection.bitTorrent) ...[
@@ -1611,6 +1840,176 @@ class _BrandSurfacePreview extends StatelessWidget {
   }
 }
 
+class _ProxyEndpointControl extends StatelessWidget {
+  const _ProxyEndpointControl({
+    required this.hostController,
+    required this.portController,
+    required this.enabled,
+  });
+
+  final TextEditingController hostController;
+  final TextEditingController portController;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 300,
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              key: const ValueKey('settings-proxy-host'),
+              controller: hostController,
+              enabled: enabled,
+              decoration: InputDecoration(
+                hintText: L10nKeys.settingsProxyHostHint.tr,
+                isDense: true,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 76,
+            child: TextField(
+              key: const ValueKey('settings-proxy-port'),
+              controller: portController,
+              enabled: enabled,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                hintText: L10nKeys.settingsProxyPortHint.tr,
+                isDense: true,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProxyModeControl extends StatelessWidget {
+  const _ProxyModeControl({
+    required this.selected,
+    required this.onSelected,
+    super.key,
+  });
+
+  final ProxyMode selected;
+  final ValueChanged<ProxyMode>? onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final segments = [
+      DownpeedSegment(
+        value: ProxyMode.direct,
+        label: L10nKeys.settingsProxyModeDirect.tr,
+      ),
+      DownpeedSegment(
+        value: ProxyMode.system,
+        label: L10nKeys.settingsProxyModeSystem.tr,
+      ),
+      const DownpeedSegment(value: ProxyMode.http, label: 'HTTP'),
+      const DownpeedSegment(value: ProxyMode.socks5, label: 'SOCKS5'),
+    ];
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth >= 360) {
+          return DownpeedSegmentedControl<ProxyMode>(
+            segments: segments,
+            selected: selected,
+            onSelected: onSelected,
+          );
+        }
+        return Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            DownpeedSegmentedControl<ProxyMode>(
+              segments: segments.take(2).toList(growable: false),
+              selected: selected,
+              onSelected: onSelected,
+            ),
+            DownpeedSegmentedControl<ProxyMode>(
+              segments: segments.skip(2).toList(growable: false),
+              selected: selected,
+              onSelected: onSelected,
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _ProxyAuthenticationControl extends StatelessWidget {
+  const _ProxyAuthenticationControl({
+    required this.usernameController,
+    required this.passwordController,
+    required this.hasStoredPassword,
+    required this.enabled,
+    required this.onClear,
+  });
+
+  final TextEditingController usernameController;
+  final TextEditingController passwordController;
+  final bool hasStoredPassword;
+  final bool enabled;
+  final VoidCallback onClear;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 300,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            key: const ValueKey('settings-proxy-username'),
+            controller: usernameController,
+            enabled: enabled,
+            autofillHints: const [AutofillHints.username],
+            decoration: InputDecoration(
+              hintText: L10nKeys.settingsProxyUsernameHint.tr,
+              isDense: true,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  key: const ValueKey('settings-proxy-password'),
+                  controller: passwordController,
+                  enabled: enabled,
+                  obscureText: true,
+                  enableSuggestions: false,
+                  autocorrect: false,
+                  autofillHints: const [AutofillHints.password],
+                  decoration: InputDecoration(
+                    hintText: hasStoredPassword
+                        ? L10nKeys.settingsProxyPasswordStored.tr
+                        : L10nKeys.settingsProxyPasswordHint.tr,
+                    isDense: true,
+                  ),
+                ),
+              ),
+              if (hasStoredPassword) ...[
+                const SizedBox(width: 6),
+                TextButton(
+                  key: const ValueKey('settings-proxy-password-clear'),
+                  onPressed: enabled ? onClear : null,
+                  child: Text(L10nKeys.settingsProxyPasswordClear.tr),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _SettingsValue extends StatelessWidget {
   const _SettingsValue({required this.value, super.key});
 
@@ -1883,6 +2282,12 @@ List<_SettingsNavigationGroup> _settingsNavigationGroups() => [
         section: SettingsSection.scheduler,
       ),
       _SettingsNavigationDestination(
+        key: const ValueKey('settings-nav-connection'),
+        icon: DownpeedIcons.proxy,
+        label: L10nKeys.settingsProxy.tr,
+        section: SettingsSection.connection,
+      ),
+      _SettingsNavigationDestination(
         key: const ValueKey('settings-nav-bt'),
         icon: DownpeedIcons.magnet,
         label: L10nKeys.settingsBT.tr,
@@ -1944,6 +2349,7 @@ String _settingsSectionTitle(SettingsSection section) => switch (section) {
   SettingsSection.notifications => L10nKeys.settingsNotifications.tr,
   SettingsSection.downloads => L10nKeys.settingsDownloads.tr,
   SettingsSection.scheduler => L10nKeys.settingsScheduler.tr,
+  SettingsSection.connection => L10nKeys.settingsProxy.tr,
   SettingsSection.bitTorrent => L10nKeys.settingsBT.tr,
   SettingsSection.engine => L10nKeys.settingsEngine.tr,
   SettingsSection.diagnostics => L10nKeys.settingsDiagnostics.tr,
@@ -1958,6 +2364,7 @@ String _settingsSectionDescription(SettingsSection section) =>
         L10nKeys.settingsNotificationsDescription.tr,
       SettingsSection.downloads => L10nKeys.settingsDownloadsDescription.tr,
       SettingsSection.scheduler => L10nKeys.settingsSchedulerDescription.tr,
+      SettingsSection.connection => L10nKeys.settingsProxyDescription.tr,
       SettingsSection.bitTorrent => L10nKeys.settingsBTDescription.tr,
       SettingsSection.engine => L10nKeys.settingsEngineSectionDescription.tr,
       SettingsSection.diagnostics => L10nKeys.settingsDiagnosticsDescription.tr,
@@ -1982,6 +2389,9 @@ List<int> _schedulerRateLimits(int current) => <int>{
 String _schedulerRateLabel(int value) => value == 0
     ? L10nKeys.settingsSchedulerUnlimited.tr
     : '${formatBytes(value)}/s';
+
+String _shortcutLabel(String key) =>
+    defaultTargetPlatform == TargetPlatform.macOS ? '⌘ $key' : 'Ctrl $key';
 
 String _engineTitle(EngineConnectionState state) => switch (state) {
   EngineConnectionState.checking => L10nKeys.engineChecking.tr,

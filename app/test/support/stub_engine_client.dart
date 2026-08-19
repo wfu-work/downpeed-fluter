@@ -80,8 +80,16 @@ class StubEngineClient implements EngineClient {
     required String defaultDownloadDirectory,
     required FileConflictPolicy fileConflictPolicy,
     required SchedulerSettings scheduler,
+    required ProxySettings proxy,
     required BTPolicySettings bitTorrent,
   }) => throw UnimplementedError();
+
+  @override
+  Future<void> updateProxyCredential(String password) =>
+      throw UnimplementedError();
+
+  @override
+  Future<ProxyTestResult> testProxy() => throw UnimplementedError();
 
   @override
   Future<DownloadTask> fetchTask(String id) => throw UnimplementedError();

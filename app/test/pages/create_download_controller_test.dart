@@ -482,9 +482,19 @@ class _SettingsEngineClient extends StubEngineClient {
     defaultDownloadDirectory: '/tmp/Downloads',
     fileConflictPolicy: FileConflictPolicy.fail,
     scheduler: _testScheduler,
+    proxy: _testProxySettings,
     bitTorrent: _testBTPolicy,
   );
 }
+
+const _testProxySettings = ProxySettings(
+  mode: ProxyMode.direct,
+  host: '',
+  port: 0,
+  username: '',
+  connectTimeoutSeconds: 10,
+  responseHeaderTimeoutSeconds: 30,
+);
 
 const _testScheduler = SchedulerSettings(
   maxConcurrentTasks: 3,

@@ -1,6 +1,8 @@
 import 'package:get/get.dart';
 
 import '../data/clients/engine_client.dart';
+import '../services/app_command_service.dart';
+import '../services/app_link_service.dart';
 import '../services/app_service.dart';
 import '../services/bt_diagnostics_service.dart';
 import '../services/directory_picker.dart';
@@ -13,6 +15,8 @@ import '../services/embedded_engine_service.dart';
 import '../services/engine_service.dart';
 import '../services/engine_settings_service.dart';
 import '../services/preferences_service.dart';
+import '../services/proxy_credential_store.dart';
+import '../services/proxy_settings_service.dart';
 import '../services/startup_service.dart';
 import '../services/task_service.dart';
 import '../services/torrent_file_picker.dart';
@@ -49,6 +53,15 @@ class DependencyRegistrar {
     }
     if (!Get.isRegistered<DownloadDialogService>()) {
       Get.put<DownloadDialogService>(DownloadDialogService(), permanent: true);
+    }
+    if (!Get.isRegistered<AppCommandService>()) {
+      Get.put<AppCommandService>(
+        AppCommandService(showWindow: DesktopIntegrationService.to.showWindow),
+        permanent: true,
+      );
+    }
+    if (!Get.isRegistered<AppLinkService>()) {
+      Get.put<AppLinkService>(AppLinkService(), permanent: true);
     }
     if (!Get.isRegistered<StartupService>()) {
       Get.put<StartupService>(StartupService(), permanent: true);
@@ -90,6 +103,22 @@ class DependencyRegistrar {
     if (!Get.isRegistered<EngineSettingsService>()) {
       Get.put<EngineSettingsService>(
         EngineSettingsService(client: Get.find<EngineClient>()),
+        permanent: true,
+      );
+    }
+    if (!Get.isRegistered<ProxyCredentialStore>()) {
+      Get.put<ProxyCredentialStore>(
+        const MethodChannelProxyCredentialStore(),
+        permanent: true,
+      );
+    }
+    if (!Get.isRegistered<ProxySettingsService>()) {
+      Get.put<ProxySettingsService>(
+        ProxySettingsService(
+          client: Get.find<EngineClient>(),
+          engineSettings: EngineSettingsService.to,
+          credentialStore: Get.find<ProxyCredentialStore>(),
+        ),
         permanent: true,
       );
     }

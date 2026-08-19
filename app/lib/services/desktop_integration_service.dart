@@ -2,13 +2,11 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/widgets.dart';
 import 'package:get/get.dart';
 import 'package:tray_manager/tray_manager.dart';
 import 'package:window_manager/window_manager.dart';
 
-import '../app/pages/create_download/create_download_view.dart';
-import '../app/routes/app_pages.dart';
+import 'app_command_service.dart';
 import 'embedded_engine_service.dart';
 import 'preferences_service.dart';
 
@@ -238,12 +236,7 @@ class DesktopIntegrationService extends GetxService {
   }
 
   Future<void> _showNewDownload() async {
-    if (Get.isDialogOpen == true) return;
-    if (Get.currentRoute.split('?').first != Routes.tasks) {
-      Get.offAllNamed<void>(Routes.tasks);
-      await WidgetsBinding.instance.endOfFrame;
-    }
-    await showCreateDownloadDialog();
+    await AppCommandService.to.openNewDownload();
   }
 
   DesktopTrayLabels _localizedLabels() {

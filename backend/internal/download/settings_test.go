@@ -31,7 +31,7 @@ func TestSettingsManagerUsesUpdatesAndPersistsDefaultDirectory(t *testing.T) {
 		t.Fatal(err)
 	}
 	settings, err := manager.GetSettings(context.Background())
-	if err != nil || settings.DefaultDownloadDirectory != defaultDirectory || settings.FileConflictPolicy != DefaultFileConflictPolicy || settings.Scheduler != defaultScheduler || settings.BitTorrent != DefaultBTPolicySettings() {
+	if err != nil || settings.DefaultDownloadDirectory != defaultDirectory || settings.FileConflictPolicy != DefaultFileConflictPolicy || settings.Scheduler != defaultScheduler || settings.Proxy != DefaultProxySettings() || settings.BitTorrent != DefaultBTPolicySettings() {
 		t.Fatalf("defaults = %#v, error = %v", settings, err)
 	}
 	policy := DefaultBTPolicySettings()
@@ -41,13 +41,22 @@ func TestSettingsManagerUsesUpdatesAndPersistsDefaultDirectory(t *testing.T) {
 		DownloadRateLimit:  1024 * 1024,
 		MaxRetries:         1,
 	}
+	updatedProxy := ProxySettings{
+		Mode:                         ProxyModeSOCKS5,
+		Host:                         "127.0.0.1",
+		Port:                         1080,
+		Username:                     "downpeed",
+		ConnectTimeoutSeconds:        8,
+		ResponseHeaderTimeoutSeconds: 20,
+	}
 	updated, err := manager.UpdateSettings(context.Background(), EngineSettings{
 		DefaultDownloadDirectory: selectedDirectory,
 		FileConflictPolicy:       FileConflictPolicyUniquify,
 		Scheduler:                updatedScheduler,
+		Proxy:                    updatedProxy,
 		BitTorrent:               policy,
 	})
-	if err != nil || updated.DefaultDownloadDirectory != selectedDirectory || updated.FileConflictPolicy != FileConflictPolicyUniquify || updated.Scheduler != updatedScheduler || updated.BitTorrent.MaxPeerConnections != 20 {
+	if err != nil || updated.DefaultDownloadDirectory != selectedDirectory || updated.FileConflictPolicy != FileConflictPolicyUniquify || updated.Scheduler != updatedScheduler || updated.Proxy != updatedProxy || updated.BitTorrent.MaxPeerConnections != 20 {
 		t.Fatalf("updated = %#v, error = %v", updated, err)
 	}
 	restored, err := NewSettingsManager(context.Background(), store, defaultDirectory)
@@ -55,7 +64,7 @@ func TestSettingsManagerUsesUpdatesAndPersistsDefaultDirectory(t *testing.T) {
 		t.Fatal(err)
 	}
 	settings, _ = restored.GetSettings(context.Background())
-	if settings.DefaultDownloadDirectory != selectedDirectory || settings.FileConflictPolicy != FileConflictPolicyUniquify || settings.Scheduler != updatedScheduler || settings.BitTorrent.MaxPeerConnections != 20 {
+	if settings.DefaultDownloadDirectory != selectedDirectory || settings.FileConflictPolicy != FileConflictPolicyUniquify || settings.Scheduler != updatedScheduler || settings.Proxy != updatedProxy || settings.BitTorrent.MaxPeerConnections != 20 {
 		t.Fatalf("restored = %#v", settings)
 	}
 }
@@ -105,6 +114,38 @@ func TestSettingsManagerAppliesFileConflictPolicyAfterPersistence(t *testing.T) 
 	}
 	if len(applied) != 2 || applied[0] != FileConflictPolicyFail || applied[1] != FileConflictPolicyUniquify {
 		t.Fatalf("applied file conflict policies = %#v", applied)
+	}
+}
+
+func TestSettingsManagerAppliesProxySettingsAfterPersistence(t *testing.T) {
+	directory := t.TempDir()
+	manager, err := NewSettingsManager(context.Background(), &memorySettingsStore{}, directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	applied := make([]ProxySettings, 0, 2)
+	manager.SetProxySettingsApplier(func(settings ProxySettings) {
+		applied = append(applied, settings)
+	})
+	proxySettings := ProxySettings{
+		Mode:                         ProxyModeHTTP,
+		Host:                         "proxy.example",
+		Port:                         8080,
+		Username:                     "user",
+		ConnectTimeoutSeconds:        5,
+		ResponseHeaderTimeoutSeconds: 15,
+	}
+	if _, err = manager.UpdateSettings(context.Background(), EngineSettings{
+		DefaultDownloadDirectory: directory,
+		FileConflictPolicy:       DefaultFileConflictPolicy,
+		Scheduler:                DefaultSchedulerSettings(),
+		Proxy:                    proxySettings,
+		BitTorrent:               DefaultBTPolicySettings(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if len(applied) != 2 || applied[0] != DefaultProxySettings() || applied[1] != proxySettings {
+		t.Fatalf("applied proxy settings = %#v", applied)
 	}
 }
 
@@ -160,8 +201,39 @@ func TestSettingsManagerMigratesLegacySettingsToRestrictedBTDefaults(t *testing.
 		t.Fatal(err)
 	}
 	settings, _ := manager.GetSettings(context.Background())
-	if settings.FileConflictPolicy != DefaultFileConflictPolicy || store.settings.FileConflictPolicy != DefaultFileConflictPolicy || settings.Scheduler != DefaultSchedulerSettings() || store.settings.Scheduler != DefaultSchedulerSettings() || settings.BitTorrent != DefaultBTPolicySettings() || store.settings.BitTorrent != DefaultBTPolicySettings() {
+	if settings.FileConflictPolicy != DefaultFileConflictPolicy || store.settings.FileConflictPolicy != DefaultFileConflictPolicy || settings.Scheduler != DefaultSchedulerSettings() || store.settings.Scheduler != DefaultSchedulerSettings() || settings.Proxy != DefaultProxySettings() || store.settings.Proxy != DefaultProxySettings() || settings.BitTorrent != DefaultBTPolicySettings() || store.settings.BitTorrent != DefaultBTPolicySettings() {
 		t.Fatalf("legacy settings were not migrated: manager %#v, store %#v", settings, store.settings)
+	}
+}
+
+func TestSettingsManagerRejectsInvalidProxySettingsAndKeepsPreviousValue(t *testing.T) {
+	directory := t.TempDir()
+	manager, err := NewSettingsManager(context.Background(), nil, directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tests := []ProxySettings{
+		{Mode: ProxyMode("ftp"), ConnectTimeoutSeconds: 10, ResponseHeaderTimeoutSeconds: 30},
+		{Mode: ProxyModeHTTP, Host: "https://proxy.example", Port: 8080, ConnectTimeoutSeconds: 10, ResponseHeaderTimeoutSeconds: 30},
+		{Mode: ProxyModeSOCKS5, Host: "proxy.example", Port: 0, ConnectTimeoutSeconds: 10, ResponseHeaderTimeoutSeconds: 30},
+		{Mode: ProxyModeDirect, ConnectTimeoutSeconds: 0, ResponseHeaderTimeoutSeconds: 30},
+		{Mode: ProxyModeSystem, ConnectTimeoutSeconds: 10, ResponseHeaderTimeoutSeconds: MaxProxyTimeoutSeconds + 1},
+	}
+	for _, proxySettings := range tests {
+		_, err = manager.UpdateSettings(context.Background(), EngineSettings{
+			DefaultDownloadDirectory: directory,
+			FileConflictPolicy:       DefaultFileConflictPolicy,
+			Scheduler:                DefaultSchedulerSettings(),
+			Proxy:                    proxySettings,
+			BitTorrent:               DefaultBTPolicySettings(),
+		})
+		if !errors.Is(err, ErrInvalidProxySettings) {
+			t.Fatalf("proxy %#v error = %v, want ErrInvalidProxySettings", proxySettings, err)
+		}
+	}
+	settings, _ := manager.GetSettings(context.Background())
+	if settings.Proxy != DefaultProxySettings() {
+		t.Fatalf("settings changed after rejection: %#v", settings)
 	}
 }
 

@@ -31,8 +31,13 @@ abstract interface class EngineClient {
     required String defaultDownloadDirectory,
     required FileConflictPolicy fileConflictPolicy,
     required SchedulerSettings scheduler,
+    required ProxySettings proxy,
     required BTPolicySettings bitTorrent,
   });
+
+  Future<void> updateProxyCredential(String password);
+
+  Future<ProxyTestResult> testProxy();
 
   Future<DownloadResolution> resolveDownload(String url);
 
@@ -225,6 +230,7 @@ class DioEngineClient implements EngineClient {
     required String defaultDownloadDirectory,
     required FileConflictPolicy fileConflictPolicy,
     required SchedulerSettings scheduler,
+    required ProxySettings proxy,
     required BTPolicySettings bitTorrent,
   }) async {
     try {
@@ -234,6 +240,7 @@ class DioEngineClient implements EngineClient {
           'defaultDownloadDirectory': defaultDownloadDirectory,
           'fileConflictPolicy': fileConflictPolicy.apiValue,
           'scheduler': scheduler.toJson(),
+          'proxy': proxy.toJson(),
           'bitTorrent': bitTorrent.toJson(),
         },
       );
@@ -245,6 +252,41 @@ class DioEngineClient implements EngineClient {
     } on FormatException {
       throw const EngineClientException(
         'The engine returned unsupported settings.',
+        code: 'incompatible_engine',
+        retryable: false,
+      );
+    }
+  }
+
+  @override
+  Future<void> updateProxyCredential(String password) async {
+    try {
+      await _dio.put<Map<String, dynamic>>(
+        '/api/v1/settings/proxy/credential',
+        data: <String, dynamic>{'password': password},
+      );
+    } on EngineClientException {
+      rethrow;
+    } on DioException catch (error) {
+      throw _normalizeDioError(error);
+    }
+  }
+
+  @override
+  Future<ProxyTestResult> testProxy() async {
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '/api/v1/settings/proxy/test',
+        options: Options(receiveTimeout: const Duration(seconds: 130)),
+      );
+      return ProxyTestResult.fromJson(_readData(response.data));
+    } on EngineClientException {
+      rethrow;
+    } on DioException catch (error) {
+      throw _normalizeDioError(error);
+    } on FormatException {
+      throw const EngineClientException(
+        'The engine returned an invalid proxy test result.',
         code: 'incompatible_engine',
         retryable: false,
       );

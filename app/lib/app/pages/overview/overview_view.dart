@@ -398,8 +398,8 @@ class _DashboardCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.downpeedColors;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return SizedBox(
-      height: _dashboardCardHeight,
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: _dashboardCardHeight),
       child: Container(
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
@@ -417,7 +417,6 @@ class _DashboardCard extends StatelessWidget {
           ],
         ),
         child: Stack(
-          fit: StackFit.expand,
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(18, 17, 18, 16),
@@ -709,7 +708,6 @@ class _OverviewTaskSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.downpeedColors;
     return Container(
-      key: key,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: colors.surfaceRaised,
@@ -1255,16 +1253,21 @@ class _ActivityHeatmap extends StatelessWidget {
                 SizedBox(
                   width: labelWidth,
                   height: gridHeight,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Stack(
+                    clipBehavior: Clip.none,
                     children: [
-                      for (final label in weekdayLabels)
-                        Text(
-                          label,
-                          style: Theme.of(context).textTheme.labelSmall
-                              ?.copyWith(color: colors.textMuted),
-                        ),
+                      for (var index = 0; index < weekdayLabels.length; index++)
+                        if (weekdayLabels[index].isNotEmpty)
+                          Positioned(
+                            top: index * (cellSize + gap) - cellSize / 2,
+                            left: 0,
+                            child: Text(
+                              weekdayLabels[index],
+                              maxLines: 1,
+                              style: Theme.of(context).textTheme.labelSmall
+                                  ?.copyWith(color: colors.textMuted),
+                            ),
+                          ),
                     ],
                   ),
                 ),

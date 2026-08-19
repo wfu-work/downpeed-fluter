@@ -18,6 +18,8 @@ enum TaskListFilter { all, active, completed, issues }
 enum TaskListSort { newest, oldest, name, progress, size }
 
 class TaskListController extends GetxController {
+  static TaskListController get to => Get.find<TaskListController>();
+
   TaskListController({
     required this.engineService,
     required this.btDiagnostics,
@@ -30,6 +32,7 @@ class TaskListController extends GetxController {
   final TaskService taskService;
   final DesktopActionsService desktopActions;
   final searchController = TextEditingController();
+  final searchFocusNode = FocusNode(debugLabel: 'task-search');
   final searchQuery = ''.obs;
   final filter = TaskListFilter.all.obs;
   final sort = TaskListSort.newest.obs;
@@ -101,6 +104,14 @@ class TaskListController extends GetxController {
   Future<void> retryEngine() => engineService.refresh();
 
   Future<void> retryTasks() => taskService.refresh();
+
+  void focusSearch() {
+    searchFocusNode.requestFocus();
+    searchController.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: searchController.text.length,
+    );
+  }
 
   void updateSearch(String value) {
     if (searchQuery.value != value) {
@@ -366,6 +377,7 @@ class TaskListController extends GetxController {
     _engineWorker?.dispose();
     _tasksWorker?.dispose();
     searchController.dispose();
+    searchFocusNode.dispose();
     for (final id in diagnosticsExpandedTaskIds) {
       btDiagnostics.setExpanded(id, false);
     }

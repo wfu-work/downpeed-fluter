@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Downpeed
+Comment=Local-first download manager
+Exec=downpeed %u
+Icon=downpeed
+Terminal=false
+Categories=Network;FileTransfer;Utility;
+MimeType=x-scheme-handler/downpeed;
+StartupNotify=true
+StartupWMClass=Downpeed
